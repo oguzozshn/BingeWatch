@@ -1,0 +1,207 @@
+﻿@page "/show/{ImdbId}"
+@inject HttpClient Http
+@inject IConfiguration Configuration
+@using System.Globalization
+
+
+@using BingeWatch.Web.Models
+
+<div class="show-container">
+    <div class="left-panel">
+        <img src="@PosterUrl" alt="@ShowTitle" class="poster" />
+        <div class="info">
+            <h2>@ShowTitle</h2>
+            <p><span class="rating">⭐ @ShowRating</span> (@Votes votes)</p>
+            <p>@ShowYear - now</p>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="legend">
+            <span class="dot awesome"></span> Awesome
+            <span class="dot great"></span> Great
+            <span class="dot good"></span> Good
+            <span class="dot regular"></span> Regular
+            <span class="dot bad"></span> Bad
+            <span class="dot garbage"></span> Garbage
+        </div>
+
+        <div class="seasons">
+            @foreach (var season in SeasonGroups)
+            {
+                <div class="season">
+                    <h4>@($"S{season.Key}")</h4>
+                    <div class="episodes">
+                        @foreach (var ep in season.Value)
+                        {
+                            <div class="episode-box" title="@($"{ep.Title}\nSeason {ep.Season}, Episode {ep.Episode}")"
+                                 style="background-color:@GetColor(ep.imdbRating)">
+                                @(string.IsNullOrEmpty(ep.imdbRating) ? "?" : ep.imdbRating)
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .show-container {
+        display: flex;
+        color: white;
+        background-color: #111;
+        font-family: 'Segoe UI', sans-serif;
+        padding: 20px;
+    }
+
+    .left-panel {
+        width: 250px;
+    }
+
+    .poster {
+        width: 100%;
+        border-radius: 8px;
+    }
+
+    .info {
+        margin-top: 10px;
+    }
+
+    .rating {
+        color: gold;
+    }
+
+    .right-panel {
+        flex-grow: 1;
+        margin-left: 40px;
+    }
+
+    .legend {
+        margin-bottom: 10px;
+    }
+
+    .dot {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 4px;
+    }
+
+    .awesome {
+        background: #00ff66;
+    }
+
+    .great {
+        background: #6fff00;
+    }
+
+    .good {
+        background: #ccff00;
+    }
+
+    .regular {
+        background: #ffaa00;
+    }
+
+    .bad {
+        background: #ff5500;
+    }
+
+    .garbage {
+        background: #aa00ff;
+    }
+
+    .seasons {
+        display: flex;
+        gap: 30px;
+    }
+
+    .episodes {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .episode-box {
+        width: 50px;
+        height: 30px;
+        text-align: center;
+        border-radius: 6px;
+        line-height: 30px;
+        font-weight: bold;
+        background: gray;
+        color: black;
+        cursor: pointer;
+    }
+</style>
+
+@code {
+    [Parameter] public string ImdbId { get; set; }
+
+    private List<OmdbEpisodeRatingModel> Episodes { get; set; } = new();
+    private Dictionary<int, List<OmdbEpisodeRatingModel>> SeasonGroups = new();
+
+    private string OmdbApiKey;
+    private string PosterUrl;
+    private string ShowTitle;
+    private string ShowYear;
+    private string ShowRating;
+    private string Votes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        OmdbApiKey = Configuration["OmdbApiKey"];
+
+        var showData = await Http.GetFromJsonAsync<OmdbShowModel>($"http://www.omdbapi.com/?i={ImdbId}&apikey={OmdbApiKey}");
+        if (showData != null)
+        {
+            PosterUrl = showData.Poster;
+            ShowTitle = showData.Title;
+            ShowYear = showData.Year;
+            ShowRating = showData.imdbRating;
+            Votes = showData.imdbVotes;
+        }
+
+        for (int season = 1; season <= 5; season++)
+        {
+            var url = $"http://www.omdbapi.com/?i={ImdbId}&Season={season}&apikey={OmdbApiKey}";
+            var seasonData = await Http.GetFromJsonAsync<OmdbSeasonResponse>(url);
+
+            if (seasonData?.Episodes != null)
+            {
+                foreach (var ep in seasonData.Episodes)
+                {
+                    ep.Season = season.ToString();
+                }
+                Episodes.AddRange(seasonData.Episodes);
+            }
+        }
+
+        SeasonGroups = Episodes
+            .GroupBy(e => int.Parse(e.Season))
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    private string GetColor(string ratingStr)
+    {
+        if (string.IsNullOrWhiteSpace(ratingStr))
+            return "gray";
+
+        if (!double.TryParse(ratingStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double rating))
+            return "gray";
+
+        return rating switch
+        {
+            >= 9 => "#00ff66",  
+            >= 8 => "#6fff00",  
+            >= 7 => "#ccff00",  
+            >= 6 => "#ffaa00",  
+            >= 5 => "#ff5500",  
+            _ => "#aa00ff"      
+        };
+    }
+
+}
+

@@ -1,0 +1,193 @@
+@page "/watchlist"
+@inject HttpClient Http
+
+@using BingeWatch.Web.Models
+@using BingeWatch.Web.Dtos
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>WatchList</PageTitle>
+
+<h2 class="section-title">MY WATCHLIST</h2>
+
+<div class="search-section">
+    <div class="search-container">
+        <div class="search-input-wrapper">
+            <input 
+                @bind="searchQuery" 
+                @bind:event="oninput"
+                @onkeyup="OnSearchInput"
+                @onfocus="OnSearchFocus"
+                @onblur="OnSearchBlur"
+                placeholder="Search for a series..." 
+                class="search-input" />
+            
+            @if (showDropdown && searchResults.Any())
+            {
+                <div class="search-dropdown">
+                    @foreach (var series in searchResults.Take(8))
+                    {
+                        <div class="dropdown-item" @onclick="() => SelectSeries(series)">
+                            <img src="@($"https://image.tmdb.org/t/p/w92{series.PosterPath}")" alt="@series.Name" class="dropdown-poster" />
+                            <div class="dropdown-info">
+                                <div class="dropdown-title">@series.Name</div>
+                                <div class="dropdown-overview">@series.Overview</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        <button @onclick="SearchSeries" class="search-button">Search</button>
+    </div>
+</div>
+
+<div class="watchlist-section">
+    <h3>My WatchList (@watchList.Count items)</h3>
+    @if (watchList.Any())
+    {
+        <div class="watchlist-grid">
+            @foreach (var series in watchList)
+            {
+                <div class="watchlist-card">
+                    <img src="@($"https://image.tmdb.org/t/p/w500{series.PosterPath}")" alt="@series.Name" class="series-poster" />
+                    <div class="series-info">
+                        <h4>@series.Name</h4>
+                        <p>@series.Overview</p>
+                        <button @onclick="() => RemoveFromWatchList(series)" class="remove-button">Remove</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <p class="empty-message">Your watchlist is empty. Search for series to add them!</p>
+    }
+</div>
+
+@code {
+    private string searchQuery = "";
+    private List<SeriesDto> searchResults = new();
+    private List<SeriesDto> watchList = new();
+    private Timer? searchTimer;
+    private bool showDropdown = false;
+    private const string UserId = "user1";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWatchList();
+    }
+
+    private async Task LoadWatchList()
+    {
+        try
+        {
+            watchList = await Http.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/user/{UserId}") ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading watchlist: {ex.Message}");
+            watchList = new();
+        }
+    }
+
+    private async Task OnSearchInput(KeyboardEventArgs e)
+    {
+
+        searchTimer?.Dispose();
+        searchTimer = new Timer(async _ => await SearchSeries(), null, 300, Timeout.Infinite);
+    }
+
+    private void OnSearchFocus()
+    {
+        if (searchResults.Any())
+        {
+            showDropdown = true;
+        }
+    }
+
+    private void OnSearchBlur()
+    {
+        Task.Delay(200).ContinueWith(_ => 
+        {
+            InvokeAsync(() => 
+            {
+                showDropdown = false;
+                StateHasChanged();
+            });
+        });
+    }
+
+    private async Task SearchSeries()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+        {
+            searchResults.Clear();
+            showDropdown = false;
+            return;
+        }
+
+        try
+        {
+            searchResults = await Http.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/search?query={Uri.EscapeDataString(searchQuery)}") ?? new();
+            showDropdown = searchResults.Any();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Search error: {ex.Message}");
+            searchResults = new();
+            showDropdown = false;
+        }
+    }
+
+    private async Task SelectSeries(SeriesDto series)
+    {
+        await AddToWatchList(series);
+        searchQuery = "";
+        searchResults.Clear();
+        showDropdown = false;
+    }
+
+    private async Task AddToWatchList(SeriesDto series)
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"api/watchlist/user/{UserId}/add", series);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadWatchList();
+            }
+            else
+            {
+                Console.WriteLine($"Error adding to watchlist: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error adding to watchlist: {ex.Message}");
+        }
+    }
+
+    private async Task RemoveFromWatchList(SeriesDto series)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"api/watchlist/user/{UserId}/remove/{series.Id}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadWatchList();
+            }
+            else
+            {
+                Console.WriteLine($"Error removing from watchlist: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error removing from watchlist: {ex.Message}");
+        }
+    }
+}
+

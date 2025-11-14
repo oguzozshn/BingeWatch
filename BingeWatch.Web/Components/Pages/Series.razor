@@ -1,0 +1,105 @@
+@page "/series"
+@inject HttpClient Http
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+
+
+@using BingeWatch.Web.Models
+@using BingeWatch.Web.Dtos
+@using Microsoft.AspNetCore.Components.Web
+
+
+<PageTitle>Series</PageTitle>
+
+<h2 class="section-title">POPULAR SHOWS THIS WEEK <span class="more-link">MORE</span></h2>
+
+@if (series == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="carousel-container">
+        <button class="carousel-arrow left" @onclick="PrevSlide" disabled="@(startIndex == 0)">&#60;</button>
+        <div class="carousel-track">
+            @foreach (var item in VisibleSeries)
+            {
+                <div class="carousel-card" @onclick="() => GoToShow(item.ImdbId)">
+                    <img src="@($"https://image.tmdb.org/t/p/w500{item.PosterPath}")" alt="@item.Name" class="carousel-poster" />
+                    <div class="carousel-title">@item.Name</div>
+                    <input type="hidden" value="@item.ImdbId"/>
+                </div>    
+            }
+        </div>
+        <button class="carousel-arrow right" @onclick="NextSlide" disabled="@(series == null || startIndex + cardsPerView >= series.Count)">&#62;</button>
+    </div>
+  
+}
+
+@code {
+    private List<SeriesDto> series;
+    private int startIndex = 0;
+    private int cardsPerView = 4;
+    private int counter = 0;
+    private bool disposed;
+
+    private IEnumerable<SeriesDto> VisibleSeries => series?.Skip(startIndex).Take(cardsPerView) ?? Enumerable.Empty<SeriesDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        series = await Http.GetFromJsonAsync<List<SeriesDto>>("api/series");
+
+        foreach (var s in series)
+        {
+            await MapExternalIds(s);
+        }            
+    }
+
+    private async Task MapExternalIds(SeriesDto series)
+    {
+        try
+        {
+            var tmdbApiKey = Configuration["TmdbApiKey"];
+            var url = $"https://api.themoviedb.org/3/tv/{series.Id}/external_ids?api_key={tmdbApiKey}";
+
+            var externalIds = await Http.GetFromJsonAsync<ExternalIdsDto>(url);
+
+            if (!disposed && externalIds != null)
+            {
+                series.ImdbId = externalIds.ImdbId;
+                StateHasChanged(); // UI'yi güncelle
+            }
+        }
+        catch { }
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+    }
+
+
+    private void NextSlide()
+    {
+        if (series != null && startIndex + cardsPerView < series.Count)
+        {
+            startIndex++;
+        }
+    }
+
+    private void PrevSlide()
+    {
+        if (startIndex > 0)
+        {
+            startIndex--;
+        }
+    }
+
+    private void GoToShow(string imdbId)
+    {
+        if (!string.IsNullOrEmpty(imdbId))
+        {
+            Navigation.NavigateTo($"/show/{imdbId}");
+        }
+    }
+}

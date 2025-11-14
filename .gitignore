@@ -1,0 +1,88 @@
+.json
+# Build results
+bin/
+obj/
+
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+
+# Visual Studio Code
+.vscode/
+.vscode
+
+
+# Rider
+.idea/
+*.sln.iml
+
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+*.snupkg
+
+
+# Logs
+*.log
+
+
+# IIS Express
+\.vs/config/applicationhost.config
+
+
+# Generated files
+Generated/
+
+
+# Publish outputs
+publish/
+
+
+# Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+
+
+# DotCover
+*.dotCover
+
+
+# NCrunch
+_NCrunch_*/
+.*crunch*.local.xml
+
+
+# Azure
+PublishProfiles/
+
+
+# Temporary files
+*.tmp
+*.temp
+
+
+# Cache
+.cache/
+
+
+# Entity Framework
+*.mdf
+*.ldf
+
+
+# Other
+Thumbs.db
+Desktop.ini
+
+
+# Sensitive files
+appsettings.Development.json
+
+.github/
