@@ -4,6 +4,9 @@
 @using BingeWatch.Web.Models
 @using BingeWatch.Web.Dtos
 @using Microsoft.AspNetCore.Components.Web
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+
 
 <PageTitle>WatchList</PageTitle>
 
@@ -48,12 +51,18 @@
         <div class="watchlist-grid">
             @foreach (var series in watchList)
             {
-                <div class="watchlist-card">
+                <div class="carousel-card" @onclick="() => GoToShow(series.ImdbId)">
                     <img src="@($"https://image.tmdb.org/t/p/w500{series.PosterPath}")" alt="@series.Name" class="series-poster" />
+                    <h4>@series.ImdbId</h4>
+                    @if (series.ImdbId == null)
+                    {
+                        <h4>Series Imdb deðeri boþ</h4>
+                    }
                     <div class="series-info">
                         <h4>@series.Name</h4>
                         <p>@series.Overview</p>
-                        <button @onclick="() => RemoveFromWatchList(series)" class="remove-button">Remove</button>
+                        <button @onclick:stopPropagation @onclick="() => RemoveFromWatchList(series)" class="remove-button">Remove</button>
+                        <input type="hidden" value="@series.ImdbId" />
                     </div>
                 </div>
             }
@@ -72,6 +81,7 @@
     private Timer? searchTimer;
     private bool showDropdown = false;
     private const string UserId = "user1";
+    private bool disposed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -83,6 +93,11 @@
         try
         {
             watchList = await Http.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/user/{UserId}") ?? new();
+
+            foreach (var s in watchList)
+            {
+                await MapExternalIds(s);
+            }
         }
         catch (Exception ex)
         {
@@ -188,6 +203,37 @@
         {
             Console.WriteLine($"Error removing from watchlist: {ex.Message}");
         }
+    }
+
+    private void GoToShow(string imdbId)
+    {
+        if (!string.IsNullOrEmpty(imdbId))
+        {
+            Navigation.NavigateTo($"/show/{imdbId}");
+        }
+    }
+
+    private async Task MapExternalIds(SeriesDto series)
+    {
+        try
+        {
+            var tmdbApiKey = Configuration["TmdbApiKey"];
+            var url = $"https://api.themoviedb.org/3/tv/{series.Id}/external_ids?api_key={tmdbApiKey}";
+
+            var externalIds = await Http.GetFromJsonAsync<ExternalIdsDto>(url);
+
+            if (!disposed && externalIds != null)
+            {
+                series.ImdbId = externalIds.ImdbId;
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
     }
 }
 
