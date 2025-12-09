@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Mvc;
-using BingeWatch.API.Services;
 using BingeWatch.API.Clients;
 using BingeWatch.API.Configurations;
-using Microsoft.Extensions.Options;
 using BingeWatch.API.Dtos;
+using BingeWatch.API.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace BingeWatch.API.Controllers
 {
@@ -80,5 +81,21 @@ namespace BingeWatch.API.Controllers
             var isInWatchList = await _watchListService.IsInWatchListAsync(userId, seriesId);
             return Ok(new { isInWatchList });
         }
+
+        [HttpPost("user/{userId}/toggle/{seriesId}")]
+        public async Task<IActionResult> ToggleWatchlist(string userId, int seriesId)
+        {
+            var result = await _watchListService.ToggleAsync(userId, seriesId);
+
+            return Ok(new { isInWatchList = result });
+        }
+
+        [HttpGet("status")]
+        public async Task<IActionResult> GetStatus(string userId, int seriesId)
+        {
+            var result = await _watchListService.IsInWatchListAsync(userId, seriesId);
+            return Ok(result);
+        }
+
     }
 }

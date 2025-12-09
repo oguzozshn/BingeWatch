@@ -11,6 +11,7 @@ namespace BingeWatch.Web.Dtos
         public string FirstAirDate { get; set; }
         public ExternalIdsDto ExternalIds { get; set; }
         public string ImdbId { get; set; }
+        public bool IsInWatchList { get; set; } = false;
 
         public void MapExternalIds()
         {

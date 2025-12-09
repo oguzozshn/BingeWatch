@@ -1,4 +1,4 @@
-﻿@page "/show/{ImdbId}"
+﻿@page "/show/{ImdbId}/{SeriesId}"
 @inject HttpClient Http
 @inject IConfiguration Configuration
 @using System.Globalization
@@ -14,6 +14,9 @@
             <p><span class="rating">⭐ @ShowRating</span> (@Votes votes)</p>
             <p>@ShowYear - now</p>
         </div>
+        <button class="watchlist-btn" @onclick="() => ToggleWatchlist()">
+            @(IsInWatchlist ? "❤️" : "♡")
+        </button>
     </div>
 
     <div class="right-panel">
@@ -139,20 +142,26 @@
 
 @code {
     [Parameter] public string ImdbId { get; set; }
+    [Parameter] public string SeriesId { get; set; }
 
     private List<OmdbEpisodeRatingModel> Episodes { get; set; } = new();
     private Dictionary<int, List<OmdbEpisodeRatingModel>> SeasonGroups = new();
 
     private string OmdbApiKey;
+    private string TmdbApiKey;
     private string PosterUrl;
     private string ShowTitle;
     private string ShowYear;
     private string ShowRating;
     private string Votes;
+    private const string UserId = "user1";
+    private bool IsInWatchlist;
+
 
     protected override async Task OnInitializedAsync()
     {
         OmdbApiKey = Configuration["OmdbApiKey"];
+        TmdbApiKey = Configuration["TmdbApiKey"];
 
         var showData = await Http.GetFromJsonAsync<OmdbShowModel>($"http://www.omdbapi.com/?i={ImdbId}&apikey={OmdbApiKey}");
         if (showData != null)
@@ -163,6 +172,12 @@
             ShowRating = showData.imdbRating;
             Votes = showData.imdbVotes;
         }
+
+        var response = await Http.GetFromJsonAsync<bool>(
+        $"api/watchlist/status?userId={UserId}&seriesId={SeriesId}"
+    );
+
+        IsInWatchlist = response;
 
         for (int season = 1; season <= 5; season++)
         {
@@ -203,5 +218,28 @@
         };
     }
 
+    private async Task ToggleWatchlist()
+    {
+        try
+        {
+            var response = await Http.PostAsync(
+                $"api/watchlist/user/{UserId}/toggle/{SeriesId}",
+                null
+            );
+
+            var data = await response.Content.ReadFromJsonAsync<ToggleResponse>();
+            IsInWatchlist = data.isInWatchList;
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error toggling watchlist: {ex.Message}");
+        }
+    }
+
+    public class ToggleResponse
+    {
+        public bool isInWatchList { get; set; }
+    }
 }
 

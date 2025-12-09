@@ -77,7 +77,7 @@ namespace BingeWatch.API.Services
 
                 if (item == null)
                 {
-                    return false; // Bulunamadı
+                    return false;
                 }
 
                 _context.WatchListItems.Remove(item);
@@ -96,6 +96,22 @@ namespace BingeWatch.API.Services
         {
             return await _context.WatchListItems
                 .AnyAsync(w => w.UserId == userId && w.SeriesId == seriesId);
+        }
+
+        public async Task<bool> ToggleAsync(string userId, int seriesId)
+        {
+            var existing = await _context.WatchListItems
+           .FirstOrDefaultAsync(x => x.UserId == userId && x.SeriesId == seriesId);
+
+            if (existing == null)
+            {
+                return false;
+            }
+
+            _context.WatchListItems.Remove(existing);
+            await _context.SaveChangesAsync();
+
+            return false;
         }
     }
 } 
