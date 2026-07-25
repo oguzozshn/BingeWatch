@@ -268,15 +268,28 @@ namespace BingeWatch.API.Services
                       w => w.EpisodeId, e => e.Id, (w, e) => w.Id)
                 .CountAsync();
 
+            // Kullanıcının bilerek "Bıraktım" / "Ertelendi" seçtiği bir diziyi bölüm
+            // işaretlemesi otomatik olarak geri "İzliyorum"a çekmemeli.
+            if (userShow.Status == WatchStatus.Dropped || userShow.Status == WatchStatus.OnHold)
+                return;
+
             if (airedCount > 0 && watchedCount >= airedCount)
             {
                 userShow.Status = WatchStatus.Completed;
                 userShow.CompletedAt ??= DateTime.UtcNow;
             }
-            else if (watchedCount > 0 && userShow.Status == WatchStatus.PlanToWatch)
+            else if (watchedCount > 0)
             {
+                // Hem "henüz başlamadım"dan ilerlemeyi hem de bir bölümün
+                // işareti kaldırılınca "Bitirdim"den geri düşmeyi kapsar.
                 userShow.Status = WatchStatus.Watching;
                 userShow.StartedAt ??= DateTime.UtcNow;
+                userShow.CompletedAt = null;
+            }
+            else
+            {
+                userShow.Status = WatchStatus.PlanToWatch;
+                userShow.CompletedAt = null;
             }
 
             await _context.SaveChangesAsync();

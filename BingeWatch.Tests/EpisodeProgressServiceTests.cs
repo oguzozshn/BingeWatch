@@ -140,6 +140,35 @@ namespace BingeWatch.Tests
         }
 
         [Fact]
+        public async Task UnmarkingAnEpisode_RevertsCompletedShowBackToWatching()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context);
+            foreach (var ep in episodes)
+                await service.SetEpisodeWatchedAsync("user1", ep.Id, watched: true);
+
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: false);
+
+            var userShow = await context.UserShows.SingleAsync();
+            Assert.Equal(WatchStatus.Watching, userShow.Status);
+            Assert.Null(userShow.CompletedAt);
+        }
+
+        [Fact]
+        public async Task SetEpisodeWatchedAsync_DoesNotResurrectDroppedStatus()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1", WatchStatus.Dropped);
+            var service = new EpisodeProgressService(context);
+
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
+
+            var userShow = await context.UserShows.SingleAsync();
+            Assert.Equal(WatchStatus.Dropped, userShow.Status);
+        }
+
+        [Fact]
         public async Task GetNextUpAsync_ExcludesCompletedAndDroppedShows()
         {
             using var context = CreateContext();
