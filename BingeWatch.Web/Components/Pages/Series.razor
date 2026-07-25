@@ -1,5 +1,6 @@
 @page "/series"
 @inject HttpClient Http
+@inject IHttpClientFactory HttpClientFactory
 @inject IConfiguration Configuration
 @inject NavigationManager Navigation
 
@@ -42,14 +43,15 @@ else
     private int cardsPerView = 4;
     private int counter = 0;
     private bool disposed;
+    private HttpClient Api => HttpClientFactory.CreateClient("ApiClient");
 
     private IEnumerable<SeriesDto> VisibleSeries => series?.Skip(startIndex).Take(cardsPerView) ?? Enumerable.Empty<SeriesDto>();
 
     protected override async Task OnInitializedAsync()
     {
-        series = await Http.GetFromJsonAsync<List<SeriesDto>>("api/series");
+        series = await Api.GetFromJsonAsync<List<SeriesDto>>("api/series");
 
-        foreach (var s in series)
+        foreach (var s in series ?? new())
         {
             await MapExternalIds(s);
         }            

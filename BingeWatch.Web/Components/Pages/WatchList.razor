@@ -1,5 +1,6 @@
 @page "/watchlist"
 @inject HttpClient Http
+@inject IHttpClientFactory HttpClientFactory
 
 @using BingeWatch.Web.Models
 @using BingeWatch.Web.Dtos
@@ -82,6 +83,7 @@
     private bool showDropdown = false;
     private const string UserId = "user1";
     private bool disposed;
+    private HttpClient Api => HttpClientFactory.CreateClient("ApiClient");
 
     protected override async Task OnInitializedAsync()
     {
@@ -92,7 +94,7 @@
     {
         try
         {
-            watchList = await Http.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/user/{UserId}") ?? new();
+            watchList = await Api.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/user/{UserId}") ?? new();
 
             foreach (var s in watchList)
             {
@@ -144,7 +146,7 @@
 
         try
         {
-            searchResults = await Http.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/search?query={Uri.EscapeDataString(searchQuery)}") ?? new();
+            searchResults = await Api.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/search?query={Uri.EscapeDataString(searchQuery)}") ?? new();
             showDropdown = searchResults.Any();
         }
         catch (Exception ex)
@@ -167,7 +169,7 @@
     {
         try
         {
-            var response = await Http.PostAsJsonAsync($"api/watchlist/user/{UserId}/add", series);
+            var response = await Api.PostAsJsonAsync($"api/watchlist/user/{UserId}/add", series);
             
             if (response.IsSuccessStatusCode)
             {
@@ -188,7 +190,7 @@
     {
         try
         {
-            var response = await Http.DeleteAsync($"api/watchlist/user/{UserId}/remove/{series.Id}");
+            var response = await Api.DeleteAsync($"api/watchlist/user/{UserId}/remove/{series.Id}");
             
             if (response.IsSuccessStatusCode)
             {
