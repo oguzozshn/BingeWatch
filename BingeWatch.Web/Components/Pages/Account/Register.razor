@@ -1,0 +1,37 @@
+@page "/register"
+@attribute [ExcludeFromInteractiveRouting]
+
+<PageTitle>Kayıt Ol</PageTitle>
+
+<div class="container" style="max-width:420px; margin-top:3rem;">
+    <h3>Kayıt Ol</h3>
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="alert alert-danger">Kayıt başarısız: @Error</div>
+    }
+    <form method="post" action="/account/register" data-enhance="false">
+        <div class="mb-3">
+            <label class="form-label">Kullanıcı adı</label>
+            <input class="form-control" name="username" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Görünen ad</label>
+            <input class="form-control" name="displayName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">E-posta</label>
+            <input class="form-control" type="email" name="email" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Şifre</label>
+            <input class="form-control" type="password" name="password" required />
+        </div>
+        <button class="btn btn-primary" type="submit">Kayıt ol</button>
+    </form>
+    <p class="mt-3">Zaten hesabın var mı? <a href="/login">Giriş yap</a></p>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? Error { get; set; }
+}

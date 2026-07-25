@@ -1,0 +1,53 @@
+@page "/@{Username}"
+@inject IHttpClientFactory HttpClientFactory
+@using BingeWatch.Web.Models
+
+<PageTitle>@@@Username</PageTitle>
+
+@if (loading)
+{
+    <p>Yükleniyor...</p>
+}
+else if (profile == null)
+{
+    <p>Kullanıcı bulunamadı.</p>
+}
+else
+{
+    <div class="container" style="max-width:600px; margin-top:2rem;">
+        <h2>@profile.DisplayName</h2>
+        <p class="text-muted">@@@profile.Username</p>
+        @if (!string.IsNullOrWhiteSpace(profile.Bio))
+        {
+            <p>@profile.Bio</p>
+        }
+        <p class="text-muted">Katılım: @profile.CreatedAt.ToString("d MMMM yyyy")</p>
+    </div>
+}
+
+@code {
+    [Parameter] public string Username { get; set; } = string.Empty;
+
+    private UserProfileDto? profile;
+    private bool loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        profile = null;
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        try
+        {
+            profile = await client.GetFromJsonAsync<UserProfileDto>($"api/users/{Uri.EscapeDataString(Username)}");
+        }
+        catch
+        {
+            profile = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}
