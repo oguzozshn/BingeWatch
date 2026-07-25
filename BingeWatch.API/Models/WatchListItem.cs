@@ -24,8 +24,6 @@ namespace BingeWatch.API.Models
         
         public DateTime AddedDate { get; set; } = DateTime.UtcNow;
 
-        public bool IsInWatchList { get; set; }
-
         [Required]
         [MaxLength(100)]
         public string UserId { get; set; } = string.Empty; // Basit kullanıcı kimliği için

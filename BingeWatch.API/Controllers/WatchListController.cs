@@ -97,13 +97,5 @@ namespace BingeWatch.API.Controllers
             return Ok(result);
         }
 
-        [HttpPost("ping")]
-        public IActionResult Ping()
-        {
-            Console.WriteLine("PING HIT");
-            return Ok("pong");
-        }
-
-
     }
 }
