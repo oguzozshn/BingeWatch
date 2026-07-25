@@ -1,0 +1,95 @@
+@*
+    Bölüm ısı haritası. TMDb'nin bölüm puanlarının yanında kullanıcının *kendi*
+    puanlarını da aynı ızgarada gösterir — Faz 3'ün imza özelliği (ROADMAP §3B).
+    Kişisel katmanda puanlanmamış bölümler nötr renkte kalır.
+*@
+
+<div class="heatmap">
+    <div class="heatmap-head">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Isı haritası katmanı">
+            <button type="button" class="btn @(personal ? "btn-outline-secondary" : "btn-secondary")"
+                    @onclick="() => personal = false">TMDb</button>
+            <button type="button" class="btn @(personal ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick="() => personal = true">Benim puanım</button>
+        </div>
+        <span class="legend">
+            <span class="legend-label">düşük</span>
+            <span class="legend-swatch" style="background:@Color(0.0)"></span>
+            <span class="legend-swatch" style="background:@Color(0.5)"></span>
+            <span class="legend-swatch" style="background:@Color(1.0)"></span>
+            <span class="legend-label">yüksek</span>
+        </span>
+    </div>
+
+    @if (personal && PersonalRatings.Count == 0)
+    {
+        <p class="empty">Henüz hiçbir bölüme puan vermedin. Bölümler sekmesinden yıldız verebilirsin.</p>
+    }
+
+    <div class="grid">
+        @foreach (var season in Seasons)
+        {
+            <div class="row-season">
+                <span class="row-label">S@(season.SeasonNumber)</span>
+                <div class="cells">
+                    @foreach (var ep in season.Episodes)
+                    {
+                        var score = Normalized(ep);
+                        <span class="cell @(score == null ? "unrated" : "")"
+                              style="@(score == null ? "" : $"background:{Color(score.Value)}")"
+                              title="@Tooltip(season, ep)"></span>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<SeasonDetailDto> Seasons { get; set; } = new();
+
+    /// <summary>Yerel bölüm id'si → kullanıcının puanı.</summary>
+    [Parameter] public Dictionary<int, decimal> PersonalRatings { get; set; } = new();
+
+    private bool personal;
+
+    /// <summary>Bölümün skoru 0–1 aralığına indirgenir; puan yoksa <c>null</c>.</summary>
+    private double? Normalized(EpisodeDetailDto ep)
+    {
+        if (personal)
+        {
+            if (!PersonalRatings.TryGetValue(ep.Id, out var mine))
+                return null;
+            return (double)(mine - 0.5m) / 4.5;
+        }
+
+        if (ep.TmdbVoteAverage <= 0)
+            return null;
+
+        return Math.Clamp(ep.TmdbVoteAverage / 10.0, 0, 1);
+    }
+
+    /// <summary>Kırmızıdan sarıya, sarıdan yeşile giden iki parçalı skala.</summary>
+    private static string Color(double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        var (r, g) = t < 0.5
+            ? (200, (int)(60 + 150 * (t / 0.5)))
+            : ((int)(200 - 130 * ((t - 0.5) / 0.5)), 210);
+
+        return $"rgb({r},{g},70)";
+    }
+
+    private string Tooltip(SeasonDetailDto season, EpisodeDetailDto ep)
+    {
+        var label = $"S{season.SeasonNumber}B{ep.EpisodeNumber} · {ep.Name}";
+        if (personal)
+            return PersonalRatings.TryGetValue(ep.Id, out var mine)
+                ? $"{label} — senin puanın: {mine:0.#}"
+                : $"{label} — puanlamadın";
+
+        return ep.TmdbVoteAverage > 0
+            ? $"{label} — TMDb: {ep.TmdbVoteAverage:0.0}"
+            : $"{label} — TMDb puanı yok";
+    }
+}

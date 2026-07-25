@@ -1,0 +1,74 @@
+.heatmap {
+    background: var(--bw-surface);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+
+.heatmap-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.legend-label {
+    font-size: 0.7rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.legend-swatch {
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+.empty {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+    margin-bottom: 10px;
+}
+
+.grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-x: auto;
+}
+
+.row-season {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.row-label {
+    width: 34px;
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.cells {
+    display: flex;
+    gap: 3px;
+}
+
+.cell {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    cursor: default;
+}
+
+.cell.unrated {
+    background: var(--bw-surface-2);
+}

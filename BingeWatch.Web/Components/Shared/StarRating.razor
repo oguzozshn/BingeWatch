@@ -1,0 +1,108 @@
+@*
+    Yarım yıldızlı puan komponenti — Faz 3'ün her seviyede (dizi/sezon/bölüm)
+    kullandığı tek giriş noktası.
+
+    Her yıldız iki görünmez yarım butonla kaplanır: sol yarı x.5, sağ yarı x.0
+    verir. Böylece yarım yıldız için ayrı bir sürükleme/JS mantığı gerekmez.
+*@
+
+<div class="star-rating @SizeClass @(ReadOnly ? "is-readonly" : "")"
+     role="@(ReadOnly ? "img" : "radiogroup")"
+     aria-label="@AriaLabel"
+     @onmouseleave="ClearPreview">
+
+    @for (var i = 1; i <= 5; i++)
+    {
+        var index = i;
+        <span class="star">
+            <span class="star-bg">★</span>
+            <span class="star-fill" style="width:@FillPercent(index)%">★</span>
+
+            @if (!ReadOnly)
+            {
+                <button type="button" class="half half-left"
+                        title="@Half(index) yıldız"
+                        aria-label="@Half(index) yıldız ver"
+                        @onclick="() => SetAsync(Half(index))"
+                        @onmouseover="() => Preview(Half(index))"></button>
+                <button type="button" class="half half-right"
+                        title="@index yıldız"
+                        aria-label="@index yıldız ver"
+                        @onclick="() => SetAsync(index)"
+                        @onmouseover="() => Preview(index)"></button>
+            }
+        </span>
+    }
+
+    @if (ShowValue && Value.HasValue)
+    {
+        <span class="value">@Value.Value.ToString("0.#")</span>
+    }
+
+    @if (!ReadOnly && Value.HasValue && AllowClear)
+    {
+        <button type="button" class="clear" title="Puanı kaldır" aria-label="Puanı kaldır"
+                @onclick="ClearAsync">×</button>
+    }
+</div>
+
+@code {
+    /// <summary>Mevcut puan (0.5–5.0). <c>null</c> = puanlanmamış.</summary>
+    [Parameter] public decimal? Value { get; set; }
+
+    [Parameter] public EventCallback<decimal?> ValueChanged { get; set; }
+
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>Puanın yanında sayısal değeri de göster.</summary>
+    [Parameter] public bool ShowValue { get; set; }
+
+    /// <summary>Aynı puana tekrar basmak yerine ayrı bir "×" ile temizleme.</summary>
+    [Parameter] public bool AllowClear { get; set; } = true;
+
+    /// <summary>"sm" | "md" | "lg"</summary>
+    [Parameter] public string Size { get; set; } = "md";
+
+    [Parameter] public string AriaLabel { get; set; } = "Puan";
+
+    private decimal? preview;
+
+    private string SizeClass => $"size-{Size}";
+
+    private static decimal Half(int index) => index - 0.5m;
+
+    /// <summary>Fare üzerindeyken önizleme, değilse gerçek puan çizilir.</summary>
+    private decimal Displayed => preview ?? Value ?? 0m;
+
+    private int FillPercent(int index)
+    {
+        var filled = Displayed - (index - 1);
+        if (filled >= 1m) return 100;
+        if (filled <= 0m) return 0;
+        return 50;
+    }
+
+    private void Preview(decimal value)
+    {
+        if (ReadOnly) return;
+        preview = value;
+    }
+
+    private void ClearPreview() => preview = null;
+
+    private async Task SetAsync(decimal value)
+    {
+        if (ReadOnly) return;
+
+        preview = null;
+        Value = value;
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    private async Task ClearAsync()
+    {
+        preview = null;
+        Value = null;
+        await ValueChanged.InvokeAsync(null);
+    }
+}
