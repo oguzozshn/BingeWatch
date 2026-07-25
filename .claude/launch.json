@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "BingeWatch.API/BingeWatch.API.csproj", "--launch-profile", "http"],
+      "port": 5054
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "BingeWatch.Web/BingeWatch.Web.csproj", "--launch-profile", "http"],
+      "port": 5162
+    }
+  ]
+}
