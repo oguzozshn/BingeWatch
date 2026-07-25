@@ -1,52 +1,71 @@
-﻿@page "/show/{ImdbId}/{SeriesId}"
+@page "/show/{TmdbId:int}"
 @attribute [Authorize]
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
-@inject IConfiguration Configuration
 
-@using System.Globalization
-@using System.Security.Claims
 @using BingeWatch.Web.Dtos
-@using BingeWatch.Web.Models
 
-<div class="show-container">
-    <div class="left-panel">
-        <img src="@PosterUrl" alt="@ShowTitle" class="poster" />
+@if (loading)
+{
+    <p class="show-loading">Yükleniyor...</p>
+}
+else if (show == null)
+{
+    <p class="show-loading">Dizi bulunamadı.</p>
+}
+else
+{
+    <div class="show-container">
+        <div class="left-panel">
+            <img src="@PosterUrl(show.PosterPath)" alt="@show.Name" class="poster" />
 
-        <div class="info">
-            <h2>@ShowTitle</h2>
-            <p><span class="rating">⭐ @ShowRating</span> (@Votes votes)</p>
-            <p>@ShowYear - now</p>
+            <div class="info">
+                <h2>@show.Name</h2>
+                <p><span class="rating">⭐ @show.VoteAverage.ToString("0.0")</span> (@show.VoteCount.ToString("N0") oy)</p>
+                <p>@(show.FirstAirDate?.Year.ToString() ?? "—") @(string.IsNullOrEmpty(show.Status) ? "" : $"· {show.Status}")</p>
+            </div>
+
+            <button class="watchlist-btn" @onclick="ToggleWatchlist">
+                @(IsInWatchlist ? "❤️" : "♡")
+            </button>
+
+            @if (progress != null && progress.TotalEpisodes > 0)
+            {
+                var pct = (int)Math.Round(100.0 * progress.WatchedEpisodes / progress.TotalEpisodes);
+                <div class="progress-block">
+                    <div class="progress-bar"><div class="progress-fill" style="width:@(pct)%"></div></div>
+                    <p class="progress-label">@progress.WatchedEpisodes / @progress.TotalEpisodes bölüm izlendi (@pct%)</p>
+                </div>
+            }
         </div>
 
-        <button class="watchlist-btn" @onclick="ToggleWatchlist">
-            @(IsInWatchlist ? "❤️" : "♡")
-        </button>
-    </div>
-
-    <div class="right-panel">
-        <div class="legend">
-            <span class="dot awesome"></span> Awesome
-            <span class="dot great"></span> Great
-            <span class="dot good"></span> Good
-            <span class="dot regular"></span> Regular
-            <span class="dot bad"></span> Bad
-            <span class="dot garbage"></span> Garbage
-        </div>
-
-        <div class="seasons">
-            @foreach (var season in SeasonGroups)
+        <div class="right-panel">
+            @foreach (var season in show.Seasons)
             {
                 <div class="season">
-                    <h4>@($"S{season.Key}")</h4>
+                    <div class="season-header">
+                        <h4>@(string.IsNullOrEmpty(season.Name) ? $"Sezon {season.SeasonNumber}" : season.Name)</h4>
+                        <button class="season-action" @onclick="() => MarkSeasonWatched(season)">Sezonu izledim</button>
+                    </div>
                     <div class="episodes">
-                        @foreach (var ep in season.Value)
+                        @foreach (var ep in season.Episodes)
                         {
-                            <div class="episode-box"
-                                 title="@($"{ep.Title}\nSeason {ep.Season}, Episode {ep.Episode}")"
-                                 style="background-color:@GetColor(ep.imdbRating)">
-                                @(string.IsNullOrEmpty(ep.imdbRating) ? "?" : ep.imdbRating)
+                            var unaired = ep.AirDate.HasValue && ep.AirDate.Value.Date > DateTime.UtcNow.Date;
+                            <div class="episode-row @(ep.Watched ? "watched" : "") @(unaired ? "unaired" : "")">
+                                <label class="episode-checkbox">
+                                    <input type="checkbox" checked="@ep.Watched" disabled="@unaired"
+                                           @onchange="e => MarkEpisodeWatched(ep, (bool)e.Value!)" />
+                                    <span>@ep.EpisodeNumber. @ep.Name</span>
+                                </label>
+                                @if (!ep.Watched && !unaired)
+                                {
+                                    <button class="up-to-btn" @onclick="() => MarkWatchedUpTo(ep)">buraya kadar</button>
+                                }
+                                @if (unaired && ep.AirDate.HasValue)
+                                {
+                                    <span class="air-date">@ep.AirDate.Value.ToString("d MMM yyyy")</span>
+                                }
                             </div>
                         }
                     </div>
@@ -54,90 +73,102 @@
             }
         </div>
     </div>
-</div>
+}
 
 <style>
+    .show-loading { color: #e6e8eb; padding: 20px; }
+
     .show-container {
         display: flex;
-        color: white;
-        background-color: #111;
+        color: #e6e8eb;
         font-family: 'Segoe UI', sans-serif;
         padding: 20px;
+        gap: 40px;
     }
 
-    .left-panel {
-        width: 250px;
-    }
+    .left-panel { width: 260px; flex-shrink: 0; }
+    .poster { width: 100%; border-radius: 8px; }
+    .info { margin-top: 10px; }
+    .rating { color: gold; }
 
-    .poster {
-        width: 100%;
-        border-radius: 8px;
-    }
-
-    .info {
+    .watchlist-btn {
         margin-top: 10px;
+        background: none;
+        border: 1px solid #3a3d45;
+        border-radius: 8px;
+        font-size: 1.4rem;
+        padding: 6px 14px;
+        cursor: pointer;
+        color: inherit;
     }
 
-    .rating {
-        color: gold;
-    }
-
-    .right-panel {
-        flex-grow: 1;
-        margin-left: 40px;
-    }
-
-    .legend {
-        margin-bottom: 10px;
-    }
-
-    .dot {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        margin-right: 4px;
-    }
-
-    .awesome { background: #00ff66; }
-    .great   { background: #6fff00; }
-    .good    { background: #ccff00; }
-    .regular { background: #ffaa00; }
-    .bad     { background: #ff5500; }
-    .garbage { background: #aa00ff; }
-
-    .seasons {
-        display: flex;
-        gap: 30px;
-    }
-
-    .episodes {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .episode-box {
-        width: 50px;
-        height: 30px;
-        text-align: center;
+    .progress-block { margin-top: 16px; }
+    .progress-bar {
+        background: #2a2d35;
         border-radius: 6px;
-        line-height: 30px;
-        font-weight: bold;
-        background: gray;
-        color: black;
+        height: 8px;
+        overflow: hidden;
+    }
+    .progress-fill { background: #1b6ec2; height: 100%; }
+    .progress-label { font-size: 0.85rem; color: #9aa1ab; margin-top: 6px; }
+
+    .right-panel { flex-grow: 1; min-width: 0; }
+
+    .season { margin-bottom: 22px; }
+    .season-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+    .season-header h4 { margin: 0; }
+    .season-action {
+        background: none;
+        border: 1px solid #3a3d45;
+        border-radius: 6px;
+        color: inherit;
+        padding: 4px 10px;
+        font-size: 0.8rem;
         cursor: pointer;
     }
+
+    .episodes { display: flex; flex-direction: column; gap: 4px; }
+    .episode-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: var(--bw-surface);
+    }
+    .episode-row.watched { opacity: 0.65; }
+    .episode-row.unaired { opacity: 0.5; }
+    .episode-checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .episode-checkbox input { cursor: pointer; }
+
+    .up-to-btn {
+        background: none;
+        border: none;
+        color: #4da3ff;
+        font-size: 0.78rem;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .air-date { font-size: 0.78rem; color: #9aa1ab; white-space: nowrap; }
 </style>
 
 @code {
-    [Parameter] public string ImdbId { get; set; }
-    [Parameter] public string SeriesId { get; set; }
+    [Parameter] public int TmdbId { get; set; }
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
-    private const string TmdbImageBaseUrl = "https://image.tmdb.org/t/p/w500";
+    private ShowDetailDto? show;
+    private ShowProgressDto? progress;
+    private bool IsInWatchlist;
+    private bool loading = true;
 
     private async Task<HttpClient> GetApiAsync()
     {
@@ -149,226 +180,107 @@
         return client;
     }
 
-    private string OmdbApiKey;
-    private string TmdbApiKey;
-    private string PosterUrl;
-    private string ShowTitle;
-    private string ShowYear;
-    private string ShowRating;
-    private string Votes;
-
-    private bool IsInWatchlist;
-    private bool _watchlistLoaded;
-
-    private List<OmdbEpisodeRatingModel> Episodes = new();
-    private List<int> SeasonNumbers = new();
-    private Dictionary<int, List<OmdbEpisodeRatingModel>> SeasonGroups = new();
-
-    // 1️⃣ SADECE OMDb – LOCAL DATA
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        OmdbApiKey = Configuration["OmdbApiKey"];
-        TmdbApiKey = Configuration["TmdbApiKey"];
-
-        await LoadShowDetailsAsync();
-        await LoadEpisodeRatingsAsync();
-
-        SeasonGroups = Episodes
-            .Where(e => int.TryParse(e.Season, out _))
-            .GroupBy(e => int.Parse(e.Season))
-            .OrderBy(g => g.Key)
-            .ToDictionary(g => g.Key, g => g.OrderBy(e => int.Parse(e.Episode)).ToList());
-    }
-
-    private async Task LoadShowDetailsAsync()
-    {
-        await LoadTmdbShowDetailsAsync();
-
-        if (!string.IsNullOrWhiteSpace(ShowTitle) && SeasonNumbers.Any())
-            return;
-
-        var showData = await GetExternalJsonAsync<OmdbShowModel>(
-            $"https://www.omdbapi.com/?i={ImdbId}&apikey={OmdbApiKey}"
-        );
-
-        if (!string.IsNullOrWhiteSpace(showData?.Title) && showData.Title != "N/A")
-        {
-            PosterUrl = showData.Poster;
-            ShowTitle = showData.Title;
-            ShowYear = showData.Year;
-            ShowRating = showData.imdbRating;
-            Votes = showData.imdbVotes;
-
-            if (int.TryParse(showData.totalSeasons, out var totalSeasons))
-                SeasonNumbers = Enumerable.Range(1, totalSeasons).ToList();
-        }
-
-        if (!SeasonNumbers.Any() && int.TryParse(showData?.totalSeasons, out var fallbackTotalSeasons))
-            SeasonNumbers = Enumerable.Range(1, fallbackTotalSeasons).ToList();
-    }
-
-    private async Task LoadEpisodeRatingsAsync()
-    {
-        await LoadTmdbEpisodeRatingsAsync();
-
-        if (!Episodes.Any())
-            await LoadOmdbEpisodeRatingsAsync();
-    }
-
-    private async Task LoadOmdbEpisodeRatingsAsync()
-    {
-        foreach (var season in SeasonNumbers.DefaultIfEmpty().Where(s => s > 0))
-        {
-            var url = $"https://www.omdbapi.com/?i={ImdbId}&Season={season}&apikey={OmdbApiKey}";
-            var seasonData = await GetExternalJsonAsync<OmdbSeasonResponse>(url);
-
-            if (seasonData?.Episodes != null)
-            {
-                foreach (var ep in seasonData.Episodes)
-                    ep.Season = season.ToString();
-
-                Episodes.AddRange(seasonData.Episodes);
-            }
-        }
-    }
-
-    private async Task LoadTmdbShowDetailsAsync()
-    {
-        if (!int.TryParse(SeriesId, out var tmdbSeriesId) || string.IsNullOrWhiteSpace(TmdbApiKey))
-            return;
-
-        var details = await GetExternalJsonAsync<TmdbShowDetailsModel>(
-            $"https://api.themoviedb.org/3/tv/{tmdbSeriesId}?api_key={TmdbApiKey}"
-        );
-
-        if (details == null)
-            return;
-
-        ShowTitle ??= details.Name;
-        ShowYear ??= details.FirstAirDate?.Split('-').FirstOrDefault();
-        ShowRating ??= details.VoteAverage.ToString("0.0", CultureInfo.InvariantCulture);
-        Votes ??= details.VoteCount.ToString("N0", CultureInfo.InvariantCulture);
-
-        if (string.IsNullOrWhiteSpace(PosterUrl) && !string.IsNullOrWhiteSpace(details.PosterPath))
-            PosterUrl = $"{TmdbImageBaseUrl}{details.PosterPath}";
-
-        SeasonNumbers = details.Seasons?
-            .Where(s => s.SeasonNumber > 0 && s.EpisodeCount > 0)
-            .Select(s => s.SeasonNumber)
-            .OrderBy(s => s)
-            .ToList() ?? new();
-    }
-
-    private async Task LoadTmdbEpisodeRatingsAsync()
-    {
-        if (!int.TryParse(SeriesId, out var tmdbSeriesId) || string.IsNullOrWhiteSpace(TmdbApiKey))
-            return;
-
-        if (!SeasonNumbers.Any())
-            await LoadTmdbShowDetailsAsync();
-
-        foreach (var season in SeasonNumbers)
-        {
-            var seasonData = await GetExternalJsonAsync<TmdbSeasonResponse>(
-                $"https://api.themoviedb.org/3/tv/{tmdbSeriesId}/season/{season}?api_key={TmdbApiKey}"
-            );
-
-            if (seasonData?.Episodes == null)
-                continue;
-
-            Episodes.AddRange(seasonData.Episodes.Select(ep => new OmdbEpisodeRatingModel
-            {
-                Title = ep.Name,
-                Season = ep.SeasonNumber.ToString(),
-                Episode = ep.EpisodeNumber.ToString(),
-                imdbRating = ep.VoteAverage > 0
-                    ? ep.VoteAverage.ToString("0.0", CultureInfo.InvariantCulture)
-                    : ""
-            }));
-        }
-    }
-
-    private static async Task<T> GetExternalJsonAsync<T>(string url)
-    {
-        try
-        {
-            using var client = new HttpClient
-            {
-                Timeout = TimeSpan.FromSeconds(3)
-            };
-
-            return await client.GetFromJsonAsync<T>(url);
-        }
-        catch
-        {
-            return default;
-        }
-    }
-
-    // 2️⃣ API ÇAĞRISI – DOĞRU LIFECYCLE
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender || _watchlistLoaded)
-            return;
-
-        _watchlistLoaded = true;
-
+        loading = true;
         var api = await GetApiAsync();
 
-        IsInWatchlist = await api.GetFromJsonAsync<bool>(
-            $"api/watchlist/status?seriesId={SeriesId}"
-        );
+        show = await api.GetFromJsonAsync<ShowDetailDto>($"api/shows/{TmdbId}");
+        if (show != null)
+        {
+            progress = await api.GetFromJsonAsync<ShowProgressDto>($"api/shows/{TmdbId}/progress");
+            IsInWatchlist = await api.GetFromJsonAsync<bool>($"api/watchlist/status?seriesId={TmdbId}");
+        }
 
-        StateHasChanged();
+        loading = false;
     }
 
-    // 3️⃣ TOGGLE
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w500{path}";
+
     private async Task ToggleWatchlist()
     {
-        Console.WriteLine("TOGGLE CLICKED");
+        if (show == null) return;
 
         var api = await GetApiAsync();
-
         var series = new SeriesDto
         {
-            Id = int.Parse(SeriesId),
-            Name = ShowTitle,
-            PosterPath = PosterUrl,
-            FirstAirDate = ShowYear
+            Id = show.TmdbId,
+            Name = show.Name,
+            Overview = show.Overview,
+            PosterPath = show.PosterPath ?? "",
+            FirstAirDate = show.FirstAirDate?.ToString("yyyy-MM-dd")
         };
 
-        var response = await api.PostAsJsonAsync(
-            "api/watchlist/toggle",
-            series
-        );
-
-        Console.WriteLine($"STATUS: {response.StatusCode}");
-
+        var response = await api.PostAsJsonAsync("api/watchlist/toggle", series);
         if (response.IsSuccessStatusCode)
         {
             var result = await response.Content.ReadFromJsonAsync<ToggleResponse>();
-            IsInWatchlist = result.IsInWatchList;
+            IsInWatchlist = result!.IsInWatchList;
         }
     }
 
-    private string GetColor(string ratingStr)
+    private async Task MarkEpisodeWatched(EpisodeDetailDto episode, bool watched)
     {
-        if (!double.TryParse(ratingStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var rating))
-            return "gray";
+        var api = await GetApiAsync();
+        var response = await api.PostAsJsonAsync(
+            $"api/shows/{TmdbId}/episodes/{episode.Id}/watched",
+            new MarkWatchedRequest { Watched = watched });
 
-        return rating switch
+        if (response.IsSuccessStatusCode)
         {
-            >= 9 => "#00ff66",
-            >= 8 => "#6fff00",
-            >= 7 => "#ccff00",
-            >= 6 => "#ffaa00",
-            >= 5 => "#ff5500",
-            _ => "#aa00ff"
-        };
+            episode.Watched = watched;
+            progress = await response.Content.ReadFromJsonAsync<ShowProgressDto>();
+        }
     }
 
-    public class ToggleResponse
+    private async Task MarkSeasonWatched(SeasonDetailDto season)
+    {
+        var api = await GetApiAsync();
+        var response = await api.PostAsJsonAsync(
+            $"api/shows/{TmdbId}/seasons/{season.SeasonNumber}/watched",
+            new MarkWatchedRequest { Watched = true });
+
+        if (response.IsSuccessStatusCode)
+        {
+            foreach (var ep in season.Episodes.Where(e => !e.AirDate.HasValue || e.AirDate.Value <= DateTime.UtcNow))
+                ep.Watched = true;
+
+            var result = await response.Content.ReadFromJsonAsync<SeasonWatchedResponse>();
+            progress = result?.Progress;
+        }
+    }
+
+    private async Task MarkWatchedUpTo(EpisodeDetailDto target)
+    {
+        if (show == null) return;
+
+        var api = await GetApiAsync();
+        var response = await api.PostAsync($"api/shows/{TmdbId}/watched-up-to/{target.Id}", null);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var targetSeason = show.Seasons.First(s => s.Episodes.Any(e => e.Id == target.Id));
+            foreach (var season in show.Seasons.Where(s => s.SeasonNumber < targetSeason.SeasonNumber))
+                foreach (var ep in season.Episodes)
+                    ep.Watched = true;
+
+            foreach (var ep in targetSeason.Episodes.Where(e => e.EpisodeNumber <= target.EpisodeNumber))
+                ep.Watched = true;
+
+            var result = await response.Content.ReadFromJsonAsync<SeasonWatchedResponse>();
+            progress = result?.Progress;
+        }
+    }
+
+    private class ToggleResponse
     {
         public bool IsInWatchList { get; set; }
+    }
+
+    private class SeasonWatchedResponse
+    {
+        public int AffectedEpisodes { get; set; }
+        public ShowProgressDto? Progress { get; set; }
     }
 }

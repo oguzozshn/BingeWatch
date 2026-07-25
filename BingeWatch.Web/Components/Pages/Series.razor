@@ -1,16 +1,9 @@
 @page "/series"
 @rendermode InteractiveServer
-@implements IDisposable
-@inject HttpClient Http
 @inject IHttpClientFactory HttpClientFactory
-@inject IConfiguration Configuration
 @inject NavigationManager Navigation
 
-
-@using BingeWatch.Web.Models
 @using BingeWatch.Web.Dtos
-@using Microsoft.AspNetCore.Components.Web
-
 
 <PageTitle>Series</PageTitle>
 
@@ -27,23 +20,20 @@ else
         <div class="carousel-track">
             @foreach (var item in VisibleSeries)
             {
-                <div class="carousel-card" @onclick="() => GoToShow(item.ImdbId, item.Id)">
+                <div class="carousel-card" @onclick="() => GoToShow(item.Id)">
                     <img src="@($"https://image.tmdb.org/t/p/w500{item.PosterPath}")" alt="@item.Name" class="carousel-poster" />
                     <div class="carousel-title">@item.Name</div>
-                    <input type="hidden" value="@item.ImdbId"/>
-                </div>    
+                </div>
             }
         </div>
         <button class="carousel-arrow right" @onclick="NextSlide" disabled="@(series == null || startIndex + cardsPerView >= series.Count)">&#62;</button>
     </div>
-  
 }
 
 @code {
-    private List<SeriesDto> series;
+    private List<SeriesDto>? series;
     private int startIndex = 0;
     private int cardsPerView = 4;
-    private bool disposed;
     private HttpClient Api => HttpClientFactory.CreateClient("ApiClient");
 
     private IEnumerable<SeriesDto> VisibleSeries => series?.Skip(startIndex).Take(cardsPerView) ?? Enumerable.Empty<SeriesDto>();
@@ -51,36 +41,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         series = await Api.GetFromJsonAsync<List<SeriesDto>>("api/series");
-
-        foreach (var s in series ?? new())
-        {
-            await MapExternalIds(s);
-        }            
     }
-
-    private async Task MapExternalIds(SeriesDto series)
-    {
-        try
-        {
-            var tmdbApiKey = Configuration["TmdbApiKey"];
-            var url = $"https://api.themoviedb.org/3/tv/{series.Id}/external_ids?api_key={tmdbApiKey}";
-
-            var externalIds = await Http.GetFromJsonAsync<ExternalIdsDto>(url);
-
-            if (!disposed && externalIds != null)
-            {
-                series.ImdbId = externalIds.ImdbId;
-                StateHasChanged();
-            }
-        }
-        catch { }
-    }
-
-    public void Dispose()
-    {
-        disposed = true;
-    }
-
 
     private void NextSlide()
     {
@@ -98,11 +59,8 @@ else
         }
     }
 
-    private void GoToShow(string imdbId, int seriesId)
+    private void GoToShow(int tmdbId)
     {
-        if (!string.IsNullOrEmpty(imdbId))
-        {
-            Navigation.NavigateTo($"/show/{imdbId}/{seriesId}");
-        }
+        Navigation.NavigateTo($"/show/{tmdbId}");
     }
 }
