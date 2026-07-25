@@ -33,6 +33,7 @@ namespace BingeWatch.API
             builder.Services.AddScoped<IWatchListService, WatchListService>();
             builder.Services.AddScoped<IShowCatalogService, ShowCatalogService>();
             builder.Services.AddScoped<ITokenService, TokenService>();
+            builder.Services.AddHostedService<TmdbSyncService>();
 
             // ASP.NET Core Identity
             builder.Services.AddIdentityCore<AppUser>(options =>
