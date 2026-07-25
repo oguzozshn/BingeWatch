@@ -120,5 +120,50 @@ namespace BingeWatch.Tests
             Assert.Single(user1List);
             Assert.Equal("Show A", user1List[0].Name);
         }
+
+        [Fact]
+        public async Task AddToWatchListAsync_SharesASingleCatalogRow_WhenTwoUsersAddTheSameShow()
+        {
+            using var context = CreateContext();
+            var service = CreateService(context);
+            var series = new SeriesDto { Id = 42, Name = "Shared Show" };
+
+            await service.AddToWatchListAsync("user1", series);
+            await service.AddToWatchListAsync("user2", series);
+
+            // Dizi bilgisi kullanıcı başına kopyalanmamalı — katalogda tek satır olmalı.
+            Assert.Single(context.Shows.Where(s => s.TmdbId == 42));
+            Assert.Equal(2, context.UserShows.Count());
+        }
+
+        [Fact]
+        public async Task RemoveFromWatchListAsync_LeavesOtherUsersEntryIntact()
+        {
+            using var context = CreateContext();
+            var service = CreateService(context);
+            var series = new SeriesDto { Id = 42, Name = "Shared Show" };
+            await service.AddToWatchListAsync("user1", series);
+            await service.AddToWatchListAsync("user2", series);
+
+            var removed = await service.RemoveFromWatchListAsync("user1", 42);
+
+            Assert.True(removed);
+            Assert.False(await service.IsInWatchListAsync("user1", 42));
+            Assert.True(await service.IsInWatchListAsync("user2", 42));
+            // Katalog satırı, hâlâ listesinde tutan kullanıcı için korunmalı.
+            Assert.Single(context.Shows.Where(s => s.TmdbId == 42));
+        }
+
+        [Fact]
+        public async Task AddToWatchListAsync_LeavesShowUnsynced_SoCatalogCanEnrichItLater()
+        {
+            using var context = CreateContext();
+            var service = CreateService(context);
+
+            await service.AddToWatchListAsync("user1", new SeriesDto { Id = 7, Name = "Stub Show" });
+
+            var show = context.Shows.Single(s => s.TmdbId == 7);
+            Assert.Equal(default, show.LastSyncedAt);
+        }
     }
 }

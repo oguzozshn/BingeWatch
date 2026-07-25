@@ -2,10 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using BingeWatch.API.Data;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
-using Microsoft.Extensions.Logging;
 
 namespace BingeWatch.API.Services
 {
+    /// <summary>
+    /// Kullanıcının dizi listesi. Liste artık <see cref="UserShow"/> üzerinden tutuluyor;
+    /// dizi bilgisi tek bir <see cref="Show"/> satırında paylaşılıyor (eskiden her
+    /// kullanıcı için ayrı kopyalanıyordu).
+    /// </summary>
     public class WatchListService : IWatchListService
     {
         private readonly BingeOnDbContext _context;
@@ -19,122 +23,151 @@ namespace BingeWatch.API.Services
 
         public async Task<List<SeriesDto>> GetUserWatchListAsync(string userId)
         {
-            var watchListItems = await _context.WatchListItems
-                .Where(w => w.UserId == userId)
-                .OrderByDescending(w => w.AddedDate)
+            return await _context.UserShows
+                .Where(us => us.UserId == userId)
+                .OrderByDescending(us => us.AddedAt)
+                .Select(us => new SeriesDto
+                {
+                    Id = us.Show!.TmdbId,
+                    Name = us.Show.Name,
+                    Overview = us.Show.Overview,
+                    PosterPath = us.Show.PosterPath ?? "",
+                    FirstAirDate = us.Show.FirstAirDate,
+                    ImdbId = us.Show.ImdbId
+                })
                 .ToListAsync();
-
-            return watchListItems.Select(item => new SeriesDto
-            {
-                Id = item.SeriesId,
-                Name = item.SeriesName,
-                Overview = item.Overview,
-                PosterPath = item.PosterPath,
-                FirstAirDate = item.FirstAirDate
-            }).ToList();
         }
 
         public async Task<bool> AddToWatchListAsync(string userId, SeriesDto series)
         {
-            _logger.LogInformation("Adding to watchlist: userId={UserId}, seriesId={SeriesId}, name={Name}", userId, series?.Id, series?.Name);
+            if (series == null)
+                return false;
+
+            _logger.LogInformation("Adding to watchlist: userId={UserId}, tmdbId={TmdbId}, name={Name}",
+                userId, series.Id, series.Name);
 
             try
             {
-                var existingItem = await _context.WatchListItems
-                    .FirstOrDefaultAsync(w => w.UserId == userId && w.SeriesId == series.Id);
+                var show = await EnsureShowAsync(series);
 
-                if (existingItem != null)
+                var exists = await _context.UserShows
+                    .AnyAsync(us => us.UserId == userId && us.ShowId == show.Id);
+
+                if (exists)
                 {
-                    _logger.LogInformation("Series {SeriesId} already in watchlist for user {UserId}", series.Id, userId);
+                    _logger.LogInformation("Show {TmdbId} already in watchlist for user {UserId}", series.Id, userId);
                     return false;
                 }
 
-                var watchListItem = new WatchListItem
+                _context.UserShows.Add(new UserShow
                 {
-                    SeriesId = series.Id,
-                    SeriesName = series.Name ?? "",
-                    Overview = series.Overview ?? "",
-                    PosterPath = NormalizePosterPath(series.PosterPath),
-                    FirstAirDate = series.FirstAirDate,
                     UserId = userId,
-                    AddedDate = DateTime.UtcNow
-                };
+                    ShowId = show.Id,
+                    Status = WatchStatus.PlanToWatch,
+                    AddedAt = DateTime.UtcNow
+                });
 
-                _context.WatchListItems.Add(watchListItem);
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("Series {SeriesId} added to watchlist for user {UserId}", series.Id, userId);
+                _logger.LogInformation("Show {TmdbId} added to watchlist for user {UserId}", series.Id, userId);
 
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error adding series {SeriesId} to watchlist for user {UserId}", series?.Id, userId);
+                _logger.LogError(ex, "Error adding show {TmdbId} to watchlist for user {UserId}", series.Id, userId);
                 return false;
             }
         }
 
-        public async Task<bool> RemoveFromWatchListAsync(string userId, int seriesId)
+        public async Task<bool> RemoveFromWatchListAsync(string userId, int tmdbShowId)
         {
             try
             {
-                var item = await _context.WatchListItems
-                    .FirstOrDefaultAsync(w => w.UserId == userId && w.SeriesId == seriesId);
+                var userShow = await _context.UserShows
+                    .FirstOrDefaultAsync(us => us.UserId == userId && us.Show!.TmdbId == tmdbShowId);
 
-                if (item == null)
-                {
+                if (userShow == null)
                     return false;
-                }
 
-                _context.WatchListItems.Remove(item);
+                _context.UserShows.Remove(userShow);
                 await _context.SaveChangesAsync();
 
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error removing series {SeriesId} from watchlist for user {UserId}", seriesId, userId);
+                _logger.LogError(ex, "Error removing show {TmdbId} from watchlist for user {UserId}", tmdbShowId, userId);
                 return false;
             }
         }
 
-        public async Task<bool> IsInWatchListAsync(string userId, int seriesId)
+        public async Task<bool> IsInWatchListAsync(string userId, int tmdbShowId)
         {
-            return await _context.WatchListItems
-                .AnyAsync(w => w.UserId == userId && w.SeriesId == seriesId);
+            return await _context.UserShows
+                .AnyAsync(us => us.UserId == userId && us.Show!.TmdbId == tmdbShowId);
         }
 
+        /// <summary>Listede varsa çıkarır, yoksa ekler. Dönen değer <b>son</b> durumdur.</summary>
         public async Task<bool> ToggleAsync(string userId, SeriesDto series)
         {
-            _logger.LogInformation("Toggling watchlist: userId={UserId}, seriesId={SeriesId}, name={Name}", userId, series?.Id, series?.Name);
+            if (series == null)
+                return false;
 
-            var existing = await _context.WatchListItems
-                .FirstOrDefaultAsync(x => x.UserId == userId && x.SeriesId == series.Id);
+            _logger.LogInformation("Toggling watchlist: userId={UserId}, tmdbId={TmdbId}", userId, series.Id);
+
+            var existing = await _context.UserShows
+                .FirstOrDefaultAsync(us => us.UserId == userId && us.Show!.TmdbId == series.Id);
 
             if (existing == null)
-            {
-                var added = await AddToWatchListAsync(userId, series);
-                return added;
-            }
+                return await AddToWatchListAsync(userId, series);
 
             try
             {
-                _context.WatchListItems.Remove(existing);
+                _context.UserShows.Remove(existing);
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("Series {SeriesId} removed from watchlist for user {UserId}", series.Id, userId);
+                _logger.LogInformation("Show {TmdbId} removed from watchlist for user {UserId}", series.Id, userId);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error removing series {SeriesId} from watchlist for user {UserId} during toggle", series.Id, userId);
-                // Removal failed - the item is still in the watchlist, so report the true current state.
+                _logger.LogError(ex, "Error removing show {TmdbId} during toggle for user {UserId}", series.Id, userId);
+                // Silme başarısız — dizi hâlâ listede, gerçek durumu bildir.
                 return true;
             }
         }
 
         /// <summary>
-        /// Ensures posters are always stored as a TMDb-relative path (e.g. "/abc123.jpg"),
-        /// never a full "https://image.tmdb.org/t/p/{size}/..." URL, so callers can
-        /// consistently prefix the CDN base URL when rendering.
+        /// Diziyi katalogda bulur; yoksa elimizdeki özet bilgiden bir taslak satır açar.
+        /// <c>LastSyncedAt</c> boş bırakılır: katalog servisi ilk erişimde TMDb'den
+        /// sezon/bölüm verisiyle zenginleştirir.
+        /// </summary>
+        private async Task<Show> EnsureShowAsync(SeriesDto series)
+        {
+            var show = await _context.Shows.FirstOrDefaultAsync(s => s.TmdbId == series.Id);
+            if (show != null)
+                return show;
+
+            show = new Show
+            {
+                TmdbId = series.Id,
+                Name = series.Name ?? "",
+                Overview = series.Overview ?? "",
+                PosterPath = NormalizePosterPath(series.PosterPath),
+                FirstAirDate = series.FirstAirDate,
+                ImdbId = series.ImdbId,
+                LastSyncedAt = default
+            };
+
+            _context.Shows.Add(show);
+            await _context.SaveChangesAsync();
+
+            return show;
+        }
+
+        /// <summary>
+        /// Posterler her zaman TMDb'ye göreli yol olarak ("/abc123.jpg") saklanır,
+        /// asla tam "https://image.tmdb.org/t/p/{size}/..." URL'i olarak değil; böylece
+        /// çağıranlar CDN önekini tutarlı biçimde ekleyebilir.
         /// </summary>
         private static string NormalizePosterPath(string? posterPath)
         {
