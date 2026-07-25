@@ -48,6 +48,21 @@ namespace BingeWatch.API.Services
             return result;
         }
 
+        public async Task<List<SeriesDto>> GetSimilarSeriesAsync(int tmdbId, int page = 1)
+        {
+            var cacheKey = $"tmdb:similar:{tmdbId}:{page}";
+
+            if (_cache.TryGetValue(cacheKey, out List<SeriesDto>? cached) && cached != null)
+                return cached;
+
+            var tmdbResult = await _client.GetSimilarSeriesAsync(tmdbId, page);
+            var result = (tmdbResult?.Results ?? new()).Select(ToDto).ToList();
+
+            // Benzerlik listesi popüler liste kadar durağan; aynı TTL yeterli.
+            _cache.Set(cacheKey, result, PopularCacheTtl);
+            return result;
+        }
+
         private static SeriesDto ToDto(Models.SeriesItem s) => new()
         {
             Id = s.Id,

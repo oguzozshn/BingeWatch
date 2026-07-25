@@ -12,11 +12,14 @@ namespace BingeWatch.API.Controllers
     {
         private readonly IShowCatalogService _catalogService;
         private readonly IEpisodeProgressService _progressService;
+        private readonly ITmdbService _tmdbService;
 
-        public ShowsController(IShowCatalogService catalogService, IEpisodeProgressService progressService)
+        public ShowsController(IShowCatalogService catalogService, IEpisodeProgressService progressService,
+            ITmdbService tmdbService)
         {
             _catalogService = catalogService;
             _progressService = progressService;
+            _tmdbService = tmdbService;
         }
 
         private string? CurrentUserId => User.Identity?.IsAuthenticated == true
@@ -76,6 +79,14 @@ namespace BingeWatch.API.Controllers
             };
 
             return Ok(dto);
+        }
+
+        /// <summary>Dizi sayfasındaki "Benzer" sekmesi.</summary>
+        [HttpGet("{tmdbId}/similar")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetSimilar(int tmdbId)
+        {
+            return Ok(await _tmdbService.GetSimilarSeriesAsync(tmdbId));
         }
 
         [HttpGet("{tmdbId}/progress")]
