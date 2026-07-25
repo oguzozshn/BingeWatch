@@ -28,7 +28,7 @@ namespace BingeWatch.API.Services
                 return cached;
 
             var tmdbResult = await _client.GetPopularSeriesAsync(page);
-            var result = tmdbResult.Results.Select(ToDto).ToList();
+            var result = (tmdbResult?.Results ?? new()).Select(ToDto).ToList();
 
             _cache.Set(cacheKey, result, PopularCacheTtl);
             return result;
@@ -42,7 +42,7 @@ namespace BingeWatch.API.Services
                 return cached;
 
             var tmdbResult = await _client.SearchSeriesAsync(query, page);
-            var result = tmdbResult.Results.Select(ToDto).ToList();
+            var result = (tmdbResult?.Results ?? new()).Select(ToDto).ToList();
 
             _cache.Set(cacheKey, result, SearchCacheTtl);
             return result;
