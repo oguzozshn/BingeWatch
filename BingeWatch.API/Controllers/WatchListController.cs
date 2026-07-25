@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using BingeWatch.API.Clients;
 using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -10,6 +12,7 @@ namespace BingeWatch.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class WatchListController : ControllerBase
     {
         private readonly ITmdbService _tmdbService;
@@ -21,7 +24,10 @@ namespace BingeWatch.API.Controllers
             _watchListService = watchListService;
         }
 
+        private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
         [HttpGet("search")]
+        [AllowAnonymous]
         public async Task<IActionResult> SearchSeries([FromQuery] string query, [FromQuery] int page = 1)
         {
             if (string.IsNullOrWhiteSpace(query))
@@ -31,69 +37,56 @@ namespace BingeWatch.API.Controllers
             return Ok(searchResults);
         }
 
-        [HttpGet("user/{userId}")]
-        public async Task<IActionResult> GetUserWatchList(string userId)
+        [HttpGet("mine")]
+        public async Task<IActionResult> GetMyWatchList()
         {
-            if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest("UserId is required");
-
-            var watchList = await _watchListService.GetUserWatchListAsync(userId);
+            var watchList = await _watchListService.GetUserWatchListAsync(CurrentUserId);
             return Ok(watchList);
         }
 
-        [HttpPost("user/{userId}/add")]
-        public async Task<IActionResult> AddToWatchList(string userId, [FromBody] SeriesDto series)
+        [HttpPost("add")]
+        public async Task<IActionResult> AddToWatchList([FromBody] SeriesDto series)
         {
-            if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest("UserId is required");
-
             if (series == null)
                 return BadRequest("Series data is required");
 
-            var success = await _watchListService.AddToWatchListAsync(userId, series);
-            
+            var success = await _watchListService.AddToWatchListAsync(CurrentUserId, series);
+
             if (success)
                 return Ok(new { message = "Series added to watchlist" });
             else
                 return BadRequest(new { message = "Series already in watchlist or error occurred" });
         }
 
-        [HttpDelete("user/{userId}/remove/{seriesId}")]
-        public async Task<IActionResult> RemoveFromWatchList(string userId, int seriesId)
+        [HttpDelete("remove/{seriesId}")]
+        public async Task<IActionResult> RemoveFromWatchList(int seriesId)
         {
-            if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest("UserId is required");
+            var success = await _watchListService.RemoveFromWatchListAsync(CurrentUserId, seriesId);
 
-            var success = await _watchListService.RemoveFromWatchListAsync(userId, seriesId);
-            
             if (success)
                 return Ok(new { message = "Series removed from watchlist" });
             else
                 return NotFound(new { message = "Series not found in watchlist" });
         }
 
-        [HttpGet("user/{userId}/check/{seriesId}")]
-        public async Task<IActionResult> CheckInWatchList(string userId, int seriesId)
+        [HttpGet("check/{seriesId}")]
+        public async Task<IActionResult> CheckInWatchList(int seriesId)
         {
-            if (string.IsNullOrWhiteSpace(userId))
-                return BadRequest("UserId is required");
-
-            var isInWatchList = await _watchListService.IsInWatchListAsync(userId, seriesId);
+            var isInWatchList = await _watchListService.IsInWatchListAsync(CurrentUserId, seriesId);
             return Ok(new { isInWatchList });
         }
 
-        [HttpPost("user/{userId}/toggle")]
-        public async Task<IActionResult> ToggleWatchlist(string userId, [FromBody] SeriesDto series)
+        [HttpPost("toggle")]
+        public async Task<IActionResult> ToggleWatchlist([FromBody] SeriesDto series)
         {
-            var result = await _watchListService.ToggleAsync(userId, series);
+            var result = await _watchListService.ToggleAsync(CurrentUserId, series);
             return Ok(new { isInWatchList = result });
         }
 
-
         [HttpGet("status")]
-        public async Task<IActionResult> GetStatus(string userId, int seriesId)
+        public async Task<IActionResult> GetStatus(int seriesId)
         {
-            var result = await _watchListService.IsInWatchListAsync(userId, seriesId);
+            var result = await _watchListService.IsInWatchListAsync(CurrentUserId, seriesId);
             return Ok(result);
         }
 

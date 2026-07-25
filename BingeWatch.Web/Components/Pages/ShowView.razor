@@ -1,9 +1,12 @@
 ﻿@page "/show/{ImdbId}/{SeriesId}"
+@attribute [Authorize]
+@rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
 @inject IConfiguration Configuration
 
 @using System.Globalization
+@using System.Security.Claims
 @using BingeWatch.Web.Dtos
 @using BingeWatch.Web.Models
 
@@ -131,8 +134,20 @@
     [Parameter] public string ImdbId { get; set; }
     [Parameter] public string SeriesId { get; set; }
 
-    private const string UserId = "user1";
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
     private const string TmdbImageBaseUrl = "https://image.tmdb.org/t/p/w500";
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
 
     private string OmdbApiKey;
     private string TmdbApiKey;
@@ -298,10 +313,10 @@
 
         _watchlistLoaded = true;
 
-        var api = HttpClientFactory.CreateClient("ApiClient");
+        var api = await GetApiAsync();
 
         IsInWatchlist = await api.GetFromJsonAsync<bool>(
-            $"api/watchlist/status?userId={UserId}&seriesId={SeriesId}"
+            $"api/watchlist/status?seriesId={SeriesId}"
         );
 
         StateHasChanged();
@@ -312,7 +327,7 @@
     {
         Console.WriteLine("TOGGLE CLICKED");
 
-        var api = HttpClientFactory.CreateClient("ApiClient");
+        var api = await GetApiAsync();
 
         var series = new SeriesDto
         {
@@ -323,7 +338,7 @@
         };
 
         var response = await api.PostAsJsonAsync(
-            $"api/watchlist/user/{UserId}/toggle",
+            "api/watchlist/toggle",
             series
         );
 

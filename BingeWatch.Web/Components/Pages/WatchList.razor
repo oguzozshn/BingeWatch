@@ -1,8 +1,11 @@
 @page "/watchlist"
+@attribute [Authorize]
+@rendermode InteractiveServer
 @implements IDisposable
 @inject HttpClient Http
 @inject IHttpClientFactory HttpClientFactory
 
+@using System.Security.Claims
 @using BingeWatch.Web.Models
 @using BingeWatch.Web.Dtos
 @using Microsoft.AspNetCore.Components.Web
@@ -77,9 +80,20 @@
     private List<SeriesDto> watchList = new();
     private Timer? searchTimer;
     private bool showDropdown = false;
-    private const string UserId = "user1";
     private bool disposed;
-    private HttpClient Api => HttpClientFactory.CreateClient("ApiClient");
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -90,7 +104,8 @@
     {
         try
         {
-            watchList = await Api.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/user/{UserId}") ?? new();
+            var api = await GetApiAsync();
+            watchList = await api.GetFromJsonAsync<List<SeriesDto>>("api/watchlist/mine") ?? new();
 
             foreach (var s in watchList)
             {
@@ -142,7 +157,8 @@
 
         try
         {
-            searchResults = await Api.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/search?query={Uri.EscapeDataString(searchQuery)}") ?? new();
+            var api = await GetApiAsync();
+            searchResults = await api.GetFromJsonAsync<List<SeriesDto>>($"api/watchlist/search?query={Uri.EscapeDataString(searchQuery)}") ?? new();
             showDropdown = searchResults.Any();
         }
         catch (Exception ex)
@@ -165,7 +181,8 @@
     {
         try
         {
-            var response = await Api.PostAsJsonAsync($"api/watchlist/user/{UserId}/add", series);
+            var api = await GetApiAsync();
+            var response = await api.PostAsJsonAsync("api/watchlist/add", series);
             
             if (response.IsSuccessStatusCode)
             {
@@ -186,7 +203,8 @@
     {
         try
         {
-            var response = await Api.DeleteAsync($"api/watchlist/user/{UserId}/remove/{series.Id}");
+            var api = await GetApiAsync();
+            var response = await api.DeleteAsync($"api/watchlist/remove/{series.Id}");
             
             if (response.IsSuccessStatusCode)
             {

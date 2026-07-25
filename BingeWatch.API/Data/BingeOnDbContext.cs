@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using BingeWatch.API.Models;
 
 namespace BingeWatch.API.Data
 {
-    public class BingeOnDbContext : DbContext
+    public class BingeOnDbContext : IdentityDbContext<AppUser>
     {
         public BingeOnDbContext(DbContextOptions<BingeOnDbContext> options) : base(options)
         {
