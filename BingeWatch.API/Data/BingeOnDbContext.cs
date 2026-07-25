@@ -18,6 +18,8 @@ namespace BingeWatch.API.Data
         // Kullanıcı katmanı
         public DbSet<UserShow> UserShows { get; set; }
         public DbSet<WatchedEpisode> WatchedEpisodes { get; set; }
+        public DbSet<Rating> Ratings { get; set; }
+        public DbSet<Review> Reviews { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -100,6 +102,47 @@ namespace BingeWatch.API.Data
                       .HasForeignKey(e => e.EpisodeId)
                       // Episode silinince Cascade, AppUser tarafındaki cascade ile
                       // çoklu yol oluşturur; SQL Server buna izin vermez.
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<Rating>(entity =>
+            {
+                entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.Value).HasColumnType("decimal(2,1)");
+
+                // Bir kullanıcı aynı hedefe yalnızca tek puan verebilir; ikinci puan güncellemedir.
+                entity.HasIndex(e => new { e.UserId, e.TargetType, e.TargetId }).IsUnique();
+                // Dizi sayfasındaki ortalama/histogram bu yöne göre tarar.
+                entity.HasIndex(e => new { e.TargetType, e.TargetId });
+
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // TargetId polimorfik olduğu için FK yok; hedefin varlığını servis doğrular.
+            });
+
+            modelBuilder.Entity<Review>(entity =>
+            {
+                entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.Body).IsRequired().HasMaxLength(10000);
+
+                // Kullanıcı başına dizi/sezon hedefinde tek inceleme; tekrar yazmak düzenlemedir.
+                // HasFilter(null): EF'in varsayılan "IS NOT NULL" filtresi dizi geneli
+                // incelemeleri (SeasonNumber = NULL) tekillik dışında bırakırdı.
+                entity.HasIndex(e => new { e.UserId, e.ShowId, e.SeasonNumber }).IsUnique().HasFilter(null);
+                entity.HasIndex(e => new { e.ShowId, e.CreatedAt });
+
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Show)
+                      .WithMany()
+                      .HasForeignKey(e => e.ShowId)
+                      // AppUser tarafındaki cascade ile çoklu yol oluşur; SQL Server izin vermez.
                       .OnDelete(DeleteBehavior.NoAction);
             });
         }
