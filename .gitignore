@@ -83,3 +83,7 @@ Desktop.ini
 
 # Sensitive files
 appsettings.Development.json
+
+
+# Local-only docs
+docs/
