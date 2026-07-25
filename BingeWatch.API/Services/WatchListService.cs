@@ -33,40 +33,44 @@ namespace BingeWatch.API.Services
 
         public async Task<bool> AddToWatchListAsync(string userId, SeriesDto series)
         {
+            Console.WriteLine($"[Add] userId={userId}, seriesId={series?.Id}, name={series?.Name}");
+
             try
             {
-                // Aynı dizi zaten var mı kontrol et
                 var existingItem = await _context.WatchListItems
                     .FirstOrDefaultAsync(w => w.UserId == userId && w.SeriesId == series.Id);
 
                 if (existingItem != null)
                 {
-                    return false; // Zaten ekli
+                    Console.WriteLine("[Add] Zaten var, eklenmedi.");
+                    return false;
                 }
 
                 var watchListItem = new WatchListItem
                 {
                     SeriesId = series.Id,
-                    SeriesName = series.Name,
-                    Overview = series.Overview ?? string.Empty,
-                    PosterPath = series.PosterPath ?? string.Empty,
+                    SeriesName = series.Name ?? "",
+                    Overview = series.Overview ?? "",
+                    PosterPath = series.PosterPath ?? "",
                     FirstAirDate = series.FirstAirDate,
                     UserId = userId,
                     AddedDate = DateTime.UtcNow
                 };
 
+                Console.WriteLine("[Add] DB'ye kaydediliyor...");
                 _context.WatchListItems.Add(watchListItem);
                 await _context.SaveChangesAsync();
+                Console.WriteLine("[Add] Başarıyla eklendi!");
 
                 return true;
             }
             catch (Exception ex)
             {
-                // Log the error
-                Console.WriteLine($"Error adding to watchlist: {ex.Message}");
+                Console.WriteLine($"[Add] ERROR: {ex.Message}");
                 return false;
             }
         }
+
 
         public async Task<bool> RemoveFromWatchListAsync(string userId, int seriesId)
         {
@@ -98,20 +102,38 @@ namespace BingeWatch.API.Services
                 .AnyAsync(w => w.UserId == userId && w.SeriesId == seriesId);
         }
 
-        public async Task<bool> ToggleAsync(string userId, int seriesId)
+        public async Task<bool> ToggleAsync(string userId, SeriesDto series)
         {
+            Console.WriteLine($"[Toggle] userId={userId}, seriesId={series?.Id}, name={series?.Name}");
+
             var existing = await _context.WatchListItems
-           .FirstOrDefaultAsync(x => x.UserId == userId && x.SeriesId == seriesId);
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.SeriesId == series.Id);
+
+            Console.WriteLine(existing == null
+                ? "[Toggle] Watchlist'te daha önce yok, eklemeye geçiliyor."
+                : "[Toggle] Watchlist'te bulundu, kaldırılacak.");
 
             if (existing == null)
             {
-                return false;
+                var added = await AddToWatchListAsync(userId, series);
+                Console.WriteLine($"[Toggle] AddToWatchListAsync sonucu = {added}");
+                return added;
             }
 
-            _context.WatchListItems.Remove(existing);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.WatchListItems.Remove(existing);
+                await _context.SaveChangesAsync();
+                Console.WriteLine("[Toggle] Başarıyla kaldırıldı.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Toggle] Remove hatası: {ex.Message}");
+            }
 
             return false;
         }
+
+
     }
 } 

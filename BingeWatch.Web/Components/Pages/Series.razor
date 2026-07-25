@@ -24,7 +24,7 @@ else
         <div class="carousel-track">
             @foreach (var item in VisibleSeries)
             {
-                <div class="carousel-card" @onclick="() => GoToShow(item.ImdbId)">
+                <div class="carousel-card" @onclick="() => GoToShow(item.ImdbId, item.Id)">
                     <img src="@($"https://image.tmdb.org/t/p/w500{item.PosterPath}")" alt="@item.Name" class="carousel-poster" />
                     <div class="carousel-title">@item.Name</div>
                     <input type="hidden" value="@item.ImdbId"/>
@@ -95,11 +95,11 @@ else
         }
     }
 
-    private void GoToShow(string imdbId)
+    private void GoToShow(string imdbId, int seriesId)
     {
         if (!string.IsNullOrEmpty(imdbId))
         {
-            Navigation.NavigateTo($"/show/{imdbId}");
+            Navigation.NavigateTo($"/show/{imdbId}/{seriesId}");
         }
     }
 }

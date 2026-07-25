@@ -82,13 +82,13 @@ namespace BingeWatch.API.Controllers
             return Ok(new { isInWatchList });
         }
 
-        [HttpPost("user/{userId}/toggle/{seriesId}")]
-        public async Task<IActionResult> ToggleWatchlist(string userId, int seriesId)
+        [HttpPost("user/{userId}/toggle")]
+        public async Task<IActionResult> ToggleWatchlist(string userId, [FromBody] SeriesDto series)
         {
-            var result = await _watchListService.ToggleAsync(userId, seriesId);
-
+            var result = await _watchListService.ToggleAsync(userId, series);
             return Ok(new { isInWatchList = result });
         }
+
 
         [HttpGet("status")]
         public async Task<IActionResult> GetStatus(string userId, int seriesId)
@@ -96,6 +96,14 @@ namespace BingeWatch.API.Controllers
             var result = await _watchListService.IsInWatchListAsync(userId, seriesId);
             return Ok(result);
         }
+
+        [HttpPost("ping")]
+        public IActionResult Ping()
+        {
+            Console.WriteLine("PING HIT");
+            return Ok("pong");
+        }
+
 
     }
 }
