@@ -26,11 +26,15 @@ namespace BingeWatch.API
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             // TMDB servislerini kaydet
+            builder.Services.AddMemoryCache();
             builder.Services.Configure<TmdbSettings>(builder.Configuration.GetSection("Tmdb"));
             builder.Services.AddHttpClient<TmdbClient>();
             builder.Services.AddScoped<ITmdbService, TmdbService>();
             builder.Services.AddScoped<IWatchListService, WatchListService>();
+            builder.Services.AddScoped<IShowCatalogService, ShowCatalogService>();
+            builder.Services.AddScoped<IEpisodeProgressService, EpisodeProgressService>();
             builder.Services.AddScoped<ITokenService, TokenService>();
+            builder.Services.AddHostedService<TmdbSyncService>();
 
             // ASP.NET Core Identity
             builder.Services.AddIdentityCore<AppUser>(options =>

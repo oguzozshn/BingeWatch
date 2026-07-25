@@ -1,50 +1,60 @@
-using System.Net.Http;
-using System.Threading.Tasks;
-using System.Text.Json;
-using Microsoft.Extensions.Options;
-using BingeWatch.API.Configurations;
+using Microsoft.Extensions.Caching.Memory;
 using BingeWatch.API.Dtos;
-using BingeWatch.API.Models;
 using BingeWatch.API.Clients;
 
 namespace BingeWatch.API.Services
 {
     public class TmdbService : ITmdbService
     {
-        private readonly TmdbClient _client;
+        // Popüler liste sık değişmez; arama sonucu daha kısa tutulur ki yeni
+        // eklenen bir dizi kullanıcıya "bulunamadı" gibi görünmesin.
+        private static readonly TimeSpan PopularCacheTtl = TimeSpan.FromMinutes(30);
+        private static readonly TimeSpan SearchCacheTtl = TimeSpan.FromMinutes(5);
 
-        public TmdbService(TmdbClient client)
+        private readonly TmdbClient _client;
+        private readonly IMemoryCache _cache;
+
+        public TmdbService(TmdbClient client, IMemoryCache cache)
         {
             _client = client;
+            _cache = cache;
         }
 
         public async Task<List<SeriesDto>> GetPopularSeriesAsync(int page)
         {
-            var tmdbResult = await _client.GetPopularSeriesAsync(page);
+            var cacheKey = $"tmdb:popular:{page}";
 
-            return tmdbResult.Results.Select(s => new SeriesDto
-            {
-                Id = s.Id,
-                Name = s.Name,
-                Overview = s.Overview,
-                PosterPath = s.PosterPath,
-                FirstAirDate = s.FirstAirDate
-            }).ToList();
+            if (_cache.TryGetValue(cacheKey, out List<SeriesDto>? cached) && cached != null)
+                return cached;
+
+            var tmdbResult = await _client.GetPopularSeriesAsync(page);
+            var result = (tmdbResult?.Results ?? new()).Select(ToDto).ToList();
+
+            _cache.Set(cacheKey, result, PopularCacheTtl);
+            return result;
         }
 
         public async Task<List<SeriesDto>> SearchSeriesAsync(string query, int page)
         {
+            var cacheKey = $"tmdb:search:{query.Trim().ToLowerInvariant()}:{page}";
+
+            if (_cache.TryGetValue(cacheKey, out List<SeriesDto>? cached) && cached != null)
+                return cached;
+
             var tmdbResult = await _client.SearchSeriesAsync(query, page);
+            var result = (tmdbResult?.Results ?? new()).Select(ToDto).ToList();
 
-            return tmdbResult.Results.Select(s => new SeriesDto
-            {
-                Id = s.Id,
-                Name = s.Name,
-                Overview = s.Overview,
-                PosterPath = s.PosterPath,
-                FirstAirDate = s.FirstAirDate
-            }).ToList();
+            _cache.Set(cacheKey, result, SearchCacheTtl);
+            return result;
         }
-    }
 
+        private static SeriesDto ToDto(Models.SeriesItem s) => new()
+        {
+            Id = s.Id,
+            Name = s.Name,
+            Overview = s.Overview,
+            PosterPath = s.PosterPath,
+            FirstAirDate = s.FirstAirDate
+        };
+    }
 }

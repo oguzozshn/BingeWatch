@@ -1,7 +1,130 @@
-﻿@page "/"
+@page "/"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
 
-<PageTitle>Home</PageTitle>
+@using BingeWatch.Web.Dtos
 
-<h1>Hello, world!</h1>
+<PageTitle>Ana Sayfa</PageTitle>
 
-Welcome to your new app.
+<h2 class="section-title">SIRADA NE VAR</h2>
+
+@if (loading)
+{
+    <p class="empty-message">Yükleniyor...</p>
+}
+else if (!nextUp.Any())
+{
+    <p class="empty-message">
+        Listende aktif bir dizi yok. <a href="watchlist">Watchlist'e</a> birkaç dizi ekle!
+    </p>
+}
+else
+{
+    <div class="watchlist-grid">
+        @foreach (var item in nextUp)
+        {
+            <div class="carousel-card" @onclick="() => GoToShow(item.TmdbShowId)">
+                <img src="@PosterUrl(item.ShowPosterPath)" alt="@item.ShowName" class="series-poster" />
+                <div class="series-info">
+                    <h4>@item.ShowName</h4>
+                    <p>
+                        S@(item.SeasonNumber)E@(item.EpisodeNumber) · @item.EpisodeName
+                        @if (item.IsUnaired && item.AirDate.HasValue)
+                        {
+                            <br /><span class="next-up-air-date">@item.AirDate.Value.ToString("d MMM yyyy")'de yayınlanacak</span>
+                        }
+                    </p>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<h2 class="section-title" style="margin-top:32px;">YAKLAŞAN BÖLÜMLER</h2>
+
+@if (!loading && !upcoming.Any())
+{
+    <p class="empty-message">Önümüzdeki 30 gün içinde yeni bölüm yok.</p>
+}
+else if (!loading)
+{
+    <div class="upcoming-list">
+        @foreach (var ep in upcoming)
+        {
+            <div class="upcoming-row" @onclick="() => GoToShow(ep.TmdbShowId)">
+                <span class="upcoming-date">@ep.AirDate.ToString("d MMM")</span>
+                <span class="upcoming-show">@ep.ShowName</span>
+                <span class="upcoming-episode">S@(ep.SeasonNumber)E@(ep.EpisodeNumber) — @ep.EpisodeName</span>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .next-up-air-date { color: #9aa1ab; font-size: 0.85em; }
+
+    .upcoming-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .upcoming-row {
+        display: flex;
+        gap: 16px;
+        align-items: baseline;
+        padding: 10px 14px;
+        background: var(--bw-surface);
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .upcoming-date {
+        color: #9aa1ab;
+        font-size: 0.85rem;
+        width: 70px;
+        flex-shrink: 0;
+    }
+
+    .upcoming-show { font-weight: 600; }
+    .upcoming-episode { color: #ccc; }
+</style>
+
+@code {
+    private List<NextEpisodeDto> nextUp = new();
+    private List<UpcomingEpisodeDto> upcoming = new();
+    private bool loading = true;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var api = await GetApiAsync();
+
+        nextUp = await api.GetFromJsonAsync<List<NextEpisodeDto>>("api/progress/next-up") ?? new();
+        upcoming = await api.GetFromJsonAsync<List<UpcomingEpisodeDto>>("api/progress/upcoming?days=30") ?? new();
+
+        loading = false;
+    }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w500{path}";
+
+    private void GoToShow(int tmdbId)
+    {
+        Navigation.NavigateTo($"/show/{tmdbId}");
+    }
+}

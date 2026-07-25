@@ -12,6 +12,12 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "BingeWatch.Web/BingeWatch.Web.csproj", "--launch-profile", "http"],
       "port": 5162
+    },
+    {
+      "name": "web-verify",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "BingeWatch.Web/BingeWatch.Web.csproj", "--launch-profile", "http", "--urls", "http://localhost:5163"],
+      "port": 5163
     }
   ]
 }
