@@ -1,0 +1,30 @@
+.reviews-page {
+    padding: 20px;
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+.page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.page-head h3 { margin: 0; }
+
+.sort-select { width: auto; }
+
+.muted { color: var(--bs-secondary-color, #9aa1ab); }
+
+.review-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.load-more {
+    display: block;
+    margin: 16px auto 0;
+}
