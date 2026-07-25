@@ -6,13 +6,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Configuration
-builder.Configuration.AddJsonFile(
-    "appsettings.json",
-    optional: false,
-    reloadOnChange: true
-);
-
 // 🔑 API için Named HttpClient (EN DOĞRUSU)d
 builder.Services.AddHttpClient("ApiClient", client =>
 {
