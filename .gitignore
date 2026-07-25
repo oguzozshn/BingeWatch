@@ -1,4 +1,3 @@
-.json
 # Build results
 bin/
 obj/
@@ -84,5 +83,3 @@ Desktop.ini
 
 # Sensitive files
 appsettings.Development.json
-
-.github/
