@@ -49,5 +49,32 @@ namespace BingeWatch.API.Clients
                 PropertyNameCaseInsensitive = true
             });
         }
+
+        /// <summary>Dizi özeti + sezon listesi + IMDb id, tek istekte (append_to_response).</summary>
+        public async Task<TmdbShowDetailsResponse?> GetShowDetailsAsync(int tmdbId)
+        {
+            var response = await _httpClient.GetAsync($"/3/tv/{tmdbId}?language=en-US&append_to_response=external_ids");
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TmdbShowDetailsResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+
+        public async Task<TmdbSeasonDetailsResponse?> GetSeasonDetailsAsync(int tmdbId, int seasonNumber)
+        {
+            var response = await _httpClient.GetAsync($"/3/tv/{tmdbId}/season/{seasonNumber}?language=en-US");
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TmdbSeasonDetailsResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
     }
 }
