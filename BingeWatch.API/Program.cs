@@ -26,6 +26,9 @@ namespace BingeWatch.API
             builder.Services.AddScoped<ITmdbService, TmdbService>();
             builder.Services.AddScoped<IWatchListService, WatchListService>();
 
+            // Hataları RFC 7807 (ProblemDetails) formatında döndür
+            builder.Services.AddProblemDetails();
+
             // Swagger hizmetleri
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
@@ -46,6 +49,9 @@ namespace BingeWatch.API
                 var context = scope.ServiceProvider.GetRequiredService<BingeOnDbContext>();
                 context.Database.Migrate();
             }
+
+            // Yakalanmamış hataları ProblemDetails olarak döndür
+            app.UseExceptionHandler();
 
             // Swagger middleware
             if (app.Environment.IsDevelopment())
