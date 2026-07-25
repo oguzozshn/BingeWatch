@@ -132,8 +132,10 @@
     [Parameter] public string SeriesId { get; set; }
 
     private const string UserId = "user1";
+    private const string TmdbImageBaseUrl = "https://image.tmdb.org/t/p/w500";
 
     private string OmdbApiKey;
+    private string TmdbApiKey;
     private string PosterUrl;
     private string ShowTitle;
     private string ShowYear;
@@ -144,31 +146,66 @@
     private bool _watchlistLoaded;
 
     private List<OmdbEpisodeRatingModel> Episodes = new();
+    private List<int> SeasonNumbers = new();
     private Dictionary<int, List<OmdbEpisodeRatingModel>> SeasonGroups = new();
 
     // 1️⃣ SADECE OMDb – LOCAL DATA
     protected override async Task OnInitializedAsync()
     {
         OmdbApiKey = Configuration["OmdbApiKey"];
+        TmdbApiKey = Configuration["TmdbApiKey"];
 
-        var showData = await new HttpClient()
-            .GetFromJsonAsync<OmdbShowModel>(
-                $"http://www.omdbapi.com/?i={ImdbId}&apikey={OmdbApiKey}"
-            );
+        await LoadShowDetailsAsync();
+        await LoadEpisodeRatingsAsync();
 
-        if (showData != null)
+        SeasonGroups = Episodes
+            .Where(e => int.TryParse(e.Season, out _))
+            .GroupBy(e => int.Parse(e.Season))
+            .OrderBy(g => g.Key)
+            .ToDictionary(g => g.Key, g => g.OrderBy(e => int.Parse(e.Episode)).ToList());
+    }
+
+    private async Task LoadShowDetailsAsync()
+    {
+        await LoadTmdbShowDetailsAsync();
+
+        if (!string.IsNullOrWhiteSpace(ShowTitle) && SeasonNumbers.Any())
+            return;
+
+        var showData = await GetExternalJsonAsync<OmdbShowModel>(
+            $"https://www.omdbapi.com/?i={ImdbId}&apikey={OmdbApiKey}"
+        );
+
+        if (!string.IsNullOrWhiteSpace(showData?.Title) && showData.Title != "N/A")
         {
             PosterUrl = showData.Poster;
             ShowTitle = showData.Title;
             ShowYear = showData.Year;
             ShowRating = showData.imdbRating;
             Votes = showData.imdbVotes;
+
+            if (int.TryParse(showData.totalSeasons, out var totalSeasons))
+                SeasonNumbers = Enumerable.Range(1, totalSeasons).ToList();
         }
 
-        for (int season = 1; season <= 5; season++)
+        if (!SeasonNumbers.Any() && int.TryParse(showData?.totalSeasons, out var fallbackTotalSeasons))
+            SeasonNumbers = Enumerable.Range(1, fallbackTotalSeasons).ToList();
+    }
+
+    private async Task LoadEpisodeRatingsAsync()
+    {
+        await LoadTmdbEpisodeRatingsAsync();
+
+        if (!Episodes.Any())
+            await LoadOmdbEpisodeRatingsAsync();
+    }
+
+    private async Task LoadOmdbEpisodeRatingsAsync()
+    {
+        foreach (var season in SeasonNumbers.DefaultIfEmpty().Where(s => s > 0))
         {
-            var url = $"http://www.omdbapi.com/?i={ImdbId}&Season={season}&apikey={OmdbApiKey}";
-            var seasonData = await new HttpClient().GetFromJsonAsync<OmdbSeasonResponse>(url);
+            var url = $"https://www.omdbapi.com/?i={ImdbId}&Season={season}&apikey={OmdbApiKey}";
+            var seasonData = await GetExternalJsonAsync<OmdbSeasonResponse>(url);
 
             if (seasonData?.Episodes != null)
             {
@@ -178,10 +215,79 @@
                 Episodes.AddRange(seasonData.Episodes);
             }
         }
+    }
 
-        SeasonGroups = Episodes
-            .GroupBy(e => int.Parse(e.Season))
-            .ToDictionary(g => g.Key, g => g.ToList());
+    private async Task LoadTmdbShowDetailsAsync()
+    {
+        if (!int.TryParse(SeriesId, out var tmdbSeriesId) || string.IsNullOrWhiteSpace(TmdbApiKey))
+            return;
+
+        var details = await GetExternalJsonAsync<TmdbShowDetailsModel>(
+            $"https://api.themoviedb.org/3/tv/{tmdbSeriesId}?api_key={TmdbApiKey}"
+        );
+
+        if (details == null)
+            return;
+
+        ShowTitle ??= details.Name;
+        ShowYear ??= details.FirstAirDate?.Split('-').FirstOrDefault();
+        ShowRating ??= details.VoteAverage.ToString("0.0", CultureInfo.InvariantCulture);
+        Votes ??= details.VoteCount.ToString("N0", CultureInfo.InvariantCulture);
+
+        if (string.IsNullOrWhiteSpace(PosterUrl) && !string.IsNullOrWhiteSpace(details.PosterPath))
+            PosterUrl = $"{TmdbImageBaseUrl}{details.PosterPath}";
+
+        SeasonNumbers = details.Seasons?
+            .Where(s => s.SeasonNumber > 0 && s.EpisodeCount > 0)
+            .Select(s => s.SeasonNumber)
+            .OrderBy(s => s)
+            .ToList() ?? new();
+    }
+
+    private async Task LoadTmdbEpisodeRatingsAsync()
+    {
+        if (!int.TryParse(SeriesId, out var tmdbSeriesId) || string.IsNullOrWhiteSpace(TmdbApiKey))
+            return;
+
+        if (!SeasonNumbers.Any())
+            await LoadTmdbShowDetailsAsync();
+
+        foreach (var season in SeasonNumbers)
+        {
+            var seasonData = await GetExternalJsonAsync<TmdbSeasonResponse>(
+                $"https://api.themoviedb.org/3/tv/{tmdbSeriesId}/season/{season}?api_key={TmdbApiKey}"
+            );
+
+            if (seasonData?.Episodes == null)
+                continue;
+
+            Episodes.AddRange(seasonData.Episodes.Select(ep => new OmdbEpisodeRatingModel
+            {
+                Title = ep.Name,
+                Season = ep.SeasonNumber.ToString(),
+                Episode = ep.EpisodeNumber.ToString(),
+                imdbRating = ep.VoteAverage > 0
+                    ? ep.VoteAverage.ToString("0.0", CultureInfo.InvariantCulture)
+                    : ""
+            }));
+        }
+    }
+
+    private static async Task<T> GetExternalJsonAsync<T>(string url)
+    {
+        try
+        {
+            using var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(3)
+            };
+
+            return await client.GetFromJsonAsync<T>(url);
+        }
+        catch
+        {
+            return default;
+        }
     }
 
     // 2️⃣ API ÇAĞRISI – DOĞRU LIFECYCLE
