@@ -85,5 +85,6 @@ Desktop.ini
 appsettings.Development.json
 
 
-# Local-only docs
-docs/
+# Local-only docs — ROADMAP dışındakiler kişisel not sayılır
+docs/*
+!docs/ROADMAP.md
