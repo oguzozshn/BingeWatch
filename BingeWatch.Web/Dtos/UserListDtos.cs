@@ -38,6 +38,9 @@ namespace BingeWatch.Web.Dtos
         public int ItemCount { get; set; }
         public List<string> PreviewPosterPaths { get; set; } = new();
 
+        public int LikeCount { get; set; }
+        public bool LikedByViewer { get; set; }
+
         public bool IsOwner { get; set; }
 
         public DateTime CreatedAt { get; set; }
@@ -60,6 +63,20 @@ namespace BingeWatch.Web.Dtos
 
         public int Position { get; set; }
         public string? Note { get; set; }
+    }
+
+    public class ListLikeStateDto
+    {
+        public int ListId { get; set; }
+        public int LikeCount { get; set; }
+        public bool LikedByViewer { get; set; }
+    }
+
+    public enum ListSort
+    {
+        Recent = 0,
+        MostLiked = 1,
+        Largest = 2
     }
 
     public class ListMembershipDto

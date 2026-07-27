@@ -19,5 +19,9 @@ namespace BingeWatch.API.Dtos
         public int? TmdbShowId { get; set; }
         public string? ShowName { get; set; }
         public int? SeasonNumber { get; set; }
+
+        // Liste beğenisi bildirimlerinde listenin kendisi — karttan listeye gidilebilsin
+        public int? UserListId { get; set; }
+        public string? ListTitle { get; set; }
     }
 }

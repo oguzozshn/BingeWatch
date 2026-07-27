@@ -13,11 +13,14 @@ namespace BingeWatch.API.Services
 
         private readonly BingeOnDbContext _context;
         private readonly IShowCatalogService _catalogService;
+        private readonly INotificationService _notificationService;
 
-        public UserListService(BingeOnDbContext context, IShowCatalogService catalogService)
+        public UserListService(BingeOnDbContext context, IShowCatalogService catalogService,
+            INotificationService notificationService)
         {
             _context = context;
             _catalogService = catalogService;
+            _notificationService = notificationService;
         }
 
         public async Task<UserListDetailDto?> CreateAsync(string userId, UpsertListRequest request)
@@ -66,10 +69,88 @@ namespace BingeWatch.API.Services
             if (list == null)
                 return false;
 
-            // Öğeler FK cascade ile gider.
+            // Öğeler ve beğeniler FK cascade ile gider; bildirimlerin FK'si yok, elle siliniyor.
             _context.UserLists.Remove(list);
             await _context.SaveChangesAsync();
+
+            await _notificationService.RemoveForListAsync(listId);
+
             return true;
+        }
+
+        public async Task<ListLikeStateDto?> LikeAsync(string userId, int listId)
+        {
+            // Beğenmek görebilmeyi gerektirir: kapalı liste ya da gizli profil beğenilemez.
+            var list = await VisibleListAsync(listId, userId);
+            if (list == null)
+                return null;
+
+            var exists = await _context.UserListLikes
+                .AnyAsync(l => l.UserListId == listId && l.UserId == userId);
+
+            if (!exists)
+            {
+                _context.UserListLikes.Add(new UserListLike { UserListId = listId, UserId = userId });
+                await _context.SaveChangesAsync();
+
+                await _notificationService.CreateAsync(list.UserId, userId,
+                    NotificationType.ListLiked, userListId: listId);
+            }
+
+            return await BuildLikeStateAsync(listId, userId);
+        }
+
+        public async Task<ListLikeStateDto?> UnlikeAsync(string userId, int listId)
+        {
+            var list = await VisibleListAsync(listId, userId);
+            if (list == null)
+                return null;
+
+            var existing = await _context.UserListLikes
+                .FirstOrDefaultAsync(l => l.UserListId == listId && l.UserId == userId);
+
+            if (existing != null)
+            {
+                _context.UserListLikes.Remove(existing);
+                await _context.SaveChangesAsync();
+
+                await _notificationService.RemoveAsync(list.UserId, userId,
+                    NotificationType.ListLiked, userListId: listId);
+            }
+
+            return await BuildLikeStateAsync(listId, userId);
+        }
+
+        public async Task<List<UserListSummaryDto>> GetDiscoverAsync(ListSort sort, int skip, int take,
+            string? viewerId)
+        {
+            take = Math.Clamp(take, 1, 100);
+            skip = Math.Max(skip, 0);
+
+            // Keşifte yalnızca herkese açık listeler, gizli olmayan profillerden.
+            // Boş liste keşfe girmez — kart posteri de bilgisi de olmayan satır işe yaramaz.
+            var query = _context.UserLists
+                .Where(l => l.IsPublic && !l.User!.IsPrivate)
+                .Where(l => _context.UserListItems.Any(i => i.UserListId == l.Id));
+
+            var ordered = sort switch
+            {
+                ListSort.MostLiked => query
+                    .OrderByDescending(l => _context.UserListLikes.Count(k => k.UserListId == l.Id))
+                    .ThenByDescending(l => l.UpdatedAt),
+                ListSort.Largest => query
+                    .OrderByDescending(l => _context.UserListItems.Count(i => i.UserListId == l.Id))
+                    .ThenByDescending(l => l.UpdatedAt),
+                _ => query.OrderByDescending(l => l.UpdatedAt)
+            };
+
+            var lists = await ordered
+                .Skip(skip)
+                .Take(take)
+                .Include(l => l.User)
+                .ToListAsync();
+
+            return await ProjectSummariesAsync(lists, viewerId);
         }
 
         public async Task<List<UserListSummaryDto>?> GetForUserAsync(string username, string? viewerId)
@@ -87,9 +168,10 @@ namespace BingeWatch.API.Services
             var lists = await _context.UserLists
                 .Where(l => l.UserId == user.Id && (l.IsPublic || isOwner))
                 .OrderByDescending(l => l.UpdatedAt)
+                .Include(l => l.User)
                 .ToListAsync();
 
-            return await ProjectSummariesAsync(lists, user, isOwner);
+            return await ProjectSummariesAsync(lists, viewerId);
         }
 
         public async Task<UserListDetailDto?> GetDetailAsync(int listId, string? viewerId)
@@ -134,8 +216,11 @@ namespace BingeWatch.API.Services
                 Note = r.Note
             }).ToList();
 
+            var likeState = await BuildLikeStateAsync(list.Id, viewerId);
+
             var summary = ToSummary(list, list.User!, isOwner, items.Count,
-                items.Where(i => i.PosterPath != null).Take(4).Select(i => i.PosterPath!).ToList());
+                items.Where(i => i.PosterPath != null).Take(4).Select(i => i.PosterPath!).ToList(),
+                likeState.LikeCount, likeState.LikedByViewer);
 
             return new UserListDetailDto
             {
@@ -148,6 +233,8 @@ namespace BingeWatch.API.Services
                 OwnerAvatarUrl = summary.OwnerAvatarUrl,
                 ItemCount = summary.ItemCount,
                 PreviewPosterPaths = summary.PreviewPosterPaths,
+                LikeCount = summary.LikeCount,
+                LikedByViewer = summary.LikedByViewer,
                 IsOwner = summary.IsOwner,
                 CreatedAt = summary.CreatedAt,
                 UpdatedAt = summary.UpdatedAt,
@@ -296,6 +383,32 @@ namespace BingeWatch.API.Services
         private Task<UserList?> OwnedListAsync(string userId, int listId) =>
             _context.UserLists.FirstOrDefaultAsync(l => l.Id == listId && l.UserId == userId);
 
+        /// <summary>
+        /// İsteği yapanın görebildiği liste; <see cref="GetDetailAsync"/> ile aynı
+        /// gizlilik kuralı (kapalı liste ve gizli profil yalnızca sahibine görünür).
+        /// </summary>
+        private async Task<UserList?> VisibleListAsync(int listId, string? viewerId)
+        {
+            var list = await _context.UserLists
+                .Include(l => l.User)
+                .FirstOrDefaultAsync(l => l.Id == listId);
+            if (list == null)
+                return null;
+
+            if (list.UserId != viewerId && (!list.IsPublic || list.User!.IsPrivate))
+                return null;
+
+            return list;
+        }
+
+        private async Task<ListLikeStateDto> BuildLikeStateAsync(int listId, string? viewerId) => new()
+        {
+            ListId = listId,
+            LikeCount = await _context.UserListLikes.CountAsync(l => l.UserListId == listId),
+            LikedByViewer = viewerId != null &&
+                await _context.UserListLikes.AnyAsync(l => l.UserListId == listId && l.UserId == viewerId)
+        };
+
         /// <summary>Sıra numaralarındaki boşlukları kapatır; sıra hep 0..n-1 olur.</summary>
         private async Task CompactPositionsAsync(int listId)
         {
@@ -318,9 +431,12 @@ namespace BingeWatch.API.Services
                 await _context.SaveChangesAsync();
         }
 
-        /// <summary>Liste kartları için sayaç ve önizleme posterlerini tek sorguda toplar.</summary>
-        private async Task<List<UserListSummaryDto>> ProjectSummariesAsync(List<UserList> lists, AppUser owner,
-            bool isOwner)
+        /// <summary>
+        /// Liste kartları için sayaç, önizleme posterleri ve beğenileri toplar.
+        /// Keşifte listeler farklı sahiplere ait olabildiği için sahip bilgisi
+        /// listenin kendisinden okunur (<c>Include(l =&gt; l.User)</c> gerekir).
+        /// </summary>
+        private async Task<List<UserListSummaryDto>> ProjectSummariesAsync(List<UserList> lists, string? viewerId)
         {
             if (lists.Count == 0)
                 return new List<UserListSummaryDto>();
@@ -344,13 +460,28 @@ namespace BingeWatch.API.Services
                 .GroupBy(x => x.UserListId)
                 .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Position).Take(4).Select(x => x.PosterPath).ToList());
 
-            return lists.Select(l => ToSummary(l, owner, isOwner,
+            var likeCounts = await _context.UserListLikes
+                .Where(l => listIds.Contains(l.UserListId))
+                .GroupBy(l => l.UserListId)
+                .Select(g => new { UserListId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.UserListId, x => x.Count);
+
+            var likedByViewer = viewerId == null
+                ? new HashSet<int>()
+                : (await _context.UserListLikes
+                    .Where(l => l.UserId == viewerId && listIds.Contains(l.UserListId))
+                    .Select(l => l.UserListId)
+                    .ToListAsync()).ToHashSet();
+
+            return lists.Select(l => ToSummary(l, l.User!, l.UserId == viewerId,
                 counts.TryGetValue(l.Id, out var count) ? count : 0,
-                posters.TryGetValue(l.Id, out var preview) ? preview : new List<string>())).ToList();
+                posters.TryGetValue(l.Id, out var preview) ? preview : new List<string>(),
+                likeCounts.TryGetValue(l.Id, out var likes) ? likes : 0,
+                likedByViewer.Contains(l.Id))).ToList();
         }
 
         private static UserListSummaryDto ToSummary(UserList list, AppUser owner, bool isOwner, int itemCount,
-            List<string> previewPosters) => new()
+            List<string> previewPosters, int likeCount, bool likedByViewer) => new()
             {
                 Id = list.Id,
                 Title = list.Title,
@@ -363,6 +494,8 @@ namespace BingeWatch.API.Services
                 OwnerAvatarUrl = owner.AvatarUrl,
                 ItemCount = itemCount,
                 PreviewPosterPaths = previewPosters,
+                LikeCount = likeCount,
+                LikedByViewer = likedByViewer,
                 IsOwner = isOwner,
                 CreatedAt = list.CreatedAt,
                 UpdatedAt = list.UpdatedAt

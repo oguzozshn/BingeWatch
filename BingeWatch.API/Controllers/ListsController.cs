@@ -24,6 +24,15 @@ namespace BingeWatch.API.Controllers
             ? User.FindFirstValue(ClaimTypes.NameIdentifier)
             : null;
 
+        /// <summary>Keşif akışı — <c>/lists</c> sayfası bunu okur.</summary>
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> Discover([FromQuery] int skip = 0, [FromQuery] int take = 20,
+            [FromQuery] ListSort sort = ListSort.Recent)
+        {
+            return Ok(await _listService.GetDiscoverAsync(sort, skip, take, ViewerId));
+        }
+
         [HttpGet("{listId:int}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetDetail(int listId)
@@ -65,6 +74,22 @@ namespace BingeWatch.API.Controllers
         {
             var deleted = await _listService.DeleteAsync(CurrentUserId, listId);
             return deleted ? NoContent() : NotFound();
+        }
+
+        [HttpPost("{listId:int}/like")]
+        [Authorize]
+        public async Task<IActionResult> Like(int listId)
+        {
+            var state = await _listService.LikeAsync(CurrentUserId, listId);
+            return state == null ? NotFound() : Ok(state);
+        }
+
+        [HttpDelete("{listId:int}/like")]
+        [Authorize]
+        public async Task<IActionResult> Unlike(int listId)
+        {
+            var state = await _listService.UnlikeAsync(CurrentUserId, listId);
+            return state == null ? NotFound() : Ok(state);
         }
 
         [HttpPost("{listId:int}/items")]

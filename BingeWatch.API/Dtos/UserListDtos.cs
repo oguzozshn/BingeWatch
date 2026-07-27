@@ -46,6 +46,11 @@ namespace BingeWatch.API.Dtos
         /// <summary>Kart önizlemesi için ilk sıradaki en fazla 4 posterin yolu.</summary>
         public List<string> PreviewPosterPaths { get; set; } = new();
 
+        public int LikeCount { get; set; }
+
+        /// <summary>İsteği yapan bu listeyi beğenmiş mi? Anonimde <c>false</c>.</summary>
+        public bool LikedByViewer { get; set; }
+
         /// <summary>İsteği yapan listenin sahibi mi? Düzenleme kontrolleri buna bakar.</summary>
         public bool IsOwner { get; set; }
 
@@ -69,6 +74,26 @@ namespace BingeWatch.API.Dtos
 
         public int Position { get; set; }
         public string? Note { get; set; }
+    }
+
+    public class ListLikeStateDto
+    {
+        public int ListId { get; set; }
+        public int LikeCount { get; set; }
+        public bool LikedByViewer { get; set; }
+    }
+
+    /// <summary>Keşif sayfasının sıralama seçenekleri.</summary>
+    public enum ListSort
+    {
+        /// <summary>Son güncellenen önce.</summary>
+        Recent = 0,
+
+        /// <summary>En çok beğenilen önce.</summary>
+        MostLiked = 1,
+
+        /// <summary>En çok dizi içeren önce.</summary>
+        Largest = 2
     }
 
     /// <summary>

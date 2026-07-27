@@ -32,7 +32,7 @@ namespace BingeWatch.Tests
         }
 
         private static UserListService CreateService(BingeOnDbContext context) =>
-            new(context, new LocalOnlyCatalogService(context));
+            new(context, new LocalOnlyCatalogService(context), new NotificationService(context));
 
         private static async Task SeedAsync(BingeOnDbContext context, bool isPrivateProfile = false)
         {
@@ -290,6 +290,144 @@ namespace BingeWatch.Tests
             Assert.False(await service.DeleteAsync("veli", list.Id));
             Assert.True(await service.DeleteAsync("ali", list.Id));
             Assert.Empty(context.UserLists);
+        }
+
+        [Fact]
+        public async Task LikeAsync_IsIdempotentAndNotifiesOwner()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var service = CreateService(context);
+
+            var list = await CreateListWithShowsAsync(service, 1);
+
+            var first = await service.LikeAsync("veli", list.Id);
+            var second = await service.LikeAsync("veli", list.Id);
+
+            Assert.Equal(1, first!.LikeCount);
+            Assert.True(first.LikedByViewer);
+            Assert.Equal(1, second!.LikeCount);
+            Assert.Equal(1, await context.UserListLikes.CountAsync());
+
+            var notification = await context.Notifications.SingleAsync();
+            Assert.Equal("ali", notification.UserId);
+            Assert.Equal("veli", notification.ActorId);
+            Assert.Equal(NotificationType.ListLiked, notification.Type);
+            Assert.Equal(list.Id, notification.UserListId);
+        }
+
+        [Fact]
+        public async Task UnlikeAsync_RemovesLikeAndNotification()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var service = CreateService(context);
+
+            var list = await CreateListWithShowsAsync(service, 1);
+            await service.LikeAsync("veli", list.Id);
+
+            var state = await service.UnlikeAsync("veli", list.Id);
+
+            Assert.Equal(0, state!.LikeCount);
+            Assert.False(state.LikedByViewer);
+            Assert.Empty(context.UserListLikes);
+            Assert.Empty(context.Notifications);
+        }
+
+        [Fact]
+        public async Task LikeAsync_OwnLikeDoesNotNotify()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var service = CreateService(context);
+
+            var list = await CreateListWithShowsAsync(service, 1);
+            await service.LikeAsync("ali", list.Id);
+
+            Assert.Equal(1, await context.UserListLikes.CountAsync());
+            Assert.Empty(context.Notifications);
+        }
+
+        [Fact]
+        public async Task LikeAsync_PrivateListCannotBeLikedByOthers()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var service = CreateService(context);
+
+            var created = await service.CreateAsync("ali",
+                new UpsertListRequest { Title = "Gizli", IsPublic = false });
+
+            Assert.Null(await service.LikeAsync("veli", created!.Id));
+            Assert.Empty(context.UserListLikes);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_RemovesLikeNotifications()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var service = CreateService(context);
+
+            var list = await CreateListWithShowsAsync(service, 1);
+            await service.LikeAsync("veli", list.Id);
+
+            await service.DeleteAsync("ali", list.Id);
+
+            Assert.Empty(context.Notifications);
+        }
+
+        [Fact]
+        public async Task GetDiscoverAsync_OnlyPublicNonEmptyListsOfVisibleProfiles()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var service = CreateService(context);
+
+            await CreateListWithShowsAsync(service, 1);
+            await service.CreateAsync("ali", new UpsertListRequest { Title = "Boş liste" });
+            var hidden = await service.CreateAsync("ali",
+                new UpsertListRequest { Title = "Kapalı", IsPublic = false });
+            await service.AddItemAsync("ali", hidden!.Id, new AddListItemRequest { TmdbShowId = 2 });
+
+            var discover = await service.GetDiscoverAsync(ListSort.Recent, 0, 20, "veli");
+
+            Assert.Single(discover);
+            Assert.Equal("Polisiyeler", discover[0].Title);
+            Assert.Equal("Ali", discover[0].OwnerDisplayName);
+            Assert.False(discover[0].IsOwner);
+        }
+
+        [Fact]
+        public async Task GetDiscoverAsync_HidesListsOfPrivateProfiles()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context, isPrivateProfile: true);
+            var service = CreateService(context);
+
+            await CreateListWithShowsAsync(service, 1);
+
+            Assert.Empty(await service.GetDiscoverAsync(ListSort.Recent, 0, 20, "veli"));
+        }
+
+        [Fact]
+        public async Task GetDiscoverAsync_MostLikedOrdersByLikeCount()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var service = CreateService(context);
+
+            var quiet = await CreateListWithShowsAsync(service, 1);
+            var popular = await service.CreateAsync("ali", new UpsertListRequest { Title = "Popüler" });
+            await service.AddItemAsync("ali", popular!.Id, new AddListItemRequest { TmdbShowId = 2 });
+            await service.LikeAsync("veli", popular.Id);
+
+            var discover = await service.GetDiscoverAsync(ListSort.MostLiked, 0, 20, "veli");
+
+            Assert.Equal(new[] { popular.Id, quiet.Id }, discover.Select(l => l.Id));
+            Assert.Equal(1, discover[0].LikeCount);
+            Assert.True(discover[0].LikedByViewer);
+            Assert.False(discover[1].LikedByViewer);
         }
 
         [Fact]

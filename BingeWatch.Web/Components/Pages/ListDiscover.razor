@@ -1,0 +1,96 @@
+@page "/lists"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Listeler</PageTitle>
+
+<div class="discover-page">
+    <header class="page-head">
+        <h3>Listeler</h3>
+        <select class="form-select form-select-sm sort-select" value="@((int)sort)"
+                @onchange="OnSortChangedAsync">
+            <option value="0">En yeni</option>
+            <option value="1">En beğenilen</option>
+            <option value="2">En kapsamlı</option>
+        </select>
+    </header>
+
+    @if (loading && lists.Count == 0)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (lists.Count == 0)
+    {
+        <p class="muted">Henüz herkese açık liste yok.</p>
+    }
+    else
+    {
+        <div class="list-grid">
+            @foreach (var list in lists)
+            {
+                <ListCard List="list" ShowOwner="true" @key="list.Id" />
+            }
+        </div>
+
+        @if (hasMore)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary load-more"
+                    disabled="@loading" @onclick="LoadMoreAsync">
+                @(loading ? "Yükleniyor..." : "Daha fazla")
+            </button>
+        }
+    }
+</div>
+
+@code {
+    private const int PageSize = 20;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private readonly List<UserListSummaryDto> lists = new();
+    private ListSort sort = ListSort.Recent;
+    private bool loading = true;
+    private bool hasMore;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+        lists.Clear();
+        await LoadPageAsync();
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        loading = true;
+        await LoadPageAsync();
+    }
+
+    private async Task LoadPageAsync()
+    {
+        // Token'sız istekte LikedByViewer hep false döner; beğeni butonu yanlış durumda başlar.
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var page = await client.GetFromJsonAsync<List<UserListSummaryDto>>(
+            $"api/lists?skip={lists.Count}&take={PageSize}&sort={(int)sort}") ?? new();
+
+        lists.AddRange(page);
+        // Tam sayfa döndüyse büyük olasılıkla devamı var; boş/eksik sayfa sonu demek.
+        hasMore = page.Count == PageSize;
+        loading = false;
+    }
+
+    private async Task OnSortChangedAsync(ChangeEventArgs e)
+    {
+        sort = (ListSort)int.Parse(e.Value?.ToString() ?? "0");
+        await ReloadAsync();
+    }
+}

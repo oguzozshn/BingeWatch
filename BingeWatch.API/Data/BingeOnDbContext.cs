@@ -31,6 +31,7 @@ namespace BingeWatch.API.Data
         // Listeler
         public DbSet<UserList> UserLists { get; set; }
         public DbSet<UserListItem> UserListItems { get; set; }
+        public DbSet<UserListLike> UserListLikes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -307,6 +308,25 @@ namespace BingeWatch.API.Data
                       .WithMany()
                       .HasForeignKey(e => e.ShowId)
                       // UserList → AppUser cascade'i ile çoklu yol oluşur; SQL Server izin vermez.
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<UserListLike>(entity =>
+            {
+                entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+
+                // Bir kullanıcı aynı listeyi bir kez beğenir.
+                entity.HasIndex(e => new { e.UserListId, e.UserId }).IsUnique();
+
+                entity.HasOne(e => e.UserList)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserListId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      // UserList zaten AppUser'a cascade veriyor; ikinci yol SQL Server'da yasak.
                       .OnDelete(DeleteBehavior.NoAction);
             });
         }

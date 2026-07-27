@@ -35,6 +35,8 @@ else
                     <p class="owner">
                         <a href="/@@@list.OwnerUsername">@list.OwnerDisplayName</a>
                         · @list.ItemCount dizi
+                        · <ListLikeButton ListId="list.Id" LikeCount="list.LikeCount"
+                                          LikedByViewer="list.LikedByViewer" OnChanged="OnLikeChanged" />
                     </p>
                     @if (!string.IsNullOrWhiteSpace(list.Description))
                     {
@@ -184,6 +186,16 @@ else
     {
         list = saved;
         editing = false;
+    }
+
+    /// <summary>Beğeni durumunu modele yaz; düzenleme açılıp kapanınca buton geri sayılmasın.</summary>
+    private void OnLikeChanged(ListLikeStateDto state)
+    {
+        if (list == null)
+            return;
+
+        list.LikeCount = state.LikeCount;
+        list.LikedByViewer = state.LikedByViewer;
     }
 
     private void StartNoteEdit(UserListItemDto item)

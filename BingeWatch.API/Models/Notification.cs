@@ -9,7 +9,10 @@ namespace BingeWatch.API.Models
         ReviewLiked = 2,
 
         /// <summary>İncelemene yorum yazdı.</summary>
-        ReviewCommented = 3
+        ReviewCommented = 3,
+
+        /// <summary>Listeni beğendi.</summary>
+        ListLiked = 4
     }
 
     /// <summary>
@@ -32,6 +35,9 @@ namespace BingeWatch.API.Models
 
         /// <summary>Beğeni/yorum bildirimlerinde ilgili inceleme.</summary>
         public int? ReviewId { get; set; }
+
+        /// <summary>Liste beğenisi bildirimlerinde ilgili liste.</summary>
+        public int? UserListId { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

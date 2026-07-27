@@ -38,6 +38,10 @@
                     {
                         <a class="show" href="/show/@notification.TmdbShowId">@notification.ShowName</a>
                     }
+                    @if (notification.UserListId.HasValue)
+                    {
+                        <a class="show" href="/list/@notification.UserListId">@notification.ListTitle</a>
+                    }
                     <time datetime="@notification.CreatedAt.ToString("o")">
                         @notification.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")
                     </time>
@@ -96,6 +100,7 @@
         NotificationType.ReviewLiked => notification.SeasonNumber.HasValue
             ? $"{notification.SeasonNumber}. sezon incelemeni beğendi —"
             : "incelemeni beğendi —",
+        NotificationType.ListLiked => "listeni beğendi —",
         _ => notification.SeasonNumber.HasValue
             ? $"{notification.SeasonNumber}. sezon incelemene yorum yazdı —"
             : "incelemene yorum yazdı —"

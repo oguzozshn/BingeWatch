@@ -1,0 +1,83 @@
+@*
+    Liste beğeni butonu. Durumu dışarıdan alır, tıklamada kendi içinde günceller;
+    liste yeniden çekilmez. Anonim kullanıcıya yalnızca sayaç gösterilir.
+
+    Kartın içinde de kullanıldığı için tıklama kartın linkine sızmasın diye
+    olay yayılımı durduruluyor.
+*@
+
+@inject IHttpClientFactory HttpClientFactory
+
+<AuthorizeView>
+    <Authorized>
+        <button type="button" class="@(liked ? "like-btn liked" : "like-btn")"
+                disabled="@busy" title="@(liked ? "Beğeniyi kaldır" : "Beğen")"
+                @onclick="ToggleAsync" @onclick:stopPropagation="true" @onclick:preventDefault="true">
+            @(liked ? "♥" : "♡") @likeCount
+        </button>
+    </Authorized>
+    <NotAuthorized>
+        <span class="like-btn static">♡ @likeCount</span>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter, EditorRequired] public int ListId { get; set; }
+
+    [Parameter] public int LikeCount { get; set; }
+    [Parameter] public bool LikedByViewer { get; set; }
+
+    /// <summary>Yeni beğeni durumu — sayaç gösteren sayfalar bunu dinler.</summary>
+    [Parameter] public EventCallback<ListLikeStateDto> OnChanged { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool liked;
+    private int likeCount;
+    private bool busy;
+
+    private int renderedListId;
+
+    protected override void OnParametersSet()
+    {
+        // Aynı buton başka bir listeye bağlandığında (liste yeniden sıralanınca) durumu tazele.
+        if (renderedListId == ListId)
+            return;
+
+        renderedListId = ListId;
+        liked = LikedByViewer;
+        likeCount = LikeCount;
+    }
+
+    private async Task ToggleAsync()
+    {
+        busy = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var authState = await AuthStateTask!;
+            var token = authState.User.FindFirst("api_token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var url = $"api/lists/{ListId}/like";
+            var response = liked ? await client.DeleteAsync(url) : await client.PostAsync(url, null);
+            if (!response.IsSuccessStatusCode)
+                return;
+
+            var state = await response.Content.ReadFromJsonAsync<ListLikeStateDto>();
+            if (state == null)
+                return;
+
+            liked = state.LikedByViewer;
+            likeCount = state.LikeCount;
+            await OnChanged.InvokeAsync(state);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
