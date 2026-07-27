@@ -1,0 +1,87 @@
+@page "/reviews"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>İncelemeler</PageTitle>
+
+<div class="reviews-page">
+    <header class="page-head">
+        <h3>İncelemeler</h3>
+        <select class="form-select form-select-sm sort-select" value="@((int)sort)"
+                @onchange="OnSortChangedAsync">
+            <option value="0">En yeni</option>
+            <option value="1">En eski</option>
+            <option value="2">En yüksek puan</option>
+        </select>
+    </header>
+
+    @if (loading && reviews.Count == 0)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (reviews.Count == 0)
+    {
+        <p class="muted">Henüz hiç inceleme yazılmamış.</p>
+    }
+    else
+    {
+        <div class="review-list">
+            @foreach (var review in reviews)
+            {
+                <ReviewCard Review="review" ShowContext="true" CanEdit="false" />
+            }
+        </div>
+
+        @if (hasMore)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary load-more"
+                    disabled="@loading" @onclick="LoadMoreAsync">
+                @(loading ? "Yükleniyor..." : "Daha fazla")
+            </button>
+        }
+    }
+</div>
+
+@code {
+    private const int PageSize = 20;
+
+    private readonly List<ReviewDto> reviews = new();
+    private ReviewSort sort = ReviewSort.Newest;
+    private bool loading = true;
+    private bool hasMore;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private HttpClient Api => HttpClientFactory.CreateClient("ApiClient");
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+        reviews.Clear();
+        await LoadPageAsync();
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        loading = true;
+        await LoadPageAsync();
+    }
+
+    private async Task LoadPageAsync()
+    {
+        var page = await Api.GetFromJsonAsync<List<ReviewDto>>(
+            $"api/reviews?skip={reviews.Count}&take={PageSize}&sort={(int)sort}") ?? new();
+
+        reviews.AddRange(page);
+        // Tam sayfa döndüyse büyük olasılıkla devamı var; boş/eksik sayfa sonu demek.
+        hasMore = page.Count == PageSize;
+        loading = false;
+    }
+
+    private async Task OnSortChangedAsync(ChangeEventArgs e)
+    {
+        sort = (ReviewSort)int.Parse(e.Value?.ToString() ?? "0");
+        await ReloadAsync();
+    }
+}

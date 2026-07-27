@@ -1,0 +1,61 @@
+.histogram {
+    background: var(--bw-surface);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+
+.summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.avg {
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.count {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 90px;
+}
+
+.bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    height: 100%;
+}
+
+.bar-track {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    background: var(--bw-surface-2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.bar-fill {
+    width: 100%;
+    background: #f5c518;
+    min-height: 2px;
+    border-radius: 3px 3px 0 0;
+}
+
+.bar-label {
+    font-size: 0.65rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}

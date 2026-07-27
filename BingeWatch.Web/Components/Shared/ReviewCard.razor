@@ -1,0 +1,83 @@
+@*
+    Tek bir inceleme. Hem dizi sayfasında hem /reviews akışında kullanılır;
+    akışta dizi adı/posteri de gösterilir (ShowContext=true).
+
+    Spoiler bayrağı işaretliyse gövde varsayılan olarak gizlenir — kullanıcı
+    bilerek açmalı.
+*@
+
+<article class="review">
+    @if (ShowContext)
+    {
+        <a class="poster-link" href="/show/@Review.TmdbShowId">
+            <img class="poster" src="@PosterUrl(Review.ShowPosterPath)" alt="@Review.ShowName" />
+        </a>
+    }
+
+    <div class="body-col">
+        <header class="head">
+            <div class="who">
+                <a class="author" href="@ProfileUrl">@Review.DisplayName</a>
+                @if (ShowContext)
+                {
+                    <a class="show-name" href="/show/@Review.TmdbShowId">@Review.ShowName</a>
+                }
+                @if (Review.SeasonNumber.HasValue)
+                {
+                    <span class="badge-season">@Review.SeasonNumber. sezon</span>
+                }
+            </div>
+
+            <div class="meta">
+                @if (Review.Rating.HasValue)
+                {
+                    <StarRating Value="Review.Rating" ReadOnly="true" Size="sm" AriaLabel="Yazarın puanı" />
+                }
+                <time datetime="@Review.CreatedAt.ToString("o")">@Review.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</time>
+            </div>
+        </header>
+
+        @if (Review.HasSpoilers && !spoilerRevealed)
+        {
+            <button type="button" class="spoiler-veil" @onclick="() => spoilerRevealed = true">
+                Bu inceleme spoiler içeriyor — göstermek için tıkla
+            </button>
+        }
+        else
+        {
+            @if (Review.HasSpoilers)
+            {
+                <span class="spoiler-tag">spoiler</span>
+            }
+            <p class="text">@Review.Body</p>
+        }
+
+        @if (CanEdit)
+        {
+            <div class="actions">
+                <button type="button" class="link-btn" @onclick="() => OnEdit.InvokeAsync(Review)">Düzenle</button>
+                <button type="button" class="link-btn danger" @onclick="() => OnDelete.InvokeAsync(Review)">Sil</button>
+            </div>
+        }
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public ReviewDto Review { get; set; } = new();
+
+    /// <summary>Akışta dizi adı ve posteri de gösterilsin mi?</summary>
+    [Parameter] public bool ShowContext { get; set; }
+
+    [Parameter] public bool CanEdit { get; set; }
+
+    [Parameter] public EventCallback<ReviewDto> OnEdit { get; set; }
+    [Parameter] public EventCallback<ReviewDto> OnDelete { get; set; }
+
+    private bool spoilerRevealed;
+
+    /// <summary>Profil rotası "/@kullaniciadi"; "@" Razor'da kaçış gerektirdiği için burada birleştiriliyor.</summary>
+    private string ProfileUrl => "/" + '@' + Review.Username;
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+}

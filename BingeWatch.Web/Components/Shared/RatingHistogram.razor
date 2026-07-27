@@ -1,0 +1,39 @@
+@*
+    Dizi sayfasındaki puan dağılımı: 0.5'ten 5.0'a 10 kova. Kovalar API'den her
+    zaman dolu gelir (boş olanlar 0), böylece histogramda delik oluşmaz.
+*@
+
+<div class="histogram">
+    <div class="summary">
+        <span class="avg">@(Summary.Average.HasValue ? Summary.Average.Value.ToString("0.0") : "—")</span>
+        <StarRating Value="@AverageAsHalfStars" ReadOnly="true" Size="sm" AriaLabel="Kullanıcı ortalaması" />
+        <span class="count">@Summary.Count kullanıcı puanı</span>
+    </div>
+
+    <div class="bars" role="img" aria-label="Puan dağılımı">
+        @foreach (var bucket in Buckets)
+        {
+            var count = Summary.Distribution.TryGetValue(bucket, out var c) ? c : 0;
+            var pct = Max == 0 ? 0 : (int)Math.Round(100.0 * count / Max);
+            <div class="bar-col" title="@bucket yıldız: @count">
+                <div class="bar-track">
+                    <div class="bar-fill" style="height:@(pct)%"></div>
+                </div>
+                <span class="bar-label">@bucket</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RatingSummaryDto Summary { get; set; } = new();
+
+    private static readonly string[] Buckets =
+        { "0.5", "1.0", "1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "4.5", "5.0" };
+
+    private int Max => Summary.Distribution.Count == 0 ? 0 : Summary.Distribution.Values.Max();
+
+    /// <summary>Ortalamayı yıldız gösterimi için en yakın yarım yıldıza yuvarlar.</summary>
+    private decimal? AverageAsHalfStars =>
+        Summary.Average.HasValue ? Math.Round((decimal)Summary.Average.Value * 2, MidpointRounding.AwayFromZero) / 2 : null;
+}

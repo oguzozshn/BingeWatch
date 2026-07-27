@@ -4,8 +4,6 @@
 
 @inject IHttpClientFactory HttpClientFactory
 
-@using BingeWatch.Web.Dtos
-
 @if (loading)
 {
     <p class="show-loading">Yükleniyor...</p>
@@ -16,14 +14,28 @@ else if (show == null)
 }
 else
 {
+    <PageTitle>@show.Name</PageTitle>
+
     <div class="show-container">
         <div class="left-panel">
             <img src="@PosterUrl(show.PosterPath)" alt="@show.Name" class="poster" />
 
             <div class="info">
                 <h2>@show.Name</h2>
-                <p><span class="rating">⭐ @show.VoteAverage.ToString("0.0")</span> (@show.VoteCount.ToString("N0") oy)</p>
-                <p>@(show.FirstAirDate?.Year.ToString() ?? "—") @(string.IsNullOrEmpty(show.Status) ? "" : $"· {show.Status}")</p>
+                <p class="tmdb-line">
+                    <span class="rating">⭐ @show.VoteAverage.ToString("0.0")</span>
+                    <span class="muted">TMDb · @show.VoteCount.ToString("N0") oy</span>
+                </p>
+                <p class="muted">
+                    @(show.FirstAirDate?.Year.ToString() ?? "—")@(string.IsNullOrEmpty(show.Status) ? "" : $" · {show.Status}")
+                </p>
+            </div>
+
+            <div class="my-rating">
+                <span class="my-rating-label">Puanın</span>
+                <StarRating Value="myRatings.ShowRating" ShowValue="true" Size="lg"
+                            AriaLabel="Diziye puan ver"
+                            ValueChanged="RateShowAsync" />
             </div>
 
             <button class="watchlist-btn" @onclick="ToggleWatchlist">
@@ -41,123 +53,193 @@ else
         </div>
 
         <div class="right-panel">
-            @foreach (var season in show.Seasons)
+            <nav class="tabs" role="tablist">
+                @foreach (var t in AllTabs)
+                {
+                    var tab = t;
+                    <button type="button" role="tab" class="tab @(activeTab == tab ? "active" : "")"
+                            aria-selected="@(activeTab == tab)"
+                            @onclick="() => SwitchTabAsync(tab)">@TabLabel(tab)</button>
+                }
+            </nav>
+
+            @switch (activeTab)
             {
-                <div class="season">
-                    <div class="season-header">
-                        <h4>@(string.IsNullOrEmpty(season.Name) ? $"Sezon {season.SeasonNumber}" : season.Name)</h4>
-                        <button class="season-action" @onclick="() => MarkSeasonWatched(season)">Sezonu izledim</button>
-                    </div>
-                    <div class="episodes">
-                        @foreach (var ep in season.Episodes)
+                case Tab.Overview:
+                    <section class="tab-panel">
+                        @if (!string.IsNullOrWhiteSpace(show.Overview))
                         {
-                            var unaired = ep.AirDate.HasValue && ep.AirDate.Value.Date > DateTime.UtcNow.Date;
-                            <div class="episode-row @(ep.Watched ? "watched" : "") @(unaired ? "unaired" : "")">
-                                <label class="episode-checkbox">
-                                    <input type="checkbox" checked="@ep.Watched" disabled="@unaired"
-                                           @onchange="e => MarkEpisodeWatched(ep, (bool)e.Value!)" />
-                                    <span>@ep.EpisodeNumber. @ep.Name</span>
-                                </label>
-                                @if (!ep.Watched && !unaired)
+                            <p class="overview">@show.Overview</p>
+                        }
+
+                        @if (summary != null)
+                        {
+                            <h5 class="section-title">BingeWatch puanları</h5>
+                            <RatingHistogram Summary="summary" />
+                        }
+
+                        <h5 class="section-title">Bölüm ısı haritası</h5>
+                        <EpisodeHeatmap Seasons="show.Seasons" PersonalRatings="myRatings.EpisodeRatings" />
+
+                        <h5 class="section-title">Sezon puanların</h5>
+                        <div class="season-ratings">
+                            @foreach (var season in show.Seasons)
+                            {
+                                var s = season;
+                                <div class="season-rating-row">
+                                    <span>@SeasonLabel(s)</span>
+                                    <StarRating Value="@SeasonRating(s.SeasonNumber)" Size="sm" ShowValue="true"
+                                                AriaLabel="@($"{SeasonLabel(s)} puanı")"
+                                                ValueChanged="v => RateSeasonAsync(s.SeasonNumber, v)" />
+                                </div>
+                            }
+                        </div>
+                    </section>
+                    break;
+
+                case Tab.Episodes:
+                    <section class="tab-panel">
+                        @foreach (var season in show.Seasons)
+                        {
+                            var s = season;
+                            var expanded = expandedSeasons.Contains(s.SeasonNumber);
+                            <div class="season">
+                                <div class="season-header">
+                                    <button type="button" class="season-toggle" aria-expanded="@expanded"
+                                            @onclick="() => ToggleSeason(s.SeasonNumber)">
+                                        <span class="chevron">@(expanded ? "▾" : "▸")</span>
+                                        <h4>@SeasonLabel(s)</h4>
+                                        <span class="season-count">@WatchedInSeason(s)/@s.Episodes.Count</span>
+                                    </button>
+                                    <button class="season-action" @onclick="() => MarkSeasonWatched(s)">Sezonu izledim</button>
+                                </div>
+
+                                @if (expanded)
                                 {
-                                    <button class="up-to-btn" @onclick="() => MarkWatchedUpTo(ep)">buraya kadar</button>
-                                }
-                                @if (unaired && ep.AirDate.HasValue)
-                                {
-                                    <span class="air-date">@ep.AirDate.Value.ToString("d MMM yyyy")</span>
+                                    <div class="episodes">
+                                        @foreach (var episode in s.Episodes)
+                                        {
+                                            var ep = episode;
+                                            var unaired = ep.AirDate.HasValue && ep.AirDate.Value.Date > DateTime.UtcNow.Date;
+                                            <div class="episode-row @(ep.Watched ? "watched" : "") @(unaired ? "unaired" : "")">
+                                                <label class="episode-checkbox">
+                                                    <input type="checkbox" checked="@ep.Watched" disabled="@unaired"
+                                                           @onchange="e => MarkEpisodeWatched(ep, (bool)e.Value!)" />
+                                                    <span>@ep.EpisodeNumber. @ep.Name</span>
+                                                </label>
+
+                                                <div class="episode-actions">
+                                                    @if (!unaired)
+                                                    {
+                                                        <StarRating Value="@EpisodeRating(ep.Id)" Size="sm"
+                                                                    AriaLabel="@($"{ep.EpisodeNumber}. bölüme puan ver")"
+                                                                    ValueChanged="v => RateEpisodeAsync(ep.Id, v)" />
+                                                    }
+                                                    @if (!ep.Watched && !unaired)
+                                                    {
+                                                        <button class="up-to-btn" @onclick="() => MarkWatchedUpTo(ep)">buraya kadar</button>
+                                                    }
+                                                    @if (unaired && ep.AirDate.HasValue)
+                                                    {
+                                                        <span class="air-date">@ep.AirDate.Value.ToString("d MMM yyyy")</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
                                 }
                             </div>
                         }
-                    </div>
-                </div>
+                    </section>
+                    break;
+
+                case Tab.Reviews:
+                    <section class="tab-panel">
+                        <div class="review-form">
+                            <div class="review-form-head">
+                                <h5 class="section-title">@(editingId == null ? "İnceleme yaz" : "İncelemeni düzenle")</h5>
+                                <select class="form-select form-select-sm season-select" @bind="draftSeasonNumber">
+                                    <option value="">Dizi geneli</option>
+                                    @foreach (var s in show.Seasons)
+                                    {
+                                        <option value="@s.SeasonNumber">@SeasonLabel(s)</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <textarea class="form-control" rows="4" placeholder="Ne düşündün?"
+                                      @bind="draftBody" @bind:event="oninput"></textarea>
+
+                            <div class="review-form-actions">
+                                <label class="spoiler-check">
+                                    <input type="checkbox" @bind="draftHasSpoilers" />
+                                    <span>Spoiler içeriyor</span>
+                                </label>
+
+                                @if (reviewError != null)
+                                {
+                                    <span class="review-error">@reviewError</span>
+                                }
+
+                                @if (editingId != null)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="CancelEdit">Vazgeç</button>
+                                }
+                                <button type="button" class="btn btn-sm btn-primary"
+                                        disabled="@(string.IsNullOrWhiteSpace(draftBody) || savingReview)"
+                                        @onclick="SaveReviewAsync">
+                                    @(savingReview ? "Kaydediliyor..." : "Kaydet")
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (reviews.Count == 0)
+                        {
+                            <p class="muted">Bu diziye henüz inceleme yazılmamış. İlk sen yaz.</p>
+                        }
+                        else
+                        {
+                            <div class="review-list">
+                                @foreach (var review in reviews)
+                                {
+                                    <ReviewCard Review="review"
+                                                CanEdit="@(review.UserId == currentUserId)"
+                                                OnEdit="StartEdit"
+                                                OnDelete="DeleteReviewAsync" />
+                                }
+                            </div>
+                        }
+                    </section>
+                    break;
+
+                case Tab.Similar:
+                    <section class="tab-panel">
+                        @if (similar == null)
+                        {
+                            <p class="muted">Yükleniyor...</p>
+                        }
+                        else if (similar.Count == 0)
+                        {
+                            <p class="muted">TMDb bu dizi için benzer yapım önermiyor.</p>
+                        }
+                        else
+                        {
+                            <div class="similar-grid">
+                                @foreach (var item in similar)
+                                {
+                                    <a class="similar-card" href="/show/@item.Id">
+                                        <img src="@PosterUrl(item.PosterPath)" alt="@item.Name" />
+                                        <span class="similar-name">@item.Name</span>
+                                    </a>
+                                }
+                            </div>
+                        }
+                    </section>
+                    break;
             }
         </div>
     </div>
 }
-
-<style>
-    .show-loading { color: #e6e8eb; padding: 20px; }
-
-    .show-container {
-        display: flex;
-        color: #e6e8eb;
-        font-family: 'Segoe UI', sans-serif;
-        padding: 20px;
-        gap: 40px;
-    }
-
-    .left-panel { width: 260px; flex-shrink: 0; }
-    .poster { width: 100%; border-radius: 8px; }
-    .info { margin-top: 10px; }
-    .rating { color: gold; }
-
-    .watchlist-btn {
-        margin-top: 10px;
-        background: none;
-        border: 1px solid #3a3d45;
-        border-radius: 8px;
-        font-size: 1.4rem;
-        padding: 6px 14px;
-        cursor: pointer;
-        color: inherit;
-    }
-
-    .progress-block { margin-top: 16px; }
-    .progress-bar {
-        background: #2a2d35;
-        border-radius: 6px;
-        height: 8px;
-        overflow: hidden;
-    }
-    .progress-fill { background: #1b6ec2; height: 100%; }
-    .progress-label { font-size: 0.85rem; color: #9aa1ab; margin-top: 6px; }
-
-    .right-panel { flex-grow: 1; min-width: 0; }
-
-    .season { margin-bottom: 22px; }
-    .season-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin-bottom: 8px;
-    }
-    .season-header h4 { margin: 0; }
-    .season-action {
-        background: none;
-        border: 1px solid #3a3d45;
-        border-radius: 6px;
-        color: inherit;
-        padding: 4px 10px;
-        font-size: 0.8rem;
-        cursor: pointer;
-    }
-
-    .episodes { display: flex; flex-direction: column; gap: 4px; }
-    .episode-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 6px 10px;
-        border-radius: 6px;
-        background: var(--bw-surface);
-    }
-    .episode-row.watched { opacity: 0.65; }
-    .episode-row.unaired { opacity: 0.5; }
-    .episode-checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-    .episode-checkbox input { cursor: pointer; }
-
-    .up-to-btn {
-        background: none;
-        border: none;
-        color: #4da3ff;
-        font-size: 0.78rem;
-        cursor: pointer;
-        white-space: nowrap;
-    }
-    .air-date { font-size: 0.78rem; color: #9aa1ab; white-space: nowrap; }
-</style>
 
 @code {
     [Parameter] public int TmdbId { get; set; }
@@ -165,10 +247,41 @@ else
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+    private enum Tab { Overview, Episodes, Reviews, Similar }
+
+    private static readonly Tab[] AllTabs = { Tab.Overview, Tab.Episodes, Tab.Reviews, Tab.Similar };
+
+    private static string TabLabel(Tab tab) => tab switch
+    {
+        Tab.Overview => "Genel Bakış",
+        Tab.Episodes => "Bölümler",
+        Tab.Reviews => "İncelemeler",
+        _ => "Benzer"
+    };
+
     private ShowDetailDto? show;
     private ShowProgressDto? progress;
+    private ShowRatingsDto myRatings = new();
+    private RatingSummaryDto? summary;
+    private List<ReviewDto> reviews = new();
+    private List<SeriesDto>? similar;
+
     private bool IsInWatchlist;
     private bool loading = true;
+    private string? currentUserId;
+
+    private Tab activeTab = Tab.Overview;
+
+    // Sezonlar varsayılan olarak kapalı; çok sezonlu dizilerde sayfa uzamasın.
+    private readonly HashSet<int> expandedSeasons = new();
+
+    // İnceleme formu
+    private string? draftSeasonNumber;
+    private string draftBody = string.Empty;
+    private bool draftHasSpoilers;
+    private int? editingId;
+    private bool savingReview;
+    private string? reviewError;
 
     private async Task<HttpClient> GetApiAsync()
     {
@@ -183,6 +296,14 @@ else
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
+        activeTab = Tab.Overview;
+        expandedSeasons.Clear();
+        similar = null;
+        ResetDraft();
+
+        var authState = await AuthStateTask!;
+        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
         var api = await GetApiAsync();
 
         show = await api.GetFromJsonAsync<ShowDetailDto>($"api/shows/{TmdbId}");
@@ -190,13 +311,189 @@ else
         {
             progress = await api.GetFromJsonAsync<ShowProgressDto>($"api/shows/{TmdbId}/progress");
             IsInWatchlist = await api.GetFromJsonAsync<bool>($"api/watchlist/status?seriesId={TmdbId}");
+            myRatings = await api.GetFromJsonAsync<ShowRatingsDto>($"api/shows/{TmdbId}/ratings/mine") ?? new();
+            summary = await api.GetFromJsonAsync<RatingSummaryDto>($"api/shows/{TmdbId}/ratings/summary");
+
+            // İzlenmekte olan sezon açık başlasın: ilk yarım kalmış sezon.
+            var current = show.Seasons.FirstOrDefault(s => s.Episodes.Any(e => !e.Watched))
+                          ?? show.Seasons.FirstOrDefault();
+            if (current != null)
+                expandedSeasons.Add(current.SeasonNumber);
         }
 
         loading = false;
     }
 
-    private static string PosterUrl(string? path) =>
-        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w500{path}";
+    private async Task SwitchTabAsync(Tab tab)
+    {
+        activeTab = tab;
+
+        // İnceleme ve benzer listesi yalnızca sekmesi ilk açıldığında çekilir.
+        var api = await GetApiAsync();
+
+        if (tab == Tab.Reviews)
+            reviews = await api.GetFromJsonAsync<List<ReviewDto>>($"api/reviews/show/{TmdbId}") ?? new();
+        else if (tab == Tab.Similar && similar == null)
+            similar = await api.GetFromJsonAsync<List<SeriesDto>>($"api/shows/{TmdbId}/similar") ?? new();
+    }
+
+    private static string PosterUrl(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return "";
+
+        // Katalog API'si göreli yol döner; arama sonuçlarında tam URL gelebilir.
+        return path.StartsWith("http") ? path : $"https://image.tmdb.org/t/p/w500{path}";
+    }
+
+    private static string SeasonLabel(SeasonDetailDto season) =>
+        string.IsNullOrEmpty(season.Name) ? $"Sezon {season.SeasonNumber}" : season.Name!;
+
+    private static int WatchedInSeason(SeasonDetailDto season) => season.Episodes.Count(e => e.Watched);
+
+    private void ToggleSeason(int seasonNumber)
+    {
+        if (!expandedSeasons.Remove(seasonNumber))
+            expandedSeasons.Add(seasonNumber);
+    }
+
+    private decimal? SeasonRating(int seasonNumber) =>
+        myRatings.SeasonRatings.TryGetValue(seasonNumber, out var v) ? v : null;
+
+    private decimal? EpisodeRating(int episodeId) =>
+        myRatings.EpisodeRatings.TryGetValue(episodeId, out var v) ? v : null;
+
+    // ----- Puanlama -------------------------------------------------------
+
+    private async Task RateShowAsync(decimal? value)
+    {
+        var request = new SetRatingRequest { TargetType = RatingTargetType.Show, Value = value ?? 0 };
+        if (!await SendRatingAsync(request, value))
+            return;
+
+        myRatings.ShowRating = value;
+        // Dizi puanı ortalamayı değiştirir; histogram tazelenmeli.
+        var api = await GetApiAsync();
+        summary = await api.GetFromJsonAsync<RatingSummaryDto>($"api/shows/{TmdbId}/ratings/summary");
+    }
+
+    private async Task RateSeasonAsync(int seasonNumber, decimal? value)
+    {
+        var request = new SetRatingRequest
+        {
+            TargetType = RatingTargetType.Season,
+            SeasonNumber = seasonNumber,
+            Value = value ?? 0
+        };
+        if (!await SendRatingAsync(request, value))
+            return;
+
+        if (value.HasValue)
+            myRatings.SeasonRatings[seasonNumber] = value.Value;
+        else
+            myRatings.SeasonRatings.Remove(seasonNumber);
+    }
+
+    private async Task RateEpisodeAsync(int episodeId, decimal? value)
+    {
+        var request = new SetRatingRequest
+        {
+            TargetType = RatingTargetType.Episode,
+            EpisodeId = episodeId,
+            Value = value ?? 0
+        };
+        if (!await SendRatingAsync(request, value))
+            return;
+
+        if (value.HasValue)
+            myRatings.EpisodeRatings[episodeId] = value.Value;
+        else
+            myRatings.EpisodeRatings.Remove(episodeId);
+    }
+
+    /// <summary><paramref name="value"/> null ise puan silinir, doluysa yazılır.</summary>
+    private async Task<bool> SendRatingAsync(SetRatingRequest request, decimal? value)
+    {
+        var api = await GetApiAsync();
+
+        var response = value.HasValue
+            ? await api.PutAsJsonAsync($"api/shows/{TmdbId}/ratings", request)
+            : await api.SendAsync(new HttpRequestMessage(HttpMethod.Delete, $"api/shows/{TmdbId}/ratings")
+            {
+                Content = JsonContent.Create(request)
+            });
+
+        return response.IsSuccessStatusCode;
+    }
+
+    // ----- İnceleme -------------------------------------------------------
+
+    private void ResetDraft()
+    {
+        draftSeasonNumber = null;
+        draftBody = string.Empty;
+        draftHasSpoilers = false;
+        editingId = null;
+        reviewError = null;
+    }
+
+    private void StartEdit(ReviewDto review)
+    {
+        editingId = review.Id;
+        draftSeasonNumber = review.SeasonNumber?.ToString();
+        draftBody = review.Body;
+        draftHasSpoilers = review.HasSpoilers;
+        reviewError = null;
+    }
+
+    private void CancelEdit() => ResetDraft();
+
+    private async Task SaveReviewAsync()
+    {
+        if (string.IsNullOrWhiteSpace(draftBody))
+            return;
+
+        savingReview = true;
+        reviewError = null;
+
+        var api = await GetApiAsync();
+        var request = new UpsertReviewRequest
+        {
+            SeasonNumber = string.IsNullOrEmpty(draftSeasonNumber) ? null : int.Parse(draftSeasonNumber),
+            Body = draftBody,
+            HasSpoilers = draftHasSpoilers
+        };
+
+        var response = await api.PutAsJsonAsync($"api/reviews/show/{TmdbId}", request);
+        savingReview = false;
+
+        if (!response.IsSuccessStatusCode)
+        {
+            reviewError = "İnceleme kaydedilemedi.";
+            return;
+        }
+
+        ResetDraft();
+        reviews = await api.GetFromJsonAsync<List<ReviewDto>>($"api/reviews/show/{TmdbId}") ?? new();
+    }
+
+    private async Task DeleteReviewAsync(ReviewDto review)
+    {
+        var api = await GetApiAsync();
+        var response = await api.DeleteAsync($"api/reviews/{review.Id}");
+        if (!response.IsSuccessStatusCode)
+        {
+            reviewError = "İnceleme silinemedi.";
+            return;
+        }
+
+        if (editingId == review.Id)
+            ResetDraft();
+
+        reviews = await api.GetFromJsonAsync<List<ReviewDto>>($"api/reviews/show/{TmdbId}") ?? new();
+    }
+
+    // ----- İzleme takibi --------------------------------------------------
 
     private async Task ToggleWatchlist()
     {

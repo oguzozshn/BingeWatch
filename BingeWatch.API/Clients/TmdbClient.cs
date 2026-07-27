@@ -51,6 +51,16 @@ namespace BingeWatch.API.Clients
             return JsonSerializer.Deserialize<TmdbSeriesResult>(json, JsonOptions);
         }
 
+        public async Task<TmdbSeriesResult?> GetSimilarSeriesAsync(int tmdbId, int page = 1)
+        {
+            var response = await _httpClient.GetAsync($"/3/tv/{tmdbId}/similar?language=en-US&page={page}");
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TmdbSeriesResult>(json, JsonOptions);
+        }
+
         /// <summary>Dizi özeti + sezon listesi + IMDb id, tek istekte (append_to_response).</summary>
         public async Task<TmdbShowDetailsResponse?> GetShowDetailsAsync(int tmdbId)
         {

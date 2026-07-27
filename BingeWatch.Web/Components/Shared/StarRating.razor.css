@@ -1,0 +1,79 @@
+.star-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.star {
+    position: relative;
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+}
+
+/* Boş ve dolu yıldız üst üste; dolu olan yüzdeyle kırpılır (yarım yıldız). */
+.star-bg,
+.star-fill {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.star-bg {
+    color: var(--bs-border-color, #3a3d45);
+}
+
+.star-fill {
+    color: #f5c518;
+    width: 0;
+}
+
+/* Yıldızın sol/sağ yarısını kaplayan görünmez tıklama alanları. */
+.half {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.half-left { left: 0; }
+.half-right { right: 0; }
+
+.half:focus-visible {
+    outline: 2px solid var(--bs-link-color, #4da3ff);
+    outline-offset: 1px;
+}
+
+.star-rating.is-readonly .star { cursor: default; }
+
+.size-sm { font-size: 0.9rem; }
+.size-md { font-size: 1.25rem; }
+.size-lg { font-size: 1.75rem; }
+
+.value {
+    margin-left: 0.45em;
+    font-size: 0.72em;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.clear {
+    margin-left: 0.35em;
+    padding: 0 0.25em;
+    border: none;
+    background: transparent;
+    color: var(--bs-secondary-color, #9aa1ab);
+    font-size: 0.85em;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.clear:hover { color: var(--bs-body-color, #e6e8eb); }
