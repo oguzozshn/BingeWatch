@@ -172,8 +172,14 @@ namespace BingeWatch.API.Services
             // Kendi olayları da akışta: kimseyi takip etmeyen kullanıcı boş sayfa görmesin.
             followeeIds.Add(viewerId);
 
+            // Engel takipleri koparır ama "X, Y'yi takip etti" gibi olaylar üçüncü
+            // kişiler üzerinden akışa sızabilir; engellenenler iki yönde de elenir.
+            var hidden = await _context.HiddenUserIdsAsync(viewerId);
+
             var events = await _context.ActivityEvents
                 .Where(a => followeeIds.Contains(a.UserId))
+                .Where(a => !hidden.Contains(a.UserId)
+                         && (a.TargetUserId == null || !hidden.Contains(a.TargetUserId)))
                 .OrderByDescending(a => a.CreatedAt)
                 .ThenByDescending(a => a.Id)
                 .Skip(skip)

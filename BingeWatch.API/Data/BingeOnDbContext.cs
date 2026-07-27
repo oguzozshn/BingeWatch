@@ -35,6 +35,10 @@ namespace BingeWatch.API.Data
         public DbSet<UserListItem> UserListItems { get; set; }
         public DbSet<UserListLike> UserListLikes { get; set; }
 
+        // Moderasyon
+        public DbSet<UserBlock> UserBlocks { get; set; }
+        public DbSet<Report> Reports { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -352,6 +356,62 @@ namespace BingeWatch.API.Data
                       .HasForeignKey(e => e.UserId)
                       // UserList zaten AppUser'a cascade veriyor; ikinci yol SQL Server'da yasak.
                       .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<UserBlock>(entity =>
+            {
+                entity.Property(e => e.BlockerId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.BlockedId).IsRequired().HasMaxLength(450);
+
+                // Aynı çift iki kez engellenemez; ikinci istek sessizce yoksayılır.
+                entity.HasIndex(e => new { e.BlockerId, e.BlockedId }).IsUnique();
+                // Engel filtreleri "beni kim engelledi" yönünden de tarar.
+                entity.HasIndex(e => e.BlockedId);
+
+                entity.HasOne(e => e.Blocker)
+                      .WithMany()
+                      .HasForeignKey(e => e.BlockerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Blocked)
+                      .WithMany()
+                      .HasForeignKey(e => e.BlockedId)
+                      // Aynı tabloya ikinci cascade yolu; SQL Server izin vermez (bkz. Follow).
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<Report>(entity =>
+            {
+                entity.Property(e => e.ReporterId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.TargetUserId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.ResolvedById).HasMaxLength(450);
+                entity.Property(e => e.Note).HasMaxLength(1000);
+                entity.Property(e => e.ResolutionNote).HasMaxLength(1000);
+
+                // Moderasyon kuyruğu açık bildirimleri tarihe göre okur.
+                entity.HasIndex(e => new { e.Status, e.CreatedAt });
+                // "Aynı içerik için başka bildirim var mı" ve mükerrer kontrolü.
+                entity.HasIndex(e => new { e.TargetType, e.TargetId });
+                entity.HasIndex(e => new { e.TargetUserId, e.Status });
+
+                entity.HasOne(e => e.Reporter)
+                      .WithMany()
+                      .HasForeignKey(e => e.ReporterId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Aşağıdaki iki ilişki de AppUser cascade'i ile çoklu yol oluşturur.
+                entity.HasOne(e => e.TargetUser)
+                      .WithMany()
+                      .HasForeignKey(e => e.TargetUserId)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(e => e.ResolvedBy)
+                      .WithMany()
+                      .HasForeignKey(e => e.ResolvedById)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                // TargetId polimorfik olduğu için FK yok; içerik silinince bildirim
+                // kayıtta kalır — moderasyon geçmişi içerikle birlikte silinmemeli.
             });
         }
     }

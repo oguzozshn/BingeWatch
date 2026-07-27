@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 27 Temmuz 2026, Faz 5 sonu.*
+*Son güncelleme: 27 Temmuz 2026, Faz 6.1 (moderasyon) sonu.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -32,10 +32,10 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 - **İnceleme** (dizi + sezon) spoiler bayrağıyla; inceleme akışı — [Reviews.razor](../BingeWatch.Web/Components/Pages/Reviews.razor)
 - Bölüm ısı haritası: TMDb ve kişisel puan katmanları toggle'lı
 - Dizi sayfası sekmeli: Genel Bakış / Bölümler / İncelemeler / Benzer
-
-**Sosyal ürün açısından eksik olanlar**
-
-Takip, aktivite akışı, inceleme beğeni/yorumları, listeler, bildirimler (Faz 4–5).
+- Takip, aktivite akışı, inceleme beğeni/yorumları, bildirimler (Faz 4)
+- Listeler, filtreli keşif, gelişmiş arama, istatistik sayfası (Faz 5)
+- **Moderasyon**: rate limiting, kullanıcı engelleme, içerik bildirimi ve
+  `/admin/reports` paneli (Faz 6.1)
 
 ---
 
@@ -160,8 +160,11 @@ AspNetUsers (Identity) ─┬─ ✅ profil alanları AppUser üzerinde (Display
                         ├─ ✅ UserList (Title, Description, IsPublic)
                         │       ├─ ✅ UserListItem (ShowId, Position, Note)
                         │       └─ ✅ UserListLike (UserId, CreatedAt)
-                        └─ ✅ ActivityEvent (Type, ShowId?, SeasonNumber?, EpisodeId?, EpisodeCount?,
-                                             RatingValue?, ReviewId?, TargetUserId?, CreatedAt)
+                        ├─ ✅ ActivityEvent (Type, ShowId?, SeasonNumber?, EpisodeId?, EpisodeCount?,
+                        │                    RatingValue?, ReviewId?, TargetUserId?, CreatedAt)
+                        ├─ ✅ UserBlock (BlockerId, BlockedId, CreatedAt)
+                        └─ ✅ Report (ReporterId, TargetType, TargetId?, TargetUserId, Reason,
+                                      Note?, Status, ResolvedById?, ResolvedAt?, ResolutionNote?)
 
 ✅ Show (TmdbId, ImdbId, Name, Overview, PosterPath, BackdropPath, FirstAirDate,
          TmdbStatus, VoteAverage, VoteCount, LastSyncedAt)
@@ -311,7 +314,32 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
 
 ### Faz 6 — Sağlamlaştırma & Yayın
 
-- [ ] Rate limiting, moderasyon araçları, engelleme, içerik bildirimi
+> Faz 4–5 gibi PR'lara bölündü: **(1)** moderasyon & güvenlik, **(2)** performans,
+> **(3)** mobil & erişilebilirlik, **(4)** SEO, **(5)** altyapı, **(6)** test.
+
+- [x] Rate limiting, moderasyon araçları, engelleme, içerik bildirimi
+  - **Rate limiting** — üç politika: giriş/kayıt IP başına 10/5dk (Identity'nin
+    lockout'u tek hesabı korur, bu politika hesap taramasını yavaşlatır), yazma
+    uçları kullanıcı başına 30/dk, bildirim 10/saat. Üstünde 120/dk'lık genel
+    tavan var. Kimliği olan kullanıcı kendi kotasını harcar, anonim istek IP
+    kotasını. 429 yanıtı `Retry-After` başlığıyla dönüyor — bunsuz arayüz sıkı
+    yeniden deneme döngüsüne giriyor
+  - **Engelleme** (`UserBlock`) — tek yönlü kaydedilir, **iki yönlü** etki eder:
+    profil, istatistik, listeler, incelemeler, yorumlar, akış ve bildirimler her
+    iki yönde de kapanır. Engel anında aradaki takipler, o takiplerin akış
+    olayları ve takip bildirimleri temizlenir; engeli kaldırmak takipleri geri
+    getirmez. **Hangi yönde engellendiği sızmasın diye ikisine de 404 dönüyor**
+    — bu yüzden engeli kaldırmanın tek yeri `/settings/blocks`, karşı profil
+    değil. Beğeniyi geri almak engel sonrası da mümkün (tek yönlü temizlik)
+  - **İçerik bildirimi** (`Report`) — inceleme / yorum / liste / kullanıcı
+    hedefli, sebep kodlu. Bildirim hedefin sahibini kopyalayarak saklar; içerik
+    silindikten sonra da "bu kullanıcı hakkında kaç bildirim var" cevaplanabilsin
+    diye. Aynı kullanıcı aynı hedefi ikinci kez bildiremez (kuyruk şişer)
+  - **Moderasyon paneli** — `/admin/reports`, `Admin` Identity rolü. Rol JWT'ye
+    claim olarak giriyor ve Web tarafında cookie'ye kopyalanıyor. Rol atama
+    yalnızca `Admin:Usernames` yapılandırmasından, açılışta: panelden panel
+    yetkisi dağıtılamıyor. Bir içerik hakkındaki karar (sil / reddet) o içeriğe
+    ait diğer açık bildirimleri de kapatır
 - [ ] Cursor-based sayfalama, N+1 denetimi, DB indeksleri
 - [ ] Mobil responsive + erişilebilirlik (klavye, ARIA, kontrast)
 - [ ] OG meta + prerender (SEO — Letterboxd trafiğinin büyük kısmı buradan gelir)
@@ -342,6 +370,13 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 ## 7. Bilinen Sorunlar / Doğrulanacaklar
 
 ### 7.1 Açık sorunlar
+
+**Rolsüz `[Authorize]` sayfaları anonim ziyaretçiyi yönlendirmiyor.** `/feed`,
+`/watchlist`, `/settings/blocks` gibi sayfalar giriş yapmamış ziyaretçiye boş
+kabuk olarak çiziliyor; `<RedirectToLogin>` statik SSR sırasında tetiklenmiyor.
+Rol gerektiren `/admin/reports` doğru yönlendiriyor. **Güvenlik açığı değil** —
+API tarafı 401 döndüğü için veri sızmıyor, yalnızca kötü bir karşılama. Faz 6.1
+öncesinden var, Faz 6.3'te (mobil & erişilebilirlik) düzeltilecek.
 
 **WatchList arama butonu — blur yarışı.** "Search" butonuna tıklamak input'u blur ediyor;
 `OnSearchBlur`'ün 200 ms'lik gizleme zamanlayıcısı, arama sonuçlarının gelişiyle yarışıyor.

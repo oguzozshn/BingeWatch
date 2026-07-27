@@ -196,7 +196,10 @@ namespace BingeWatch.API.Services
                 .ToList();
         }
 
-        /// <summary>Gizli profil yalnızca sahibine görünür (bkz. FollowService'teki aynı kural).</summary>
+        /// <summary>
+        /// Gizli profil yalnızca sahibine, engelli taraflar birbirine hiç görünmez
+        /// (bkz. FollowService'teki aynı kural).
+        /// </summary>
         private async Task<AppUser?> ResolveVisibleUserAsync(string username, string? viewerId)
         {
             var normalized = username.ToUpperInvariant();
@@ -204,6 +207,9 @@ namespace BingeWatch.API.Services
                 .FirstOrDefaultAsync(u => u.NormalizedUserName == normalized || u.UserName == username);
 
             if (user == null || (user.IsPrivate && user.Id != viewerId))
+                return null;
+
+            if (await _context.IsBlockedBetweenAsync(viewerId, user.Id))
                 return null;
 
             return user;

@@ -1,15 +1,19 @@
 using System.Security.Claims;
+using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
 using BingeWatch.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BingeWatch.API.Controllers
 {
     [ApiController]
     [Route("api/auth")]
+    // Kayıt ve giriş parola denemesine açık; ikisi de IP başına dar kotada.
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public class AuthController : ControllerBase
     {
         private readonly UserManager<AppUser> _userManager;
@@ -41,14 +45,8 @@ namespace BingeWatch.API.Controllers
             if (!result.Succeeded)
                 return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
-            var token = _tokenService.CreateToken(user);
-            return Ok(new AuthResponse
-            {
-                Token = token,
-                UserId = user.Id,
-                Username = user.UserName!,
-                DisplayName = user.DisplayName
-            });
+            // Yeni kullanıcının hiç rolü yok; yine de tek bir yerden üretelim.
+            return Ok(await BuildAuthResponseAsync(user));
         }
 
         [HttpPost("login")]
@@ -64,14 +62,25 @@ namespace BingeWatch.API.Controllers
             if (!result.Succeeded)
                 return Unauthorized(new { message = "Invalid credentials" });
 
-            var token = _tokenService.CreateToken(user);
-            return Ok(new AuthResponse
+            return Ok(await BuildAuthResponseAsync(user));
+        }
+
+        /// <summary>
+        /// Roller token'a claim olarak giriyor; Web tarafı bu token'ı cookie'de
+        /// taşıdığı için moderasyon menüsünü ayrıca sormadan gösterebiliyor.
+        /// </summary>
+        private async Task<AuthResponse> BuildAuthResponseAsync(AppUser user)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+
+            return new AuthResponse
             {
-                Token = token,
+                Token = _tokenService.CreateToken(user, roles),
                 UserId = user.Id,
                 Username = user.UserName!,
-                DisplayName = user.DisplayName
-            });
+                DisplayName = user.DisplayName,
+                Roles = roles.ToList()
+            };
         }
 
         [HttpGet("me")]

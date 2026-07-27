@@ -1,0 +1,129 @@
+@*
+    "Bildir" bağlantısı ve açılan sebep formu. İnceleme, yorum, liste ve kullanıcı
+    için aynı komponent kullanılır; hedefi TargetType + TargetId (kullanıcıda
+    TargetUsername) belirler.
+
+    Form yalnızca tıklandığında çizilir — her kartta duran bir modal, akışta
+    yüzlerce gereksiz DOM düğümü demek.
+*@
+
+@inject IHttpClientFactory HttpClientFactory
+
+<AuthorizeView>
+    <Authorized>
+        @if (sent)
+        {
+            <span class="report-sent" title="Moderasyon kuyruğuna eklendi">Bildirildi</span>
+        }
+        else if (!open)
+        {
+            <button type="button" class="report-link" @onclick="() => open = true">Bildir</button>
+        }
+        else
+        {
+            <div class="report-form">
+                <label>
+                    Sebep
+                    <select @bind="reason">
+                        @foreach (var value in Reasons)
+                        {
+                            <option value="@value">@ReportLabels.Reason(value)</option>
+                        }
+                    </select>
+                </label>
+
+                <textarea rows="2" maxlength="1000" placeholder="Açıklama (isteğe bağlı)"
+                          @bind="note" @bind:event="oninput"></textarea>
+
+                @if (error != null)
+                {
+                    <p class="report-error">@error</p>
+                }
+
+                <div class="report-actions">
+                    <button type="button" class="btn btn-sm btn-danger" disabled="@busy" @onclick="SubmitAsync">
+                        @(busy ? "Gönderiliyor..." : "Gönder")
+                    </button>
+                    <button type="button" class="btn btn-sm btn-link" disabled="@busy" @onclick="Close">
+                        Vazgeç
+                    </button>
+                </div>
+            </div>
+        }
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    [Parameter, EditorRequired] public ReportTargetType TargetType { get; set; }
+
+    /// <summary>İçerik id'si; kullanıcı bildiriminde boş bırakılır.</summary>
+    [Parameter] public int? TargetId { get; set; }
+
+    /// <summary>Kullanıcı bildiriminde hedefin kullanıcı adı.</summary>
+    [Parameter] public string? TargetUsername { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private static readonly ReportReason[] Reasons =
+    [
+        ReportReason.Spam,
+        ReportReason.Harassment,
+        ReportReason.UnmarkedSpoiler,
+        ReportReason.HatefulContent,
+        ReportReason.Other
+    ];
+
+    private bool open;
+    private bool busy;
+    private bool sent;
+    private string? error;
+    private ReportReason reason = ReportReason.Spam;
+    private string note = string.Empty;
+
+    private void Close()
+    {
+        open = false;
+        error = null;
+    }
+
+    private async Task SubmitAsync()
+    {
+        busy = true;
+        error = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var authState = await AuthStateTask!;
+            var token = authState.User.FindFirst("api_token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await client.PostAsJsonAsync("api/reports", new CreateReportRequest
+            {
+                TargetType = TargetType,
+                TargetId = TargetId,
+                TargetUsername = TargetUsername,
+                Reason = reason,
+                Note = string.IsNullOrWhiteSpace(note) ? null : note
+            });
+
+            // 409: aynı hedefi zaten bildirmişsin — kullanıcı açısından "gönderildi" ile aynı sonuç.
+            if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                sent = true;
+                open = false;
+                return;
+            }
+
+            error = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                ? "Çok fazla bildirim gönderdin; bir süre sonra tekrar dene."
+                : "Bildirim gönderilemedi.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

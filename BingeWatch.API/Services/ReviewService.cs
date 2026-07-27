@@ -89,7 +89,9 @@ namespace BingeWatch.API.Services
             if (show == null)
                 return new List<ReviewDto>();
 
-            var query = _context.Reviews.Where(r => r.ShowId == show.Id);
+            var hidden = await _context.HiddenUserIdsAsync(viewerId);
+
+            var query = _context.Reviews.Where(r => r.ShowId == show.Id && !hidden.Contains(r.UserId));
             if (seasonNumber != null)
                 query = query.Where(r => r.SeasonNumber == seasonNumber);
 
@@ -122,10 +124,13 @@ namespace BingeWatch.API.Services
             take = Math.Clamp(take, 1, 100);
             skip = Math.Max(skip, 0);
 
+            var hidden = await _context.HiddenUserIdsAsync(viewerId);
+            var visible = _context.Reviews.Where(r => !hidden.Contains(r.UserId));
+
             var ordered = sort switch
             {
-                ReviewSort.Oldest => _context.Reviews.OrderBy(r => r.CreatedAt),
-                _ => _context.Reviews.OrderByDescending(r => r.CreatedAt)
+                ReviewSort.Oldest => visible.OrderBy(r => r.CreatedAt),
+                _ => visible.OrderByDescending(r => r.CreatedAt)
             };
 
             // HighestRated puana göre sıralanır; puan ayrı tabloda olduğu için

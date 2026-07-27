@@ -129,8 +129,10 @@ namespace BingeWatch.API.Services
 
             // Keşifte yalnızca herkese açık listeler, gizli olmayan profillerden.
             // Boş liste keşfe girmez — kart posteri de bilgisi de olmayan satır işe yaramaz.
+            var hidden = await _context.HiddenUserIdsAsync(viewerId);
+
             var query = _context.UserLists
-                .Where(l => l.IsPublic && !l.User!.IsPrivate)
+                .Where(l => l.IsPublic && !l.User!.IsPrivate && !hidden.Contains(l.UserId))
                 .Where(l => _context.UserListItems.Any(i => i.UserListId == l.Id));
 
             var ordered = sort switch
@@ -159,8 +161,12 @@ namespace BingeWatch.API.Services
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.NormalizedUserName == normalized || u.UserName == username);
 
-            // Gizli profilin listeleri yalnızca sahibine görünür (bkz. FollowService).
+            // Gizli profilin listeleri yalnızca sahibine görünür (bkz. FollowService);
+            // engelli taraflar da birbirinin listelerini göremez.
             if (user == null || (user.IsPrivate && user.Id != viewerId))
+                return null;
+
+            if (await _context.IsBlockedBetweenAsync(viewerId, user.Id))
                 return null;
 
             var isOwner = user.Id == viewerId;
@@ -176,17 +182,13 @@ namespace BingeWatch.API.Services
 
         public async Task<UserListDetailDto?> GetDetailAsync(int listId, string? viewerId)
         {
-            var list = await _context.UserLists
-                .Include(l => l.User)
-                .FirstOrDefaultAsync(l => l.Id == listId);
+            // Kapalı liste ve gizli profilin listeleri yalnızca sahibine görünür;
+            // engelli taraflar da birbirinin listesini açamaz.
+            var list = await VisibleListAsync(listId, viewerId);
             if (list == null)
                 return null;
 
             var isOwner = list.UserId == viewerId;
-
-            // Kapalı liste ve gizli profilin listeleri yalnızca sahibine görünür.
-            if (!isOwner && (!list.IsPublic || list.User!.IsPrivate))
-                return null;
 
             // Yıl, tarihten bellekte çıkarılıyor: sorgu içindeki DateTime?.Value
             // erişimi sağlayıcıya göre değerlendirme sırası sorunları çıkarıyor.
@@ -384,8 +386,9 @@ namespace BingeWatch.API.Services
             _context.UserLists.FirstOrDefaultAsync(l => l.Id == listId && l.UserId == userId);
 
         /// <summary>
-        /// İsteği yapanın görebildiği liste; <see cref="GetDetailAsync"/> ile aynı
-        /// gizlilik kuralı (kapalı liste ve gizli profil yalnızca sahibine görünür).
+        /// İsteği yapanın görebildiği liste: kapalı liste ve gizli profilin listeleri
+        /// yalnızca sahibine, engelli taraflara ise hiç görünmez. Detay okuma ve
+        /// beğeni aynı kuralı buradan paylaşır.
         /// </summary>
         private async Task<UserList?> VisibleListAsync(int listId, string? viewerId)
         {
@@ -396,6 +399,9 @@ namespace BingeWatch.API.Services
                 return null;
 
             if (list.UserId != viewerId && (!list.IsPublic || list.User!.IsPrivate))
+                return null;
+
+            if (await _context.IsBlockedBetweenAsync(viewerId, list.UserId))
                 return null;
 
             return list;
