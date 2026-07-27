@@ -1,0 +1,41 @@
+@*
+    Kullanıcı kartı listesi — takipçi ve takip edilen sayfalarının ortak gövdesi.
+    Her satırda takip butonu; kendi satırında buton çizilmez.
+*@
+
+@if (Users == null)
+{
+    <p class="muted">Yükleniyor...</p>
+}
+else if (Users.Count == 0)
+{
+    <p class="muted">@EmptyText</p>
+}
+else
+{
+    <ul class="user-list">
+        @foreach (var user in Users)
+        {
+            <li class="user-row">
+                <a class="who" href="/@@@user.Username">
+                    <span class="name">@user.DisplayName</span>
+                    <span class="handle">@@@user.Username</span>
+                    @if (!string.IsNullOrWhiteSpace(user.Bio))
+                    {
+                        <span class="bio">@user.Bio</span>
+                    }
+                </a>
+                <FollowButton Username="@user.Username"
+                              IsFollowing="user.IsFollowedByViewer"
+                              IsViewer="user.IsViewer" />
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary><c>null</c> ise henüz yükleniyor demektir.</summary>
+    [Parameter] public List<UserSummaryDto>? Users { get; set; }
+
+    [Parameter] public string EmptyText { get; set; } = "Kimse yok.";
+}

@@ -1,0 +1,40 @@
+.profile {
+    max-width: 640px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.head h2 {
+    margin-bottom: 0.15rem;
+}
+
+.muted {
+    color: var(--bs-secondary-color, #8b8b8b);
+    margin-bottom: 0.5rem;
+}
+
+.bio {
+    margin: 0.75rem 0;
+}
+
+.counts {
+    display: flex;
+    gap: 1.5rem;
+    margin: 1rem 0;
+}
+
+.counts a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.counts a:hover {
+    text-decoration: underline;
+}

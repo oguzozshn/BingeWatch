@@ -1,4 +1,6 @@
 @page "/@{Username}"
+@rendermode InteractiveServer
+
 @inject IHttpClientFactory HttpClientFactory
 @using BingeWatch.Web.Models
 
@@ -6,30 +8,55 @@
 
 @if (loading)
 {
-    <p>Yükleniyor...</p>
+    <p class="muted">Yükleniyor...</p>
 }
 else if (profile == null)
 {
-    <p>Kullanıcı bulunamadı.</p>
+    <p class="muted">Kullanıcı bulunamadı.</p>
 }
 else
 {
-    <div class="container" style="max-width:600px; margin-top:2rem;">
-        <h2>@profile.DisplayName</h2>
-        <p class="text-muted">@@@profile.Username</p>
+    <div class="profile">
+        <header class="head">
+            <div>
+                <h2>@profile.DisplayName</h2>
+                <p class="muted">@@@profile.Username</p>
+            </div>
+            <FollowButton Username="@profile.Username"
+                          IsFollowing="profile.IsFollowedByViewer"
+                          IsViewer="profile.IsViewer"
+                          OnChanged="OnFollowChanged" />
+        </header>
+
         @if (!string.IsNullOrWhiteSpace(profile.Bio))
         {
-            <p>@profile.Bio</p>
+            <p class="bio">@profile.Bio</p>
         }
-        <p class="text-muted">Katılım: @profile.CreatedAt.ToString("d MMMM yyyy")</p>
+
+        <nav class="counts">
+            <a href="/@@@profile.Username/followers">
+                <strong>@followerCount</strong> takipçi
+            </a>
+            <a href="/@@@profile.Username/following">
+                <strong>@profile.FollowingCount</strong> takip
+            </a>
+        </nav>
+
+        <p class="muted">Katılım: @profile.CreatedAt.ToString("d MMMM yyyy")</p>
     </div>
 }
 
 @code {
     [Parameter] public string Username { get; set; } = string.Empty;
 
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
     private UserProfileDto? profile;
     private bool loading = true;
+
+    // Takip butonuna basılınca sayaç sunucuya tekrar gitmeden güncellenir.
+    private int followerCount;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -37,9 +64,17 @@ else
         profile = null;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
+        // Token'sız istekte IsFollowedByViewer her zaman false döner; buton yanlış durumda başlar.
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
         try
         {
             profile = await client.GetFromJsonAsync<UserProfileDto>($"api/users/{Uri.EscapeDataString(Username)}");
+            followerCount = profile?.FollowerCount ?? 0;
         }
         catch
         {
@@ -50,4 +85,6 @@ else
             loading = false;
         }
     }
+
+    private void OnFollowChanged(bool isFollowing) => followerCount += isFollowing ? 1 : -1;
 }
