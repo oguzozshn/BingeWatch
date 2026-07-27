@@ -84,7 +84,12 @@ Desktop.ini
 # Sensitive files
 appsettings.Development.json
 
+# docker compose sirlari — .env.example git'te, doldurulmus .env degil
+.env
+!.env.example
 
-# Local-only docs — ROADMAP dışındakiler kişisel not sayılır
+
+# Local-only docs — ROADMAP ve DEPLOY dışındakiler kişisel not sayılır
 docs/*
 !docs/ROADMAP.md
+!docs/DEPLOY.md

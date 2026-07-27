@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 27 Temmuz 2026, Faz 6.3 (mobil & erişilebilirlik) sonu.*
+*Son güncelleme: 27 Temmuz 2026, Faz 6.5 (altyapı) sonu.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -404,7 +404,35 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     (Faz 0'dan kalan madde) ve §7.1'deki **arama blur yarışı** kapandı —
     öneri listesine `@@onmousedown:preventDefault` eklendi
 - [ ] OG meta + prerender (SEO — Letterboxd trafiğinin büyük kısmı buradan gelir)
-- [ ] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check
+- [~] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check —
+      **kod tarafı bitti ve yerelde doğrulandı; Docker imajları build edilmedi**
+      (geliştirme makinesinde Docker kurulu değil). Ayrıntı: [DEPLOY.md](DEPLOY.md)
+  - **Sabit adresler kalktı** — Web, API adresini `Program.cs`'e gömülü
+    `http://localhost:5054/` yerine `Api:BaseUrl`'den okuyor. Bu tek satır
+    konteynerde çalışmayı imkânsız kılıyordu: compose ağında API "localhost"
+    değil servis adıyla görünüyor. Bağlantı dizesi de `ConnectionStrings__*`
+    ortam değişkeniyle eziliyor
+  - **Serilog** — her iki uygulamada da stdout'a yapılandırılmış log; istek
+    başına tek satır (`UseSerilogRequestLogging`). Framework'ün üç satırlık
+    kendi logu, EF'in her SQL'i ve `HttpClient`'ın çağrı başına dört satırı
+    `MinimumLevel:Override` ile bastırıldı. ⚠️ **Tuzak:** `Override` altındaki
+    her anahtar logger kaynağı olarak okunuyor; oraya `_comment` koymak
+    uygulamayı açılışta çökertiyor (bir kez düştü, düzeltildi)
+  - **Health check** — `/health` liveness (hiçbir bağımlılığa bakmaz),
+    `/health/ready` SQL Server'a gerçekten ulaşıyor mu. Ayrım bilinçli:
+    veritabanı düşünce konteyneri yeniden başlatmak sorunu çözmez, yeniden
+    başlatma döngüsüne sokar. İkisi de rate limiting'in dışında
+  - **Migration** — açılışta uygulanıyor ama artık `Database:MigrateOnStartup`
+    ile kapatılabiliyor ve bağlantı hatalarında yeniden deneniyor (SQL Server
+    ile API konteynerde aynı anda ayağa kalkıyor). Birden çok kopya
+    çalıştırılacaksa kapatılıp ayrı deploy adımına taşınmalı
+  - **Docker** — API ve Web için çok aşamalı `Dockerfile` (root olmayan
+    kullanıcı, restore ayrı katmanda), SQL Server 2022 ile `docker-compose.yml`,
+    `.dockerignore`, `.env.example`. Sırlar `.env`'de ve git dışında; API ve
+    veritabanı yalnızca `127.0.0.1`'e bağlı, dışarıya yalnızca Web açık
+  - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
+    Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
+    çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
 - [ ] E2E test (Playwright), yük testi
 
 ---
@@ -440,6 +468,12 @@ API tarafı 401 döndüğü için veri sızmıyor, yalnızca kötü bir karşıl
 Düzeltmesi render moduyla ilgili (statik SSR'da yönlendirme), Faz 6.3'ün
 erişilebilirlik kapsamına girmedi — Faz 6.4'e (SEO/prerender) bırakıldı,
 prerender kararı zaten aynı kodu değiştirecek.
+
+**Docker imajları hiç build edilmedi.** Faz 6.5'te yazılan `Dockerfile`'lar ve
+`docker-compose.yml` gerçek bir Docker üzerinde denenmedi — geliştirme
+makinesinde Docker kurulu değil. Kod tarafı (yapılandırılabilir adresler,
+Serilog, health check, migration yeniden denemesi) yerelde uçtan uca doğrulandı.
+İlk çalıştırmada bakılacak yerler: [DEPLOY.md](DEPLOY.md) §4.
 
 **Sekme deseni ve engelleme akışı klavyeyle uçtan uca denenmedi.** Dizi sayfası
 ve moderasyon paneli giriş gerektirdiği için tarayıcı doğrulaması yalnızca
