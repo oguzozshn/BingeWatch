@@ -21,6 +21,9 @@ namespace BingeWatch.API.Data
         public DbSet<Rating> Ratings { get; set; }
         public DbSet<Review> Reviews { get; set; }
 
+        // Sosyal katman
+        public DbSet<Follow> Follows { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -143,6 +146,28 @@ namespace BingeWatch.API.Data
                       .WithMany()
                       .HasForeignKey(e => e.ShowId)
                       // AppUser tarafındaki cascade ile çoklu yol oluşur; SQL Server izin vermez.
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<Follow>(entity =>
+            {
+                entity.Property(e => e.FollowerId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.FolloweeId).IsRequired().HasMaxLength(450);
+
+                // Aynı çift iki kez takip edilemez; ikinci istek sessizce yoksayılır.
+                entity.HasIndex(e => new { e.FollowerId, e.FolloweeId }).IsUnique();
+                // Takipçi listesi ters yönden okunur.
+                entity.HasIndex(e => new { e.FolloweeId, e.CreatedAt });
+
+                entity.HasOne(e => e.Follower)
+                      .WithMany()
+                      .HasForeignKey(e => e.FollowerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Followee)
+                      .WithMany()
+                      .HasForeignKey(e => e.FolloweeId)
+                      // Aynı tabloya ikinci cascade yolu; SQL Server izin vermez.
                       .OnDelete(DeleteBehavior.NoAction);
             });
         }

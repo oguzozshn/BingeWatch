@@ -29,5 +29,14 @@ namespace BingeWatch.API.Dtos
         public string? Bio { get; set; }
         public string? AvatarUrl { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public int FollowerCount { get; set; }
+        public int FollowingCount { get; set; }
+
+        /// <summary>İsteği yapan kullanıcı bu profili takip ediyor mu? Anonimde <c>false</c>.</summary>
+        public bool IsFollowedByViewer { get; set; }
+
+        /// <summary>Profil isteği yapanın kendisine mi ait? Takip butonu gizlenir.</summary>
+        public bool IsViewer { get; set; }
     }
 }

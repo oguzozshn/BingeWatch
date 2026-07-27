@@ -15,5 +15,11 @@ namespace BingeWatch.Web.Models
         public string? Bio { get; set; }
         public string? AvatarUrl { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public int FollowerCount { get; set; }
+        public int FollowingCount { get; set; }
+
+        public bool IsFollowedByViewer { get; set; }
+        public bool IsViewer { get; set; }
     }
 }

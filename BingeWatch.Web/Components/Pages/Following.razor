@@ -1,0 +1,52 @@
+@page "/@{Username}/following"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>@Username — takip ettikleri</PageTitle>
+
+<div class="follow-page">
+    <h3><a href="/@@@Username">@@@Username</a> kullanıcısının takip ettikleri</h3>
+
+    @if (notFound)
+    {
+        <p class="muted">Kullanıcı bulunamadı.</p>
+    }
+    else
+    {
+        <UserSummaryList Users="users" EmptyText="Henüz kimseyi takip etmiyor." />
+    }
+</div>
+
+@code {
+    [Parameter] public string Username { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private List<UserSummaryDto>? users;
+    private bool notFound;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        users = null;
+        notFound = false;
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        try
+        {
+            users = await client.GetFromJsonAsync<List<UserSummaryDto>>(
+                $"api/users/{Uri.EscapeDataString(Username)}/following");
+        }
+        catch
+        {
+            notFound = true;
+        }
+    }
+}

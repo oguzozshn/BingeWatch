@@ -1,0 +1,74 @@
+@*
+    Takip et / takibi bırak butonu. Profil sayfasında ve takip listelerinde kullanılır.
+
+    Durumu dışarıdan alır ama tıklamada kendi içinde günceller; sayfa yeniden
+    yüklenmeden buton anında tepki verir. Sayacı olan sayfa OnChanged ile haberdar olur.
+*@
+
+@inject IHttpClientFactory HttpClientFactory
+
+<AuthorizeView>
+    <Authorized>
+        @if (!IsViewer)
+        {
+            <button type="button"
+                    class="@(isFollowing ? "btn btn-sm btn-outline-secondary" : "btn btn-sm btn-primary")"
+                    disabled="@busy" @onclick="ToggleAsync">
+                @(busy ? "..." : isFollowing ? "Takibi bırak" : "Takip et")
+            </button>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <a class="btn btn-sm btn-primary" href="/login">Takip et</a>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter, EditorRequired] public string Username { get; set; } = string.Empty;
+
+    /// <summary>Sunucudan gelen başlangıç durumu.</summary>
+    [Parameter] public bool IsFollowing { get; set; }
+
+    /// <summary>Profil isteği yapanın kendisine mi ait? Öyleyse buton çizilmez.</summary>
+    [Parameter] public bool IsViewer { get; set; }
+
+    /// <summary>Yeni takip durumu — sayaç gösteren sayfalar bunu dinler.</summary>
+    [Parameter] public EventCallback<bool> OnChanged { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool isFollowing;
+    private bool busy;
+
+    protected override void OnParametersSet() => isFollowing = IsFollowing;
+
+    private async Task ToggleAsync()
+    {
+        busy = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var authState = await AuthStateTask!;
+            var token = authState.User.FindFirst("api_token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var url = $"api/users/{Uri.EscapeDataString(Username)}/follow";
+            var response = isFollowing
+                ? await client.DeleteAsync(url)
+                : await client.PostAsync(url, null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                isFollowing = !isFollowing;
+                await OnChanged.InvokeAsync(isFollowing);
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}
