@@ -38,9 +38,19 @@ else
                             ValueChanged="RateShowAsync" />
             </div>
 
-            <button class="watchlist-btn" @onclick="ToggleWatchlist">
-                @(IsInWatchlist ? "❤️" : "♡")
-            </button>
+            <div class="list-actions">
+                <button class="watchlist-btn" @onclick="ToggleWatchlist">
+                    @(IsInWatchlist ? "❤️" : "♡")
+                </button>
+
+                @if (IsInWatchlist)
+                {
+                    <button class="favorite-btn @(isFavorite ? "on" : "")" @onclick="ToggleFavoriteAsync"
+                            title="Profilinde favori olarak göster">
+                        @(isFavorite ? "★ Favori" : "☆ Favoriye ekle")
+                    </button>
+                }
+            </div>
 
             @if (progress != null && progress.TotalEpisodes > 0)
             {
@@ -76,6 +86,25 @@ else
                         {
                             <h5 class="section-title">BingeWatch puanları</h5>
                             <RatingHistogram Summary="summary" />
+                        }
+
+                        @if (friendRatings is { Count: > 0 })
+                        {
+                            <h5 class="section-title">Takip ettiklerinin puanı</h5>
+                            <div class="friend-ratings">
+                                <div class="friend-average">
+                                    <strong>@friendRatings.Average!.Value.ToString("0.0")</strong>
+                                    <span>@friendRatings.Count kişi</span>
+                                </div>
+                                @foreach (var friend in friendRatings.Ratings)
+                                {
+                                    <div class="friend-row">
+                                        <a href="@ProfileUrl(friend.Username)">@friend.DisplayName</a>
+                                        <StarRating Value="friend.Value" ReadOnly="true" Size="sm"
+                                                    AriaLabel="@($"{friend.DisplayName} puanı")" />
+                                    </div>
+                                }
+                            </div>
                         }
 
                         <h5 class="section-title">Bölüm ısı haritası</h5>
@@ -263,10 +292,12 @@ else
     private ShowProgressDto? progress;
     private ShowRatingsDto myRatings = new();
     private RatingSummaryDto? summary;
+    private FriendRatingsDto? friendRatings;
     private List<ReviewDto> reviews = new();
     private List<SeriesDto>? similar;
 
     private bool IsInWatchlist;
+    private bool isFavorite;
     private bool loading = true;
     private string? currentUserId;
 
@@ -313,6 +344,8 @@ else
             IsInWatchlist = await api.GetFromJsonAsync<bool>($"api/watchlist/status?seriesId={TmdbId}");
             myRatings = await api.GetFromJsonAsync<ShowRatingsDto>($"api/shows/{TmdbId}/ratings/mine") ?? new();
             summary = await api.GetFromJsonAsync<RatingSummaryDto>($"api/shows/{TmdbId}/ratings/summary");
+            friendRatings = await api.GetFromJsonAsync<FriendRatingsDto>($"api/shows/{TmdbId}/ratings/friends");
+            isFavorite = IsInWatchlist && await api.GetFromJsonAsync<bool>($"api/watchlist/{TmdbId}/favorite");
 
             // İzlenmekte olan sezon açık başlasın: ilk yarım kalmış sezon.
             var current = show.Seasons.FirstOrDefault(s => s.Episodes.Any(e => !e.Watched))
@@ -514,8 +547,25 @@ else
         {
             var result = await response.Content.ReadFromJsonAsync<ToggleResponse>();
             IsInWatchlist = result!.IsInWatchList;
+
+            // Listeden çıkan dizi favori de kalmasın.
+            if (!IsInWatchlist)
+                isFavorite = false;
         }
     }
+
+    private async Task ToggleFavoriteAsync()
+    {
+        var api = await GetApiAsync();
+        var response = await api.PutAsJsonAsync($"api/watchlist/{TmdbId}/favorite",
+            new SetFavoriteRequest { IsFavorite = !isFavorite });
+
+        if (response.IsSuccessStatusCode)
+            isFavorite = !isFavorite;
+    }
+
+    /// <summary>Profil rotası "/@kullaniciadi"; "@" Razor'da kaçış gerektirdiği için burada birleştiriliyor.</summary>
+    private static string ProfileUrl(string username) => "/" + '@' + username;
 
     private async Task MarkEpisodeWatched(EpisodeDetailDto episode, bool watched)
     {

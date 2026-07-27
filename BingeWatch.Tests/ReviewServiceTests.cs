@@ -32,7 +32,7 @@ namespace BingeWatch.Tests
         }
 
         private static ReviewService CreateService(BingeOnDbContext context) =>
-            new(context, new LocalOnlyCatalogService(context));
+            new(context, new LocalOnlyCatalogService(context), new ActivityService(context), new NotificationService(context));
 
         private static async Task<Show> SeedAsync(BingeOnDbContext context, string userId = "user1")
         {
@@ -113,7 +113,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var ratingService = new RatingService(context);
+            var ratingService = new RatingService(context, new ActivityService(context));
             await ratingService.SetRatingAsync("user1", 1, new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 4.5m });
             var service = CreateService(context);
 
@@ -178,7 +178,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var ratingService = new RatingService(context);
+            var ratingService = new RatingService(context, new ActivityService(context));
             var service = CreateService(context);
             // Dizi geneli inceleme puansız, sezon incelemesi 5 yıldız.
             await service.UpsertAsync("user1", 1, new UpsertReviewRequest { Body = "puansız" });

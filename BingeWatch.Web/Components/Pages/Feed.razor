@@ -1,0 +1,59 @@
+@page "/feed"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Akış</PageTitle>
+
+<div class="feed-page">
+    <h3>Akış</h3>
+
+    @if (isEmpty)
+    {
+        <p class="muted">
+            Akış henüz boş. Birilerini takip et ya da bir dizi puanla —
+            aktiviteler burada görünür.
+        </p>
+    }
+
+    <Virtualize @ref="list" ItemsProvider="LoadAsync" Context="activity" ItemSize="110">
+        <ItemContent>
+            <div class="feed-item">
+                <ActivityCard Activity="activity" />
+            </div>
+        </ItemContent>
+        <Placeholder>
+            <div class="feed-item muted">Yükleniyor...</div>
+        </Placeholder>
+    </Virtualize>
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private Virtualize<ActivityDto>? list;
+    private bool isEmpty;
+
+    private async ValueTask<ItemsProviderResult<ActivityDto>> LoadAsync(ItemsProviderRequest request)
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var page = await client.GetFromJsonAsync<List<ActivityDto>>(
+            $"api/feed?skip={request.StartIndex}&take={request.Count}", request.CancellationToken) ?? new();
+
+        // Toplam sayı bilinmiyor: sayfa tam doluysa bir fazlasını bildirip Virtualize'ın
+        // kaydırmaya devam etmesini sağlıyoruz; eksik sayfa geldiğinde sayı sabitleniyor.
+        var total = request.StartIndex + page.Count + (page.Count == request.Count ? 1 : 0);
+
+        isEmpty = request.StartIndex == 0 && page.Count == 0;
+
+        return new ItemsProviderResult<ActivityDto>(page, total);
+    }
+}

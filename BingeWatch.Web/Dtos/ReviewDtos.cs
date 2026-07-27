@@ -25,8 +25,38 @@ namespace BingeWatch.Web.Dtos
         public bool HasSpoilers { get; set; }
         public decimal? Rating { get; set; }
 
+        public int LikeCount { get; set; }
+        public bool LikedByViewer { get; set; }
+        public int CommentCount { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+    }
+
+    public class ReviewLikeStateDto
+    {
+        public int ReviewId { get; set; }
+        public int LikeCount { get; set; }
+        public bool LikedByViewer { get; set; }
+    }
+
+    public class AddCommentRequest
+    {
+        public string Body { get; set; } = string.Empty;
+    }
+
+    public class ReviewCommentDto
+    {
+        public int Id { get; set; }
+        public int ReviewId { get; set; }
+
+        public string Username { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string? AvatarUrl { get; set; }
+
+        public string Body { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public bool CanDelete { get; set; }
     }
 
     /// <summary>API'deki <c>ReviewSort</c>'un aynası — sorgu dizesinde sayı olarak gider.</summary>

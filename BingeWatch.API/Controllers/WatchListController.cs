@@ -17,11 +17,14 @@ namespace BingeWatch.API.Controllers
     {
         private readonly ITmdbService _tmdbService;
         private readonly IWatchListService _watchListService;
+        private readonly IUserStatsService _statsService;
 
-        public WatchListController(ITmdbService tmdbService, IWatchListService watchListService)
+        public WatchListController(ITmdbService tmdbService, IWatchListService watchListService,
+            IUserStatsService statsService)
         {
             _tmdbService = tmdbService;
             _watchListService = watchListService;
+            _statsService = statsService;
         }
 
         private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -81,6 +84,23 @@ namespace BingeWatch.API.Controllers
         {
             var result = await _watchListService.ToggleAsync(CurrentUserId, series);
             return Ok(new { isInWatchList = result });
+        }
+
+        [HttpGet("{seriesId:int}/favorite")]
+        public async Task<IActionResult> GetFavorite(int seriesId)
+        {
+            return Ok(await _statsService.IsFavoriteAsync(CurrentUserId, seriesId));
+        }
+
+        /// <summary>Diziyi favorilere ekler/çıkarır — profildeki "favori diziler" bloğunu besler.</summary>
+        [HttpPut("{seriesId:int}/favorite")]
+        public async Task<IActionResult> SetFavorite(int seriesId, [FromBody] SetFavoriteRequest request)
+        {
+            var success = await _statsService.SetFavoriteAsync(CurrentUserId, seriesId, request.IsFavorite);
+            if (!success)
+                return NotFound(new { message = "Dizi listende değil." });
+
+            return Ok(new { isFavorite = request.IsFavorite });
         }
 
         [HttpGet("status")]

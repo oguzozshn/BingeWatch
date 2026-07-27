@@ -21,6 +21,15 @@
                     <i class="bi bi-list-nested"></i> watchlist
                 </NavLink>
             </li>
+            <AuthorizeView>
+                <Authorized>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="feed">
+                            <i class="bi bi-activity"></i> Akış
+                        </NavLink>
+                    </li>
+                </Authorized>
+            </AuthorizeView>
             <li class="nav-item">
                 <NavLink class="nav-link" href="reviews">
                     <i class="bi bi-star-half"></i> İncelemeler
@@ -30,6 +39,9 @@
         <ul class="navbar-nav mb-2 mb-lg-0">
             <AuthorizeView>
                 <Authorized>
+                    <li class="nav-item">
+                        <NotificationBell />
+                    </li>
                     <li class="nav-item">
                         <NavLink class="nav-link" href="@($"@{context.User.Identity!.Name}")">
                             <i class="bi bi-person-fill"></i> @context.User.Identity!.Name

@@ -53,4 +53,23 @@ namespace BingeWatch.API.Dtos
         /// <summary>0.5'ten 5.0'a 10 kova; anahtar puan değeri, değer kullanıcı sayısı.</summary>
         public Dictionary<string, int> Distribution { get; set; } = new();
     }
+
+    /// <summary>Dizi sayfasındaki "takip ettiklerinin puanı" kartı.</summary>
+    public class FriendRatingsDto
+    {
+        public int TmdbId { get; set; }
+        public double? Average { get; set; }
+        public int Count { get; set; }
+
+        /// <summary>Puan veren takip edilenler, en yüksekten düşüğe.</summary>
+        public List<FriendRatingDto> Ratings { get; set; } = new();
+    }
+
+    public class FriendRatingDto
+    {
+        public string Username { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string? AvatarUrl { get; set; }
+        public decimal Value { get; set; }
+    }
 }

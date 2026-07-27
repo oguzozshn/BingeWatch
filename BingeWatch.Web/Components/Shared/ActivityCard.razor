@@ -1,0 +1,87 @@
+@*
+    Akıştaki tek bir aktivite. Cümle olay tipine göre kurulur; spoiler'lı inceleme
+    parçası ReviewCard'daki gibi perdeli başlar.
+*@
+
+<article class="activity">
+    @if (!string.IsNullOrEmpty(Activity.ShowPosterPath))
+    {
+        <a class="poster-link" href="/show/@Activity.TmdbShowId">
+            <img class="poster" src="@PosterUrl(Activity.ShowPosterPath)" alt="@Activity.ShowName" />
+        </a>
+    }
+
+    <div class="body-col">
+        <p class="sentence">
+            <a class="author" href="@ProfileUrl">@Activity.DisplayName</a>
+
+            @switch (Activity.Type)
+            {
+                case ActivityType.Rated:
+                    <span>@RatedTargetText puan verdi</span>
+                    <StarRating Value="Activity.RatingValue" ReadOnly="true" Size="sm" AriaLabel="Verilen puan" />
+                    break;
+
+                case ActivityType.Reviewed:
+                    <span>@ReviewedTargetText inceleme yazdı</span>
+                    break;
+
+                case ActivityType.Watched:
+                    <span>@WatchedText</span>
+                    break;
+
+                case ActivityType.Followed:
+                    <span>artık</span>
+                    <a href="@TargetProfileUrl">@Activity.TargetDisplayName</a>
+                    <span>kullanıcısını takip ediyor</span>
+                    break;
+            }
+        </p>
+
+        @if (Activity.Type == ActivityType.Reviewed && !string.IsNullOrWhiteSpace(Activity.ReviewExcerpt))
+        {
+            @if (Activity.ReviewHasSpoilers && !spoilerRevealed)
+            {
+                <button type="button" class="spoiler-veil" @onclick="() => spoilerRevealed = true">
+                    Bu inceleme spoiler içeriyor — göstermek için tıkla
+                </button>
+            }
+            else
+            {
+                <p class="excerpt">@Activity.ReviewExcerpt</p>
+            }
+        }
+
+        <time class="when" datetime="@Activity.CreatedAt.ToString("o")">
+            @Activity.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")
+        </time>
+    </div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public ActivityDto Activity { get; set; } = new();
+
+    private bool spoilerRevealed;
+
+    /// <summary>Profil rotası "/@kullaniciadi"; "@" Razor'da kaçış gerektirdiği için burada birleştiriliyor.</summary>
+    private string ProfileUrl => "/" + '@' + Activity.Username;
+
+    private string TargetProfileUrl => "/" + '@' + Activity.TargetUsername;
+
+    private string RatedTargetText => Activity.EpisodeNumber.HasValue
+        ? $"{Activity.ShowName} {Activity.SeasonNumber}x{Activity.EpisodeNumber} bölümüne"
+        : Activity.SeasonNumber.HasValue
+            ? $"{Activity.ShowName} {Activity.SeasonNumber}. sezonuna"
+            : $"{Activity.ShowName} dizisine";
+
+    private string ReviewedTargetText => Activity.SeasonNumber.HasValue
+        ? $"{Activity.ShowName} {Activity.SeasonNumber}. sezonuna"
+        : $"{Activity.ShowName} dizisine";
+
+    private string WatchedText => Activity.EpisodeCount > 1
+        ? $"{Activity.ShowName} dizisinden {Activity.EpisodeCount} bölüm izledi — son olarak {Activity.SeasonNumber}x{Activity.EpisodeNumber}"
+        : $"{Activity.ShowName} {Activity.SeasonNumber}x{Activity.EpisodeNumber} bölümünü izledi";
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+}

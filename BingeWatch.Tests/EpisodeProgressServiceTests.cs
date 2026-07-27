@@ -52,7 +52,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, episodes) = await SeedShowAsync(context, "user1");
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
 
             var success = await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
 
@@ -67,7 +67,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, episodes) = await SeedShowAsync(context, "user1");
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
             await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
 
             await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: false);
@@ -80,7 +80,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedShowAsync(context, "user1");
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
 
             var affected = await service.SetSeasonWatchedAsync("user1", showTmdbId: 1, seasonNumber: 1, watched: true);
 
@@ -93,7 +93,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, episodes) = await SeedShowAsync(context, "user1");
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
             var s2e1 = episodes[2]; // Season 2, Episode 1
 
             var affected = await service.SetWatchedUpToAsync("user1", showTmdbId: 1, episodeId: s2e1.Id);
@@ -109,7 +109,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, episodes) = await SeedShowAsync(context, "user1");
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
             await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
 
             var progress = await service.GetShowProgressAsync("user1", showTmdbId: 1);
@@ -126,7 +126,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, episodes) = await SeedShowAsync(context, "user1");
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
 
             foreach (var ep in episodes)
                 await service.SetEpisodeWatchedAsync("user1", ep.Id, watched: true);
@@ -144,7 +144,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, episodes) = await SeedShowAsync(context, "user1");
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
             foreach (var ep in episodes)
                 await service.SetEpisodeWatchedAsync("user1", ep.Id, watched: true);
 
@@ -160,7 +160,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, episodes) = await SeedShowAsync(context, "user1", WatchStatus.Dropped);
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
 
             await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
 
@@ -173,7 +173,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedShowAsync(context, "user1", WatchStatus.Completed);
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
 
             var nextUp = await service.GetNextUpAsync("user1");
 
@@ -197,7 +197,7 @@ namespace BingeWatch.Tests
             await context.SaveChangesAsync();
             context.UserShows.Add(new UserShow { UserId = "user1", ShowId = show.Id, Status = WatchStatus.Watching });
             await context.SaveChangesAsync();
-            var service = new EpisodeProgressService(context);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
 
             var upcoming = await service.GetUpcomingEpisodesAsync("user1", daysAhead: 30);
 

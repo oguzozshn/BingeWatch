@@ -8,10 +8,12 @@ namespace BingeWatch.API.Services
     public class RatingService : IRatingService
     {
         private readonly BingeOnDbContext _context;
+        private readonly IActivityService _activityService;
 
-        public RatingService(BingeOnDbContext context)
+        public RatingService(BingeOnDbContext context, IActivityService activityService)
         {
             _context = context;
+            _activityService = activityService;
         }
 
         public async Task<RatingDto?> SetRatingAsync(string userId, int showTmdbId, SetRatingRequest request)
@@ -19,12 +21,14 @@ namespace BingeWatch.API.Services
             if (!Rating.IsValidValue(request.Value))
                 return null;
 
-            var target = await ResolveTargetAsync(showTmdbId, request);
-            if (target == null)
+            var resolved = await ResolveTargetAsync(showTmdbId, request);
+            if (resolved == null)
                 return null;
 
+            var (showId, target) = resolved.Value;
+
             var existing = await _context.Ratings.FirstOrDefaultAsync(r =>
-                r.UserId == userId && r.TargetType == request.TargetType && r.TargetId == target.Value);
+                r.UserId == userId && r.TargetType == request.TargetType && r.TargetId == target);
 
             if (existing == null)
             {
@@ -32,7 +36,7 @@ namespace BingeWatch.API.Services
                 {
                     UserId = userId,
                     TargetType = request.TargetType,
-                    TargetId = target.Value,
+                    TargetId = target,
                     Value = request.Value
                 };
                 _context.Ratings.Add(existing);
@@ -44,6 +48,9 @@ namespace BingeWatch.API.Services
             }
 
             await _context.SaveChangesAsync();
+
+            await _activityService.RecordRatedAsync(userId, showId, request.TargetType,
+                request.SeasonNumber, request.EpisodeId, request.Value);
 
             return new RatingDto
             {
@@ -58,17 +65,23 @@ namespace BingeWatch.API.Services
 
         public async Task<bool> RemoveRatingAsync(string userId, int showTmdbId, SetRatingRequest request)
         {
-            var target = await ResolveTargetAsync(showTmdbId, request);
-            if (target == null)
+            var resolved = await ResolveTargetAsync(showTmdbId, request);
+            if (resolved == null)
                 return false;
 
+            var (showId, target) = resolved.Value;
+
             var existing = await _context.Ratings.FirstOrDefaultAsync(r =>
-                r.UserId == userId && r.TargetType == request.TargetType && r.TargetId == target.Value);
+                r.UserId == userId && r.TargetType == request.TargetType && r.TargetId == target);
             if (existing == null)
                 return false;
 
             _context.Ratings.Remove(existing);
             await _context.SaveChangesAsync();
+
+            await _activityService.RemoveRatedAsync(userId, showId, request.TargetType,
+                request.SeasonNumber, request.EpisodeId);
+
             return true;
         }
 
@@ -137,11 +150,56 @@ namespace BingeWatch.API.Services
             };
         }
 
+        public async Task<FriendRatingsDto?> GetFriendRatingsAsync(string userId, int showTmdbId)
+        {
+            var show = await _context.Shows.FirstOrDefaultAsync(s => s.TmdbId == showTmdbId);
+            if (show == null)
+                return null;
+
+            var followeeIds = await _context.Follows
+                .Where(f => f.FollowerId == userId)
+                .Select(f => f.FolloweeId)
+                .ToListAsync();
+
+            if (followeeIds.Count == 0)
+                return new FriendRatingsDto { TmdbId = show.TmdbId };
+
+            var rows = await _context.Ratings
+                .Where(r => r.TargetType == RatingTargetType.Show && r.TargetId == show.Id)
+                .Where(r => followeeIds.Contains(r.UserId))
+                .Select(r => new
+                {
+                    r.Value,
+                    r.User!.UserName,
+                    r.User.DisplayName,
+                    r.User.AvatarUrl
+                })
+                .ToListAsync();
+
+            return new FriendRatingsDto
+            {
+                TmdbId = show.TmdbId,
+                Count = rows.Count,
+                Average = rows.Count == 0 ? null : (double)rows.Average(r => r.Value),
+                Ratings = rows
+                    .OrderByDescending(r => r.Value)
+                    .Select(r => new FriendRatingDto
+                    {
+                        Username = r.UserName ?? string.Empty,
+                        DisplayName = string.IsNullOrWhiteSpace(r.DisplayName) ? r.UserName ?? string.Empty : r.DisplayName,
+                        AvatarUrl = r.AvatarUrl,
+                        Value = r.Value
+                    })
+                    .ToList()
+            };
+        }
+
         /// <summary>
-        /// İsteğin hedefini yerel katalog id'sine çevirir. Hedef bulunamazsa <c>null</c>;
-        /// böylece başka bir dizinin bölümüne bu dizi üzerinden puan verilemez.
+        /// İsteğin hedefini yerel katalog id'sine çevirir; dizinin kendi id'sini de döner
+        /// (aktivite olayı dizi bazında yazılıyor). Hedef bulunamazsa <c>null</c>; böylece
+        /// başka bir dizinin bölümüne bu dizi üzerinden puan verilemez.
         /// </summary>
-        private async Task<int?> ResolveTargetAsync(int showTmdbId, SetRatingRequest request)
+        private async Task<(int ShowId, int TargetId)?> ResolveTargetAsync(int showTmdbId, SetRatingRequest request)
         {
             var show = await _context.Shows.FirstOrDefaultAsync(s => s.TmdbId == showTmdbId);
             if (show == null)
@@ -150,14 +208,14 @@ namespace BingeWatch.API.Services
             switch (request.TargetType)
             {
                 case RatingTargetType.Show:
-                    return show.Id;
+                    return (show.Id, show.Id);
 
                 case RatingTargetType.Season:
                     if (request.SeasonNumber == null)
                         return null;
                     var season = await _context.Seasons.FirstOrDefaultAsync(s =>
                         s.ShowId == show.Id && s.SeasonNumber == request.SeasonNumber);
-                    return season?.Id;
+                    return season == null ? null : (show.Id, season.Id);
 
                 case RatingTargetType.Episode:
                     if (request.EpisodeId == null)
@@ -165,7 +223,7 @@ namespace BingeWatch.API.Services
                     var episode = await _context.Episodes
                         .Include(e => e.Season)
                         .FirstOrDefaultAsync(e => e.Id == request.EpisodeId && e.Season!.ShowId == show.Id);
-                    return episode?.Id;
+                    return episode == null ? null : (show.Id, episode.Id);
 
                 default:
                     return null;
