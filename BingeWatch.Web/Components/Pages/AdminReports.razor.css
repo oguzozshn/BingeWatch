@@ -1,4 +1,4 @@
-.mod {
+﻿.mod {
     max-width: 56rem;
     margin: 0 auto;
     padding: 1rem;
@@ -33,7 +33,7 @@
 }
 
 .muted {
-    color: #9a9a9a;
+    color: var(--bs-secondary-color, #9aa1ab);
 }
 
 .small {
@@ -68,7 +68,7 @@
 .report header time {
     margin-left: auto;
     font-size: 0.8rem;
-    color: #8a8a8a;
+    color: var(--bs-secondary-color, #9aa1ab);
 }
 
 .badge {

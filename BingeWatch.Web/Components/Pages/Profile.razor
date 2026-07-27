@@ -1,4 +1,4 @@
-@page "/@{Username}"
+﻿@page "/@{Username}"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -19,7 +19,7 @@ else
     <div class="profile">
         <header class="head">
             <div>
-                <h2>@profile.DisplayName</h2>
+                <h1>@profile.DisplayName</h1>
                 <p class="muted">@@@profile.Username</p>
             </div>
             <div class="head-actions">

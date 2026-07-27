@@ -1,4 +1,4 @@
-@page "/admin/reports"
+﻿@page "/admin/reports"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
 
@@ -8,7 +8,7 @@
 
 <div class="mod">
     <header class="mod-head">
-        <h2>Moderasyon kuyruğu</h2>
+        <h1>Moderasyon kuyruğu</h1>
         <div class="filters">
             @foreach (var option in StatusFilters)
             {

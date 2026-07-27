@@ -4,27 +4,32 @@
 <PageTitle>Kayıt Ol</PageTitle>
 
 <div class="container" style="max-width:420px; margin-top:3rem;">
-    <h3>Kayıt Ol</h3>
+    <h1>Kayıt Ol</h1>
+    @* Etiketler input'lara for/id ile bağlandı; öncesinde ilişki yoktu. *@
     @if (!string.IsNullOrEmpty(Error))
     {
-        <div class="alert alert-danger">Kayıt başarısız: @Error</div>
+        <div class="alert alert-danger" role="alert">Kayıt başarısız: @Error</div>
     }
     <form method="post" action="/account/register" data-enhance="false">
         <div class="mb-3">
-            <label class="form-label">Kullanıcı adı</label>
-            <input class="form-control" name="username" required />
+            <label class="form-label" for="register-username">Kullanıcı adı</label>
+            <input id="register-username" class="form-control" name="username"
+                   autocomplete="username" required />
         </div>
         <div class="mb-3">
-            <label class="form-label">Görünen ad</label>
-            <input class="form-control" name="displayName" />
+            <label class="form-label" for="register-displayname">Görünen ad</label>
+            <input id="register-displayname" class="form-control" name="displayName"
+                   autocomplete="nickname" />
         </div>
         <div class="mb-3">
-            <label class="form-label">E-posta</label>
-            <input class="form-control" type="email" name="email" required />
+            <label class="form-label" for="register-email">E-posta</label>
+            <input id="register-email" class="form-control" type="email" name="email"
+                   autocomplete="email" required />
         </div>
         <div class="mb-3">
-            <label class="form-label">Şifre</label>
-            <input class="form-control" type="password" name="password" required />
+            <label class="form-label" for="register-password">Şifre</label>
+            <input id="register-password" class="form-control" type="password" name="password"
+                   autocomplete="new-password" required />
         </div>
         <button class="btn btn-primary" type="submit">Kayıt ol</button>
     </form>

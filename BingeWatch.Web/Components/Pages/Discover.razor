@@ -1,4 +1,4 @@
-@page "/discover"
+﻿@page "/discover"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -7,7 +7,7 @@
 
 <div class="discover-page">
     <header class="page-head">
-        <h3>Keşfet</h3>
+        <h1>Keşfet</h1>
 
         <AuthorizeView>
             <Authorized>
@@ -46,15 +46,19 @@
             </select>
         </label>
 
-        <label>
-            Yıl
+        @* Sarmalayan <label> tek bir kontrolü etiketler; iki input olduğu için
+           ikincisi etiketsiz kalıyordu. İkisine de kendi adı veriliyor. *@
+        <div class="filter-group">
+            <span class="filter-label" id="year-label">Yıl</span>
             <span class="year-range">
                 <input class="form-control form-control-sm" type="number" min="1950" max="2100"
+                       aria-label="Yıl aralığı başlangıcı"
                        placeholder="ilk" value="@yearFrom" @onchange="OnYearFromChangedAsync" />
                 <input class="form-control form-control-sm" type="number" min="1950" max="2100"
+                       aria-label="Yıl aralığı bitişi"
                        placeholder="son" value="@yearTo" @onchange="OnYearToChangedAsync" />
             </span>
-        </label>
+        </div>
 
         <label>
             En az puan

@@ -1,32 +1,44 @@
-@page "/series"
+﻿@page "/series"
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
-@inject NavigationManager Navigation
 
 @using BingeWatch.Web.Dtos
 
-<PageTitle>Series</PageTitle>
+<PageTitle>Diziler</PageTitle>
 
-<h2 class="section-title">POPULAR SHOWS THIS WEEK <span class="more-link">MORE</span></h2>
+<h1 class="section-title" id="popular-heading">BU HAFTANIN POPÜLER DİZİLERİ</h1>
 
 @if (series == null)
 {
-    <p>Loading...</p>
+    <p>Yükleniyor...</p>
 }
 else
 {
+    @* Oklar yalnızca "<" ">" karakteri taşıyordu; ekran okuyucu "küçüktür"
+       diye okuyordu. Karakter gizlendi, erişilebilir ad ayrıca veriliyor. *@
     <div class="carousel-container">
-        <button class="carousel-arrow left" @onclick="PrevSlide" disabled="@(startIndex == 0)">&#60;</button>
-        <div class="carousel-track">
+        <button type="button" class="carousel-arrow left" aria-label="Önceki diziler"
+                @onclick="PrevSlide" disabled="@(startIndex == 0)">
+            <span aria-hidden="true">&#60;</span>
+        </button>
+
+        <ul class="carousel-track" aria-labelledby="popular-heading">
             @foreach (var item in VisibleSeries)
             {
-                <div class="carousel-card" @onclick="() => GoToShow(item.Id)">
-                    <img src="@($"https://image.tmdb.org/t/p/w500{item.PosterPath}")" alt="@item.Name" class="carousel-poster" />
-                    <div class="carousel-title">@item.Name</div>
-                </div>
+                <li>
+                    <a class="carousel-card" href="/show/@item.Id">
+                        <img src="@($"https://image.tmdb.org/t/p/w500{item.PosterPath}")"
+                             alt="" class="carousel-poster" />
+                        <span class="carousel-title">@item.Name</span>
+                    </a>
+                </li>
             }
-        </div>
-        <button class="carousel-arrow right" @onclick="NextSlide" disabled="@(series == null || startIndex + cardsPerView >= series.Count)">&#62;</button>
+        </ul>
+
+        <button type="button" class="carousel-arrow right" aria-label="Sonraki diziler"
+                @onclick="NextSlide" disabled="@(series == null || startIndex + cardsPerView >= series.Count)">
+            <span aria-hidden="true">&#62;</span>
+        </button>
     </div>
 }
 
@@ -59,8 +71,4 @@ else
         }
     }
 
-    private void GoToShow(int tmdbId)
-    {
-        Navigation.NavigateTo($"/show/{tmdbId}");
-    }
 }

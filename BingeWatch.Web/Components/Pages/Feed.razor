@@ -1,4 +1,4 @@
-@page "/feed"
+﻿@page "/feed"
 @rendermode InteractiveServer
 @attribute [Authorize]
 
@@ -14,7 +14,7 @@
 <PageTitle>Akış</PageTitle>
 
 <div class="feed-page">
-    <h3>Akış</h3>
+    <h1>Akış</h1>
 
     @if (loading && activities.Count == 0)
     {

@@ -6,26 +6,37 @@
     verir. Böylece yarım yıldız için ayrı bir sürükleme/JS mantığı gerekmez.
 *@
 
+@*
+    Salt okunur halde tek bir görsel: değeri de söyleyen bir etiket taşır
+    ("Puan: 4,5 / 5"). Eskiden yalnızca "Puan" diyordu, ekran okuyucu kullanıcısı
+    kaç yıldız olduğunu hiç öğrenemiyordu.
+
+    Düzenlenebilir halde radyo grubu: her yarım buton role="radio" ve seçili olan
+    aria-checked taşıyor. Buton yığını olarak bırakıldığında ekran okuyucu "10
+    buton" diyor ve mevcut puanı hiç bildirmiyordu.
+*@
 <div class="star-rating @SizeClass @(ReadOnly ? "is-readonly" : "")"
      role="@(ReadOnly ? "img" : "radiogroup")"
-     aria-label="@AriaLabel"
+     aria-label="@(ReadOnly ? ReadOnlyLabel : AriaLabel)"
      @onmouseleave="ClearPreview">
 
     @for (var i = 1; i <= 5; i++)
     {
         var index = i;
         <span class="star">
-            <span class="star-bg">★</span>
-            <span class="star-fill" style="width:@FillPercent(index)%">★</span>
+            <span class="star-bg" aria-hidden="true">★</span>
+            <span class="star-fill" style="width:@FillPercent(index)%" aria-hidden="true">★</span>
 
             @if (!ReadOnly)
             {
                 <button type="button" class="half half-left"
+                        role="radio" aria-checked="@(Value == Half(index))"
                         title="@Half(index) yıldız"
                         aria-label="@Half(index) yıldız ver"
                         @onclick="() => SetAsync(Half(index))"
                         @onmouseover="() => Preview(Half(index))"></button>
                 <button type="button" class="half half-right"
+                        role="radio" aria-checked="@(Value == index)"
                         title="@index yıldız"
                         aria-label="@index yıldız ver"
                         @onclick="() => SetAsync(index)"
@@ -68,6 +79,11 @@
     private decimal? preview;
 
     private string SizeClass => $"size-{Size}";
+
+    /// <summary>Salt okunur halde değeri de içeren etiket; puansızsa bunu söyler.</summary>
+    private string ReadOnlyLabel => Value.HasValue
+        ? $"{AriaLabel}: {Value.Value:0.#} / 5"
+        : $"{AriaLabel}: puan yok";
 
     private static decimal Half(int index) => index - 0.5m;
 

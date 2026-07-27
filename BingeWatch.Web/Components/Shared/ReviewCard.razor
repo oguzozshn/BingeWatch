@@ -12,10 +12,13 @@
 @inject IHttpClientFactory HttpClientFactory
 
 <article class="review">
+    @* Posterin hemen yanında aynı diziye giden metin bağlantısı da var; ikisi de
+       erişilebilirlik ağacında durursa ekran okuyucu ve klavye kullanıcısı aynı
+       hedefi iki kez geçiyor. Poster dekoratif sayılıp ağaçtan çıkarıldı. *@
     @if (ShowContext)
     {
-        <a class="poster-link" href="/show/@Review.TmdbShowId">
-            <img class="poster" src="@PosterUrl(Review.ShowPosterPath)" alt="@Review.ShowName" />
+        <a class="poster-link" href="/show/@Review.TmdbShowId" aria-hidden="true" tabindex="-1">
+            <img class="poster" src="@PosterUrl(Review.ShowPosterPath)" alt="" />
         </a>
     }
 

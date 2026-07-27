@@ -41,6 +41,9 @@
     flex-direction: column;
     gap: 4px;
     overflow-x: auto;
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
 .row-season {

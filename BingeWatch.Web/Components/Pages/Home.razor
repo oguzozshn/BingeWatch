@@ -1,14 +1,13 @@
-@page "/"
+﻿@page "/"
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
-@inject NavigationManager Navigation
 
 @using BingeWatch.Web.Dtos
 
 <PageTitle>Ana Sayfa</PageTitle>
 
-<h2 class="section-title">SIRADA NE VAR</h2>
+<h1 class="section-title">SIRADA NE VAR</h1>
 
 @if (loading)
 {
@@ -22,11 +21,14 @@ else if (!nextUp.Any())
 }
 else
 {
+    @* Kart bir gezinti; <div @onclick> klavyeyle erişilemiyordu ve orta tıkla
+       yeni sekmede açmayı da engelliyordu. Poster alt metni boş: dizi adı
+       zaten hemen altında, ekran okuyucu iki kez okumasın. *@
     <div class="watchlist-grid">
         @foreach (var item in nextUp)
         {
-            <div class="carousel-card" @onclick="() => GoToShow(item.TmdbShowId)">
-                <img src="@PosterUrl(item.ShowPosterPath)" alt="@item.ShowName" class="series-poster" />
+            <a class="carousel-card" href="/show/@item.TmdbShowId">
+                <img src="@PosterUrl(item.ShowPosterPath)" alt="" class="series-poster" />
                 <div class="series-info">
                     <h4>@item.ShowName</h4>
                     <p>
@@ -37,7 +39,7 @@ else
                         }
                     </p>
                 </div>
-            </div>
+            </a>
         }
     </div>
 }
@@ -50,16 +52,20 @@ else
 }
 else if (!loading)
 {
-    <div class="upcoming-list">
+    <ul class="upcoming-list">
         @foreach (var ep in upcoming)
         {
-            <div class="upcoming-row" @onclick="() => GoToShow(ep.TmdbShowId)">
-                <span class="upcoming-date">@ep.AirDate.ToString("d MMM")</span>
-                <span class="upcoming-show">@ep.ShowName</span>
-                <span class="upcoming-episode">S@(ep.SeasonNumber)E@(ep.EpisodeNumber) — @ep.EpisodeName</span>
-            </div>
+            <li>
+                <a class="upcoming-row" href="/show/@ep.TmdbShowId">
+                    <time class="upcoming-date" datetime="@ep.AirDate.ToString("yyyy-MM-dd")">
+                        @ep.AirDate.ToString("d MMM")
+                    </time>
+                    <span class="upcoming-show">@ep.ShowName</span>
+                    <span class="upcoming-episode">S@(ep.SeasonNumber)E@(ep.EpisodeNumber) — @ep.EpisodeName</span>
+                </a>
+            </li>
         }
-    </div>
+    </ul>
 }
 
 <style>
@@ -69,6 +75,9 @@ else if (!loading)
         display: flex;
         flex-direction: column;
         gap: 6px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
     }
 
     .upcoming-row {
@@ -79,17 +88,39 @@ else if (!loading)
         background: var(--bw-surface);
         border-radius: 8px;
         cursor: pointer;
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .upcoming-row:hover {
+        background: var(--bw-surface-2);
     }
 
     .upcoming-date {
-        color: #9aa1ab;
+        color: var(--bs-secondary-color, #9aa1ab);
         font-size: 0.85rem;
         width: 70px;
         flex-shrink: 0;
     }
 
     .upcoming-show { font-weight: 600; }
-    .upcoming-episode { color: #ccc; }
+    .upcoming-episode { color: var(--bs-body-color, #e6e8eb); }
+
+    /* Sırada ne var kartı da bir bağlantı; link rengini devralmasın. */
+    .watchlist-grid .carousel-card {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    /* Dar ekranda tarih/dizi/bölüm üçlüsü tek satıra sığmıyor, alt alta iniyor. */
+    @@media (max-width: 600px) {
+        .upcoming-row {
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .upcoming-date { width: auto; }
+    }
 </style>
 
 @code {
@@ -122,9 +153,4 @@ else if (!loading)
 
     private static string PosterUrl(string? path) =>
         string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w500{path}";
-
-    private void GoToShow(int tmdbId)
-    {
-        Navigation.NavigateTo($"/show/{tmdbId}");
-    }
 }

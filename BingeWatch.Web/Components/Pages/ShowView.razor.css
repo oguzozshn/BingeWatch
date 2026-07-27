@@ -1,4 +1,4 @@
-.show-loading { padding: 20px; }
+﻿.show-loading { padding: 20px; }
 
 .show-container {
     display: flex;
@@ -10,7 +10,7 @@
 .left-panel { width: 260px; flex-shrink: 0; }
 .poster { width: 100%; border-radius: 8px; }
 .info { margin-top: 10px; }
-.info h2 { font-size: 1.4rem; }
+.info h1 { font-size: 1.4rem; }
 .rating { color: gold; }
 .tmdb-line { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .muted { color: var(--bs-secondary-color, #9aa1ab); font-size: 0.85rem; }

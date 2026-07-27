@@ -12,11 +12,12 @@
             <button type="button" class="btn @(personal ? "btn-secondary" : "btn-outline-secondary")"
                     @onclick="() => personal = true">Benim puanım</button>
         </div>
+        @* Örnek kutucukları yalnızca dekoratif; anlamı iki yanındaki etiketlerde. *@
         <span class="legend">
             <span class="legend-label">düşük</span>
-            <span class="legend-swatch" style="background:@Color(0.0)"></span>
-            <span class="legend-swatch" style="background:@Color(0.5)"></span>
-            <span class="legend-swatch" style="background:@Color(1.0)"></span>
+            <span class="legend-swatch" style="background:@Color(0.0)" aria-hidden="true"></span>
+            <span class="legend-swatch" style="background:@Color(0.5)" aria-hidden="true"></span>
+            <span class="legend-swatch" style="background:@Color(1.0)" aria-hidden="true"></span>
             <span class="legend-label">yüksek</span>
         </span>
     </div>
@@ -26,23 +27,28 @@
         <p class="empty">Henüz hiçbir bölüme puan vermedin. Bölümler sekmesinden yıldız verebilirsin.</p>
     }
 
-    <div class="grid">
+    @* Hücreler tıklanmıyor, o yüzden odak sırasına girmiyorlar (200 bölümlük bir
+       dizide 200 duraklı sekme yolu işkence olurdu). Ama bilgi yalnızca renkte ve
+       title'da kalmasın diye her hücre role="img" + aria-label taşıyor; ekran
+       okuyucu listeyi gezerken bölümü ve puanı okuyabiliyor. *@
+    <ul class="grid">
         @foreach (var season in Seasons)
         {
-            <div class="row-season">
+            <li class="row-season">
                 <span class="row-label">S@(season.SeasonNumber)</span>
                 <div class="cells">
                     @foreach (var ep in season.Episodes)
                     {
                         var score = Normalized(ep);
+                        var label = Tooltip(season, ep);
                         <span class="cell @(score == null ? "unrated" : "")"
                               style="@(score == null ? "" : $"background:{Color(score.Value)}")"
-                              title="@Tooltip(season, ep)"></span>
+                              role="img" aria-label="@label" title="@label"></span>
                     }
                 </div>
-            </div>
+            </li>
         }
-    </div>
+    </ul>
 </div>
 
 @code {

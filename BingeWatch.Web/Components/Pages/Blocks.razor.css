@@ -1,11 +1,11 @@
-.blocks {
+﻿.blocks {
     max-width: 44rem;
     margin: 0 auto;
     padding: 1rem;
 }
 
 .muted {
-    color: #9a9a9a;
+    color: var(--bs-secondary-color, #9aa1ab);
 }
 
 .block-list {

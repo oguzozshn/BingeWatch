@@ -1,4 +1,4 @@
-@page "/notifications"
+﻿@page "/notifications"
 @rendermode InteractiveServer
 @attribute [Authorize]
 
@@ -8,7 +8,7 @@
 
 <div class="notifications-page">
     <header class="page-head">
-        <h3>Bildirimler</h3>
+        <h1>Bildirimler</h1>
         @if (notifications?.Any(n => !n.IsRead) == true)
         {
             <button type="button" class="btn btn-sm btn-outline-secondary"

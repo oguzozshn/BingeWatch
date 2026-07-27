@@ -1,4 +1,4 @@
-@page "/show/{TmdbId:int}"
+﻿@page "/show/{TmdbId:int}"
 @attribute [Authorize]
 @rendermode InteractiveServer
 
@@ -21,7 +21,7 @@ else
             <img src="@PosterUrl(show.PosterPath)" alt="@show.Name" class="poster" />
 
             <div class="info">
-                <h2>@show.Name</h2>
+                <h1>@show.Name</h1>
                 <p class="tmdb-line">
                     <span class="rating">⭐ @show.VoteAverage.ToString("0.0")</span>
                     <span class="muted">TMDb · @show.VoteCount.ToString("N0") oy</span>
@@ -65,20 +65,28 @@ else
         </div>
 
         <div class="right-panel">
-            <nav class="tabs" role="tablist">
+            @* ARIA sekme deseni: sekme şeridinde odak tek durak (yalnızca aktif
+               sekme tabindex=0), sekmeler arası geçiş ok tuşlarıyla. Eskiden dört
+               sekmenin dördü de sekme sırasındaydı ve panelle bağları yoktu. *@
+            <div class="tabs" role="tablist" aria-label="Dizi bölümleri"
+                 @onkeydown="OnTabKeyDown">
                 @foreach (var t in AllTabs)
                 {
                     var tab = t;
                     <button type="button" role="tab" class="tab @(activeTab == tab ? "active" : "")"
+                            id="@TabId(tab)"
                             aria-selected="@(activeTab == tab)"
+                            aria-controls="show-tabpanel"
+                            tabindex="@(activeTab == tab ? 0 : -1)"
                             @onclick="() => SwitchTabAsync(tab)">@TabLabel(tab)</button>
                 }
-            </nav>
+            </div>
 
             @switch (activeTab)
             {
                 case Tab.Overview:
-                    <section class="tab-panel">
+                    <section class="tab-panel" id="show-tabpanel" role="tabpanel"
+                             aria-labelledby="@TabId(activeTab)" tabindex="0">
                         @if (!string.IsNullOrWhiteSpace(show.Overview))
                         {
                             <p class="overview">@show.Overview</p>
@@ -129,7 +137,8 @@ else
                     break;
 
                 case Tab.Episodes:
-                    <section class="tab-panel">
+                    <section class="tab-panel" id="show-tabpanel" role="tabpanel"
+                             aria-labelledby="@TabId(activeTab)" tabindex="0">
                         @foreach (var season in show.Seasons)
                         {
                             var s = season;
@@ -185,7 +194,8 @@ else
                     break;
 
                 case Tab.Reviews:
-                    <section class="tab-panel">
+                    <section class="tab-panel" id="show-tabpanel" role="tabpanel"
+                             aria-labelledby="@TabId(activeTab)" tabindex="0">
                         <div class="review-form">
                             <div class="review-form-head">
                                 <h5 class="section-title">@(editingId == null ? "İnceleme yaz" : "İncelemeni düzenle")</h5>
@@ -244,7 +254,8 @@ else
                     break;
 
                 case Tab.Similar:
-                    <section class="tab-panel">
+                    <section class="tab-panel" id="show-tabpanel" role="tabpanel"
+                             aria-labelledby="@TabId(activeTab)" tabindex="0">
                         @if (similar == null)
                         {
                             <p class="muted">Yükleniyor...</p>
@@ -289,6 +300,33 @@ else
         Tab.Reviews => "İncelemeler",
         _ => "Benzer"
     };
+
+    /// <summary>Panelin <c>aria-labelledby</c>'si buraya bakıyor.</summary>
+    private static string TabId(Tab tab) => $"show-tab-{tab.ToString().ToLowerInvariant()}";
+
+    /// <summary>
+    /// ARIA sekme deseni klavye sözleşmesi: sol/sağ ok komşu sekmeye (uçlarda
+    /// başa/sona sarar), Home/End ilk ve son sekmeye gider. Seçilen sekme aynı
+    /// anda etkinleşiyor — panel içeriği zaten tıklamada da anında yükleniyor.
+    /// </summary>
+    private async Task OnTabKeyDown(KeyboardEventArgs e)
+    {
+        var current = Array.IndexOf(AllTabs, activeTab);
+
+        var next = e.Key switch
+        {
+            "ArrowRight" => (current + 1) % AllTabs.Length,
+            "ArrowLeft" => (current - 1 + AllTabs.Length) % AllTabs.Length,
+            "Home" => 0,
+            "End" => AllTabs.Length - 1,
+            _ => -1
+        };
+
+        if (next < 0 || next == current)
+            return;
+
+        await SwitchTabAsync(AllTabs[next]);
+    }
 
     private ShowDetailDto? show;
     private ShowProgressDto? progress;
