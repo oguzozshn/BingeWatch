@@ -1,4 +1,4 @@
-@page "/lists"
+﻿@page "/lists"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -7,8 +7,9 @@
 
 <div class="discover-page">
     <header class="page-head">
-        <h3>Listeler</h3>
-        <select class="form-select form-select-sm sort-select" value="@((int)sort)"
+        <h1>Listeler</h1>
+        <select class="form-select form-select-sm sort-select" aria-label="Listeleri sırala"
+                value="@((int)sort)"
                 @onchange="OnSortChangedAsync">
             <option value="0">En yeni</option>
             <option value="1">En beğenilen</option>

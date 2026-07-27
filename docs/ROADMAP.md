@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 27 Temmuz 2026, Faz 6.2 (performans) sonu.*
+*Son güncelleme: 27 Temmuz 2026, Faz 6.3 (mobil & erişilebilirlik) sonu.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -364,7 +364,45 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - **İndeksler** — `Reviews(CreatedAt, Id)`, `UserLists(UpdatedAt, Id)`,
     `UserShows(UserId, Status)`; `ActivityEvents`, `Notifications` ve `Reports`
     üzerindeki tarih indeksleri imleçle uyumlu olsun diye `Id` ile genişletildi
-- [ ] Mobil responsive + erişilebilirlik (klavye, ARIA, kontrast)
+- [x] Mobil responsive + erişilebilirlik (klavye, ARIA, kontrast)
+  - **Dil** — `<html lang="en">` idi; arayüzün tamamı Türkçeyken ekran okuyucu
+    metni İngilizce fonemlerle okuyordu. `lang="tr"` yapıldı
+  - **Klavye** — gezinti amaçlı beş `<div @@onclick>` gerçek `<a>`/`<button>`
+    oldu (ana sayfa kartları ve yaklaşan bölümler, popüler karusel, watchlist
+    kartı ve arama önerileri). Bunlar klavyeyle hiç erişilemiyor, orta tıkla
+    yeni sekmede de açılmıyordu. Watchlist kartı ayrıca *tıklanabilir kartın
+    içinde buton* barındırıyordu; gezinti başlığa, "Kaldır" yanına ayrıldı
+  - **Odak görünürlüğü** — özel butonların (`.link-btn`, `.filter`,
+    `.carousel-card`, `.report-link` …) hiçbirinin odak stili yoktu. Tek bir
+    `:focus-visible` kuralı eklendi (fareyle tıklamada çıkmaz, klavyede çıkar)
+  - **Atlama bağlantısı** — her sayfada tekrarlanan gezintiyi sekmeyle geçmek
+    zorunda kalınmasın diye "İçeriğe atla"; yalnızca odakta görünür
+  - **Başlık yapısı** — hiçbir sayfada `<h1>` yoktu, sayfalar `<h2>`/`<h3>` ile
+    başlıyordu. 19 sayfanın ilk başlığı `<h1>`e çıkarıldı; global `h1` boyutu
+    eski `h3`e sabitlendi ki tasarım bozulmasın
+  - **Form etiketleri** — giriş/kayıt formlarındaki `<label>`ların `for`'u yoktu
+    ve inputlar içlerinde değildi (ilişki hiç kurulmamıştı); yıl aralığındaki
+    ikinci input, arama kutuları ve sıralama seçicileri de adsızdı. Hepsine
+    `for`/`id` ya da `aria-label` verildi, parola alanlarına `autocomplete`
+  - **ARIA** — `<StarRating>` düzenlenebilir halde `role="radio"` +
+    `aria-checked` taşıyor (eskiden "10 buton" diye okunuyor, mevcut puan hiç
+    bildirilmiyordu), salt okunur halde etiket değeri de söylüyor. Dizi
+    sayfasındaki sekmeler tam ARIA desenine geçti: tek odak durağı, ok/Home/End
+    ile gezinme, `aria-controls`/`aria-labelledby` ile panel bağı. Isı haritası
+    hücreleri `role="img"` + `aria-label` aldı (`title` klavye ve ekran
+    okuyucuya ulaşmıyordu). Bildirim zilinin erişilebilir adı okunmamış sayısını
+    içeriyor. Dekoratif ikonlar `aria-hidden`
+  - **Kontrast** — sabit griler (`#888`, `#8a8a8a`, `#9a9a9a`) kart zemininde
+    AA'nın altındaydı, tema değişkenine bağlandı; `#d9534f` ve `#e0607e` metin
+    olarak kullanıldıkları yerlerde açıldı
+  - **Responsive** — filtre paneli, yaklaşan bölümler satırı ve poster ızgaraları
+    dar ekrana uyarlandı. 375px'te poster ızgarası **1 piksel farkla** tek sütuna
+    düşüyordu (295px alana `minmax(140px,…)` iki sütun sığdıramıyor), alt sınır
+    düşürüldü. `pointer: coarse`'ta dokunma hedefleri 44px, `.link-btn` her
+    yerde en az 24px (WCAG 2.5.8). `prefers-reduced-motion` desteği eklendi
+  - Yol üstünde: WatchList'teki 6 `Console.WriteLine` `ILogger`'a taşındı
+    (Faz 0'dan kalan madde) ve §7.1'deki **arama blur yarışı** kapandı —
+    öneri listesine `@@onmousedown:preventDefault` eklendi
 - [ ] OG meta + prerender (SEO — Letterboxd trafiğinin büyük kısmı buradan gelir)
 - [ ] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check
 - [ ] E2E test (Playwright), yük testi
@@ -398,20 +436,31 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 `/watchlist`, `/settings/blocks` gibi sayfalar giriş yapmamış ziyaretçiye boş
 kabuk olarak çiziliyor; `<RedirectToLogin>` statik SSR sırasında tetiklenmiyor.
 Rol gerektiren `/admin/reports` doğru yönlendiriyor. **Güvenlik açığı değil** —
-API tarafı 401 döndüğü için veri sızmıyor, yalnızca kötü bir karşılama. Faz 6.1
-öncesinden var, Faz 6.3'te (mobil & erişilebilirlik) düzeltilecek.
+API tarafı 401 döndüğü için veri sızmıyor, yalnızca kötü bir karşılama.
+Düzeltmesi render moduyla ilgili (statik SSR'da yönlendirme), Faz 6.3'ün
+erişilebilirlik kapsamına girmedi — Faz 6.4'e (SEO/prerender) bırakıldı,
+prerender kararı zaten aynı kodu değiştirecek.
 
-**WatchList arama butonu — blur yarışı.** "Search" butonuna tıklamak input'u blur ediyor;
-`OnSearchBlur`'ün 200 ms'lik gizleme zamanlayıcısı, arama sonuçlarının gelişiyle yarışıyor.
-Yazarak arama (debounce yolu) sorunsuz çalışıyor. Düzeltme: blur yerine `@onfocusout`
-ile ilgili elemanı kontrol et ya da dropdown'a `@onmousedown:preventDefault` ekle.
+**Sekme deseni ve engelleme akışı klavyeyle uçtan uca denenmedi.** Dizi sayfası
+ve moderasyon paneli giriş gerektirdiği için tarayıcı doğrulaması yalnızca
+anonim sayfalarda yapılabildi; kod yapısı doğru ama gerçek oturumda test
+edilmesi gerekiyor (Faz 6.6'daki Playwright bunu kapsayacak).
 
-### 7.2 Faz 3'te çözülenler
+### 7.2 Faz 6.3'te çözülenler
+
+- ✅ **WatchList arama blur yarışı** (eski §7.1): "Ara" butonuna tıklamak input'u
+  blur ediyor, `OnSearchBlur`'ün 200 ms'lik zamanlayıcısı sonuçlarla yarışıyordu.
+  Öneri listesine `@onmousedown:preventDefault` eklendi — tıklama artık odağı
+  input'tan almıyor.
+- ✅ **WatchList'teki `Console.WriteLine` çağrıları** (Faz 0'dan kalan, 6 adet)
+  `ILogger`'a taşındı.
+
+### 7.3 Faz 3'te çözülenler
 
 - ✅ **Sezonlar katlanamıyor**: ShowView'daki sezonlar artık akordiyon; varsayılan kapalı,
   ilk yarım kalmış sezon açık başlar.
 
-### 7.3 Faz 2'de çözülenler
+### 7.4 Faz 2'de çözülenler
 
 - ✅ **Kalp butonu** (eski §7.1): kök neden doğrulandı — Web `SeriesDto.FirstAirDate` `string`,
   API `DateTime?` bekliyordu ve `ShowYear` çıplak yıl (`"2008"`) gönderiyordu. ShowView'ın
@@ -423,12 +472,10 @@ ile ilgili elemanı kontrol et ya da dropdown'a `@onmousedown:preventDefault` ek
   düşürüyordu. `NullableDateTimeConverter` eklendi.
 - ✅ **N+1 `external_ids` çağrıları** (§2.3) ve **`WatchListItem` → `UserShow` migration'ı**.
 
-### 7.4 Tamamlanmamış / ertelenen maddeler
+### 7.5 Tamamlanmamış / ertelenen maddeler
 
 **Faz 0'dan kalan**
 
-- [WatchList.razor](../BingeWatch.Web/Components/Pages/WatchList.razor)'daki `Console.WriteLine`
-  çağrıları `ILogger`'a taşınmadı (6 adet)
 - API anahtarlarının sağlayıcı tarafında iptal/yenileme durumu doğrulanmadı (bkz. Faz 0)
 
 **Faz 1'de bilinçli ertelenen**

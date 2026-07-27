@@ -1,4 +1,4 @@
-@page "/search"
+﻿@page "/search"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -7,10 +7,14 @@
 <PageTitle>Arama</PageTitle>
 
 <div class="search-page">
-    <h3>Ara</h3>
+    <h1>Ara</h1>
 
+    @* placeholder etiket yerine geçmez: yazmaya başlayınca kayboluyor ve bazı
+       ekran okuyucular hiç okumuyor. Görünmez ama gerçek bir <label> var. *@
     <div class="search-box">
-        <input class="form-control" placeholder="Dizi ya da kişi adı" value="@query"
+        <label class="visually-hidden" for="search-query">Dizi ya da kişi adı</label>
+        <input id="search-query" type="search" class="form-control"
+               placeholder="Dizi ya da kişi adı" value="@query"
                @oninput="OnQueryInput" @onkeydown="OnKeyDown" />
         <button type="button" class="btn btn-primary" disabled="@(loading || string.IsNullOrWhiteSpace(query))"
                 @onclick="SearchAsync">

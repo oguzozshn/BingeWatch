@@ -1,4 +1,4 @@
-.profile {
+﻿.profile {
     max-width: 640px;
     margin: 2rem auto;
     padding: 0 1rem;
@@ -11,7 +11,7 @@
     gap: 1rem;
 }
 
-.head h2 {
+.head h1 {
     margin-bottom: 0.15rem;
 }
 

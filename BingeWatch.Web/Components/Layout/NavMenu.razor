@@ -5,7 +5,7 @@
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
             data-bs-target="#navbarContent" aria-controls="navbarContent"
-            aria-expanded="false" aria-label="Toggle navigation">
+            aria-expanded="false" aria-label="Gezintiyi aç/kapat">
         <span class="navbar-toggler-icon"></span>
     </button>
 
@@ -13,41 +13,41 @@
         <ul class="navbar-nav mx-auto mb-2 mb-lg-0">
             <li class="nav-item">
                 <NavLink class="nav-link" href="series">
-                    <i class="bi bi-house-door-fill"></i> Series
+                    <i class="bi bi-house-door-fill" aria-hidden="true"></i> Diziler
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link" href="discover">
-                    <i class="bi bi-compass"></i> Keşfet
+                    <i class="bi bi-compass" aria-hidden="true"></i> Keşfet
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link" href="search">
-                    <i class="bi bi-search"></i> Ara
+                    <i class="bi bi-search" aria-hidden="true"></i> Ara
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link" href="watchlist">
-                    <i class="bi bi-list-nested"></i> watchlist
+                    <i class="bi bi-list-nested" aria-hidden="true"></i> Watchlist
                 </NavLink>
             </li>
             <AuthorizeView>
                 <Authorized>
                     <li class="nav-item">
                         <NavLink class="nav-link" href="feed">
-                            <i class="bi bi-activity"></i> Akış
+                            <i class="bi bi-activity" aria-hidden="true"></i> Akış
                         </NavLink>
                     </li>
                 </Authorized>
             </AuthorizeView>
             <li class="nav-item">
                 <NavLink class="nav-link" href="reviews">
-                    <i class="bi bi-star-half"></i> İncelemeler
+                    <i class="bi bi-star-half" aria-hidden="true"></i> İncelemeler
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link" href="lists">
-                    <i class="bi bi-collection"></i> Listeler
+                    <i class="bi bi-collection" aria-hidden="true"></i> Listeler
                 </NavLink>
             </li>
         </ul>
@@ -56,7 +56,7 @@
                 <Authorized>
                     <li class="nav-item">
                         <NavLink class="nav-link" href="admin/reports">
-                            <i class="bi bi-shield-exclamation"></i> Moderasyon
+                            <i class="bi bi-shield-exclamation" aria-hidden="true"></i> Moderasyon
                         </NavLink>
                     </li>
                 </Authorized>
@@ -68,12 +68,15 @@
                     </li>
                     <li class="nav-item">
                         <NavLink class="nav-link" href="@($"@{context.User.Identity!.Name}")">
-                            <i class="bi bi-person-fill"></i> @context.User.Identity!.Name
+                            <i class="bi bi-person-fill" aria-hidden="true"></i> @context.User.Identity!.Name
                         </NavLink>
                     </li>
                     <li class="nav-item">
+                        @* İkon dekoratif; erişilebilir ad görünmez metinden geliyor.
+                           title tek başına güvenilir bir ad kaynağı değil. *@
                         <NavLink class="nav-link" href="settings/blocks" title="Engellenenler">
-                            <i class="bi bi-slash-circle"></i>
+                            <i class="bi bi-slash-circle" aria-hidden="true"></i>
+                            <span class="visually-hidden">Engellenenler</span>
                         </NavLink>
                     </li>
                     <li class="nav-item">

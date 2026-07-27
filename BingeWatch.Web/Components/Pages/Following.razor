@@ -1,4 +1,4 @@
-@page "/@{Username}/following"
+﻿@page "/@{Username}/following"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -6,7 +6,7 @@
 <PageTitle>@Username — takip ettikleri</PageTitle>
 
 <div class="follow-page">
-    <h3><a href="/@@@Username">@@@Username</a> kullanıcısının takip ettikleri</h3>
+    <h1><a href="/@@@Username">@@@Username</a> kullanıcısının takip ettikleri</h1>
 
     @if (notFound)
     {

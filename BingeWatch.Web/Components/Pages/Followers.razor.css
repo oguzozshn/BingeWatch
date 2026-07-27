@@ -1,15 +1,15 @@
-.follow-page {
+﻿.follow-page {
     max-width: 640px;
     margin: 2rem auto;
     padding: 0 1rem;
 }
 
-.follow-page h3 a {
+.follow-page h1 a {
     color: inherit;
     text-decoration: none;
 }
 
-.follow-page h3 a:hover {
+.follow-page h1 a:hover {
     text-decoration: underline;
 }
 

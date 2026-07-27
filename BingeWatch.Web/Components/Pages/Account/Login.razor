@@ -4,20 +4,24 @@
 <PageTitle>Giriş Yap</PageTitle>
 
 <div class="container" style="max-width:420px; margin-top:3rem;">
-    <h3>Giriş Yap</h3>
+    <h1>Giriş Yap</h1>
+    @* Etiketlerin for'u yoktu ve inputlar da içlerinde değildi: ekran okuyucu
+       alanları adsız okuyordu, etikete tıklamak da odaklamıyordu. *@
     @if (!string.IsNullOrEmpty(Error))
     {
-        <div class="alert alert-danger">Kullanıcı adı ya da şifre hatalı.</div>
+        <div class="alert alert-danger" role="alert">Kullanıcı adı ya da şifre hatalı.</div>
     }
     <form method="post" action="/account/login" data-enhance="false">
         <input type="hidden" name="returnUrl" value="@ReturnUrl" />
         <div class="mb-3">
-            <label class="form-label">Kullanıcı adı veya e-posta</label>
-            <input class="form-control" name="usernameOrEmail" required />
+            <label class="form-label" for="login-username">Kullanıcı adı veya e-posta</label>
+            <input id="login-username" class="form-control" name="usernameOrEmail"
+                   autocomplete="username" required />
         </div>
         <div class="mb-3">
-            <label class="form-label">Şifre</label>
-            <input class="form-control" type="password" name="password" required />
+            <label class="form-label" for="login-password">Şifre</label>
+            <input id="login-password" class="form-control" type="password" name="password"
+                   autocomplete="current-password" required />
         </div>
         <button class="btn btn-primary" type="submit">Giriş yap</button>
     </form>

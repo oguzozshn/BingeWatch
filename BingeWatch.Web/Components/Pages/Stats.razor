@@ -1,4 +1,4 @@
-@page "/@{Username}/stats"
+﻿@page "/@{Username}/stats"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -17,7 +17,7 @@ else
 {
     <div class="stats-page">
         <header class="page-head">
-            <h3><a href="/@@@stats.Username">@stats.DisplayName</a> istatistikleri</h3>
+            <h1><a href="/@@@stats.Username">@stats.DisplayName</a> istatistikleri</h1>
         </header>
 
         <section class="cards">

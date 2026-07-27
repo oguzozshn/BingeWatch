@@ -2,20 +2,25 @@
 @using BingeWatch.Web.Components.Layout
 @using Microsoft.AspNetCore.Components.Routing
 
+@* Gezinti her sayfada aynı ve uzun; klavye kullanıcısı onu her seferinde
+   sekmeyle geçmek zorunda kalmasın diye içeriğe atlama bağlantısı. Yalnızca
+   odaklanınca görünür (bkz. app.css .skip-link). *@
+<a class="skip-link" href="#main-content">İçeriğe atla</a>
+
 <div class="page">
     <header>
         <NavMenu />
     </header>
 
-    <main>
+    <main id="main-content" tabindex="-1">
         <article class="content px-4">
             @Body
         </article>
     </main>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+<div id="blazor-error-ui" data-nosnippet role="alert">
+    Beklenmeyen bir hata oluştu.
+    <a href="." class="reload">Yeniden yükle</a>
+    <button type="button" class="dismiss" aria-label="Hata bildirimini kapat">🗙</button>
 </div>

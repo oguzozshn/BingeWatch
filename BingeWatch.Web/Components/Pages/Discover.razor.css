@@ -1,4 +1,4 @@
-.discover-page {
+﻿.discover-page {
     max-width: 1100px;
     margin: 1.5rem auto;
     padding: 0 1rem;
@@ -12,7 +12,7 @@
     margin-bottom: 1rem;
 }
 
-.page-head h3 {
+.page-head h1 {
     margin: 0;
 }
 
@@ -32,7 +32,10 @@
     border-radius: .5rem;
 }
 
-.filters label {
+/* Yıl aralığı iki input taşıdığı için <label> yerine .filter-group kullanıyor;
+   ikisinin de görünümü diğer filtrelerle aynı kalmalı. */
+.filters label,
+.filters .filter-group {
     display: flex;
     flex-direction: column;
     gap: .25rem;
@@ -51,6 +54,24 @@
 
 .year-range input {
     width: 5.5rem;
+}
+
+/* Dar ekranda filtreler tek sütuna insin; yan yana sıkışıp taşmasınlar. */
+@media (max-width: 600px) {
+    .filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filters select,
+    .year-range input {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .clear {
+        margin-left: 0;
+    }
 }
 
 .clear {
@@ -115,4 +136,14 @@
 
 .muted {
     opacity: .7;
+}
+
+/* 375px'lik telefonda ızgara 295px kalıyor; 140px'lik alt sınırla iki sütun
+   1 piksel farkla sığmıyor ve tek sütuna düşüyordu (poster ekranı kaplıyordu).
+   Dar ekranda alt sınır düşürülüyor. */
+@media (max-width: 600px) {
+    .poster-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: .6rem;
+    }
 }

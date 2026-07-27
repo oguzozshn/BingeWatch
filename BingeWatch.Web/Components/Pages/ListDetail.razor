@@ -1,4 +1,4 @@
-@page "/list/{ListId:int}"
+﻿@page "/list/{ListId:int}"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -25,13 +25,13 @@ else
         {
             <header class="head">
                 <div>
-                    <h3>
+                    <h1>
                         @list.Title
                         @if (!list.IsPublic)
                         {
                             <span class="private-badge" title="Yalnızca sen görebilirsin">gizli</span>
                         }
-                    </h3>
+                    </h1>
                     <p class="owner">
                         <a href="/@@@list.OwnerUsername">@list.OwnerDisplayName</a>
                         · @list.ItemCount dizi

@@ -1,4 +1,4 @@
-.list-detail {
+﻿.list-detail {
     max-width: 800px;
     margin: 1.5rem auto;
     padding: 0 1rem;
@@ -12,7 +12,7 @@
     margin-bottom: 1rem;
 }
 
-.head h3 {
+.head h1 {
     margin: 0 0 .25rem;
 }
 

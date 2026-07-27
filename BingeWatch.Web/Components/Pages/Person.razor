@@ -1,4 +1,4 @@
-@page "/person/{PersonId:int}"
+﻿@page "/person/{PersonId:int}"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -22,7 +22,7 @@ else
                 <img class="photo" src="@ProfileUrl(person.ProfilePath)" alt="@person.Name" />
             }
             <div>
-                <h3>@person.Name</h3>
+                <h1>@person.Name</h1>
                 <p class="muted">@person.Credits.Count dizi</p>
             </div>
         </header>

@@ -1,4 +1,4 @@
-@page "/reviews"
+﻿@page "/reviews"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -7,8 +7,9 @@
 
 <div class="reviews-page">
     <header class="page-head">
-        <h3>İncelemeler</h3>
-        <select class="form-select form-select-sm sort-select" value="@((int)sort)"
+        <h1>İncelemeler</h1>
+        <select class="form-select form-select-sm sort-select" aria-label="İncelemeleri sırala"
+                value="@((int)sort)"
                 @onchange="OnSortChangedAsync">
             <option value="0">En yeni</option>
             <option value="1">En eski</option>
