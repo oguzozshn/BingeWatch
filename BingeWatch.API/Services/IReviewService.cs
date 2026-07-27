@@ -23,7 +23,9 @@ namespace BingeWatch.API.Services
         Task<List<ReviewDto>> GetOwnForShowAsync(string userId, int showTmdbId);
 
         /// <summary>Genel inceleme akışı (<c>/reviews</c>).</summary>
-        Task<List<ReviewDto>> GetFeedAsync(int skip, int take, ReviewSort sort, string? viewerId = null);
+        /// <summary>Genel inceleme akışı; imleç tabanlı sayfalama.</summary>
+        Task<PagedResult<ReviewDto>> GetFeedAsync(string? cursor, int take, ReviewSort sort,
+            string? viewerId = null);
     }
 
     public enum ReviewSort

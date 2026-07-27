@@ -11,6 +11,9 @@ namespace BingeWatch.API.Services
         private const int MaxDescriptionLength = 2000;
         private const int MaxNoteLength = 1000;
 
+        /// <summary>Kart önizlemesi için liste başına taranan öğe sayısı (4 poster gerekiyor).</summary>
+        private const int PosterWindow = 12;
+
         private readonly BingeOnDbContext _context;
         private readonly IShowCatalogService _catalogService;
         private readonly INotificationService _notificationService;
@@ -121,11 +124,10 @@ namespace BingeWatch.API.Services
             return await BuildLikeStateAsync(listId, userId);
         }
 
-        public async Task<List<UserListSummaryDto>> GetDiscoverAsync(ListSort sort, int skip, int take,
-            string? viewerId)
+        public async Task<PagedResult<UserListSummaryDto>> GetDiscoverAsync(ListSort sort, string? cursor,
+            int take, string? viewerId)
         {
             take = Math.Clamp(take, 1, 100);
-            skip = Math.Max(skip, 0);
 
             // Keşifte yalnızca herkese açık listeler, gizli olmayan profillerden.
             // Boş liste keşfe girmez — kart posteri de bilgisi de olmayan satır işe yaramaz.
@@ -135,24 +137,56 @@ namespace BingeWatch.API.Services
                 .Where(l => l.IsPublic && !l.User!.IsPrivate && !hidden.Contains(l.UserId))
                 .Where(l => _context.UserListItems.Any(i => i.UserListId == l.Id));
 
+            // Beğeni/öğe sayısı satırda durmadığı için o iki sıralama offset'te kalıyor;
+            // "en yeni" ise UpdatedAt üzerinden keyset imleci kullanabiliyor.
+            var isKeyset = sort == ListSort.Recent;
+            var offset = isKeyset ? 0 : Cursor.DecodeOffset(cursor);
+
+            if (isKeyset)
+            {
+                var after = Cursor.DecodeKeyset(cursor);
+                if (after != null)
+                {
+                    query = query.Where(l => l.UpdatedAt < after.Value.Timestamp
+                                          || (l.UpdatedAt == after.Value.Timestamp && l.Id < after.Value.Id));
+                }
+            }
+
             var ordered = sort switch
             {
                 ListSort.MostLiked => query
                     .OrderByDescending(l => _context.UserListLikes.Count(k => k.UserListId == l.Id))
-                    .ThenByDescending(l => l.UpdatedAt),
+                    .ThenByDescending(l => l.UpdatedAt)
+                    .ThenByDescending(l => l.Id),
                 ListSort.Largest => query
                     .OrderByDescending(l => _context.UserListItems.Count(i => i.UserListId == l.Id))
-                    .ThenByDescending(l => l.UpdatedAt),
-                _ => query.OrderByDescending(l => l.UpdatedAt)
+                    .ThenByDescending(l => l.UpdatedAt)
+                    .ThenByDescending(l => l.Id),
+                _ => query.OrderByDescending(l => l.UpdatedAt).ThenByDescending(l => l.Id)
             };
 
-            var lists = await ordered
-                .Skip(skip)
+            // Skip(0) bile SQL'e OFFSET yazdırıyor; keyset yolunda gereksiz.
+            var paged = offset > 0 ? ordered.Skip(offset) : (IQueryable<UserList>)ordered;
+
+            var lists = await paged
                 .Take(take)
                 .Include(l => l.User)
                 .ToListAsync();
 
-            return await ProjectSummariesAsync(lists, viewerId);
+            if (lists.Count == 0)
+                return PagedResult<UserListSummaryDto>.Empty();
+
+            var items = await ProjectSummariesAsync(lists, viewerId);
+
+            string? nextCursor = null;
+            if (lists.Count == take)
+            {
+                nextCursor = isKeyset
+                    ? Cursor.EncodeKeyset(lists[^1].UpdatedAt, lists[^1].Id)
+                    : Cursor.EncodeOffset(offset + lists.Count);
+            }
+
+            return new PagedResult<UserListSummaryDto> { Items = items, NextCursor = nextCursor };
         }
 
         public async Task<List<UserListSummaryDto>?> GetForUserAsync(string username, string? viewerId)
@@ -455,9 +489,14 @@ namespace BingeWatch.API.Services
                 .Select(g => new { UserListId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.UserListId, x => x.Count);
 
-            // Kart başına 4 poster; ilk sıradaki öğeler tek sorguda çekilip bellekte gruplanır.
+            // Kart başına 4 poster. Liste başına ilk PosterWindow öğeyle sınırlıyoruz:
+            // sınırsız çekmek, 200 dizilik listelerde 4 poster için 200 satır demekti.
+            // Sıra numaraları 0..n-1 sıkıştırıldığı için (bkz. CompactPositionsAsync)
+            // pencere güvenli; yalnızca ilk 12 öğenin 9'undan fazlası postersizse
+            // önizleme eksik kalır.
             var posterRows = await _context.UserListItems
-                .Where(i => listIds.Contains(i.UserListId) && i.Show!.PosterPath != null)
+                .Where(i => listIds.Contains(i.UserListId) && i.Position < PosterWindow
+                            && i.Show!.PosterPath != null)
                 .OrderBy(i => i.Position)
                 .Select(i => new { i.UserListId, i.Position, PosterPath = i.Show!.PosterPath! })
                 .ToListAsync();

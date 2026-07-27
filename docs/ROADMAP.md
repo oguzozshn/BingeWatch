@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 27 Temmuz 2026, Faz 6.1 (moderasyon) sonu.*
+*Son güncelleme: 27 Temmuz 2026, Faz 6.2 (performans) sonu.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -340,7 +340,30 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     yalnızca `Admin:Usernames` yapılandırmasından, açılışta: panelden panel
     yetkisi dağıtılamıyor. Bir içerik hakkındaki karar (sil / reddet) o içeriğe
     ait diğer açık bildirimleri de kapatır
-- [ ] Cursor-based sayfalama, N+1 denetimi, DB indeksleri
+- [x] Cursor-based sayfalama, N+1 denetimi, DB indeksleri
+  - **İmleç** — akış, bildirimler, inceleme akışı, liste keşfi ve moderasyon
+    kuyruğu `skip`/`take` yerine opak imleç alıyor; yanıt `{ items, nextCursor }`
+    zarfına girdi. İmleç `(CreatedAt, Id)` çiftini taşıyor: akışa sürekli yeni
+    satır girdiği için offset'te sayfa sınırındaki satırlar atlanıyor ya da
+    tekrar ediyordu. **Sıralama anahtarı satırda durmayanlar** (inceleme "en
+    yüksek puan", liste "en beğenilen"/"en kapsamlı") offset'te kaldı — imleç
+    aynı zarfın içinde offset kodluyor, istemci farkı görmüyor. Bozuk/eski
+    biçimli imleç 400 değil "listenin başı" demek
+  - **Akış sayfası `<Virtualize>`'dan çıktı** — ItemsProvider satırı indeksle
+    istiyor (`StartIndex`), imleçte indeks diye bir şey yok. "Daha fazla"
+    düğmesine geçildi
+  - **N+1** — `GetNextUpAsync` (ana sayfa "Sırada ne var") aktif dizi başına üç
+    sorgu atıyordu ve kullanıcının **tüm** izleme geçmişini her dizi için baştan
+    çekiyordu; 30 dizilik bir kullanıcıda 91 sorgu. Dizi sayısından bağımsız üç
+    sorguya indi. Liste kartı önizlemesi 4 poster için listenin tüm öğelerini
+    çekiyordu, ilk 12 öğeyle sınırlandı
+  - **"En yüksek puan" sıralaması düzeltildi** — puan bellekte, sayfa çekildikten
+    *sonra* sıralanıyordu; yani ikinci sayfadan itibaren "en yüksek puanlı"
+    listesi değil, rastgele bir dilimin kendi içinde sıralanmışı geliyordu.
+    Sıralama alt sorguyla veritabanına taşındı
+  - **İndeksler** — `Reviews(CreatedAt, Id)`, `UserLists(UpdatedAt, Id)`,
+    `UserShows(UserId, Status)`; `ActivityEvents`, `Notifications` ve `Reports`
+    üzerindeki tarih indeksleri imleçle uyumlu olsun diye `Id` ile genişletildi
 - [ ] Mobil responsive + erişilebilirlik (klavye, ARIA, kontrast)
 - [ ] OG meta + prerender (SEO — Letterboxd trafiğinin büyük kısmı buradan gelir)
 - [ ] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check

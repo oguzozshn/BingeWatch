@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
 using BingeWatch.API.Services;
@@ -28,8 +28,8 @@ namespace BingeWatch.API.Controllers
         /// <summary>Moderasyon kuyruğu; <c>status</c> verilmezse yalnızca açık bildirimler.</summary>
         [HttpGet("reports")]
         public async Task<IActionResult> GetReports([FromQuery] ReportStatus? status = null,
-            [FromQuery] int skip = 0, [FromQuery] int take = 25) =>
-            Ok(await _reportService.GetQueueAsync(status, skip, take));
+            [FromQuery] string? cursor = null, [FromQuery] int take = 25) =>
+            Ok(await _reportService.GetQueueAsync(status, cursor, take));
 
         [HttpGet("reports/open-count")]
         public async Task<IActionResult> GetOpenCount() =>

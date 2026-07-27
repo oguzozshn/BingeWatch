@@ -31,7 +31,11 @@ namespace BingeWatch.API.Services
 
         Task RemoveFollowedAsync(string followerId, string followeeId);
 
-        /// <summary>Takip edilenlerin ve kullanıcının kendi olayları, en yeniden eskiye.</summary>
-        Task<List<ActivityDto>> GetFeedAsync(string viewerId, int skip, int take);
+        /// <summary>
+        /// Takip edilenlerin ve kullanıcının kendi olayları, en yeniden eskiye.
+        /// İmleç tabanlı: <paramref name="cursor"/> son sayfanın son satırını taşır,
+        /// ilk sayfada <c>null</c> geçilir.
+        /// </summary>
+        Task<PagedResult<ActivityDto>> GetFeedAsync(string viewerId, string? cursor, int take);
     }
 }

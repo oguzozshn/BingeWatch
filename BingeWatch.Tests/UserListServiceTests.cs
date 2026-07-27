@@ -1,4 +1,4 @@
-using BingeWatch.API.Data;
+﻿using BingeWatch.API.Data;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
 using BingeWatch.API.Services;
@@ -390,7 +390,7 @@ namespace BingeWatch.Tests
                 new UpsertListRequest { Title = "Kapalı", IsPublic = false });
             await service.AddItemAsync("ali", hidden!.Id, new AddListItemRequest { TmdbShowId = 2 });
 
-            var discover = await service.GetDiscoverAsync(ListSort.Recent, 0, 20, "veli");
+            var discover = (await service.GetDiscoverAsync(ListSort.Recent, null, 20, "veli")).Items;
 
             Assert.Single(discover);
             Assert.Equal("Polisiyeler", discover[0].Title);
@@ -407,7 +407,7 @@ namespace BingeWatch.Tests
 
             await CreateListWithShowsAsync(service, 1);
 
-            Assert.Empty(await service.GetDiscoverAsync(ListSort.Recent, 0, 20, "veli"));
+            Assert.Empty((await service.GetDiscoverAsync(ListSort.Recent, null, 20, "veli")).Items);
         }
 
         [Fact]
@@ -422,7 +422,7 @@ namespace BingeWatch.Tests
             await service.AddItemAsync("ali", popular!.Id, new AddListItemRequest { TmdbShowId = 2 });
             await service.LikeAsync("veli", popular.Id);
 
-            var discover = await service.GetDiscoverAsync(ListSort.MostLiked, 0, 20, "veli");
+            var discover = (await service.GetDiscoverAsync(ListSort.MostLiked, null, 20, "veli")).Items;
 
             Assert.Equal(new[] { popular.Id, quiet.Id }, discover.Select(l => l.Id));
             Assert.Equal(1, discover[0].LikeCount);

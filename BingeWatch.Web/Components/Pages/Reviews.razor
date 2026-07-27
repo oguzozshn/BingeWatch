@@ -49,6 +49,10 @@
     private readonly List<ReviewDto> reviews = new();
     private ReviewSort sort = ReviewSort.Newest;
     private bool loading = true;
+
+    /// <summary>API'den gelen opak imleç; <c>null</c> ise sayfa kalmadı.</summary>
+    private string? cursor;
+
     private bool hasMore;
 
     protected override async Task OnInitializedAsync() => await ReloadAsync();
@@ -59,6 +63,7 @@
     {
         loading = true;
         reviews.Clear();
+        cursor = null;
         await LoadPageAsync();
     }
 
@@ -70,12 +75,16 @@
 
     private async Task LoadPageAsync()
     {
-        var page = await Api.GetFromJsonAsync<List<ReviewDto>>(
-            $"api/reviews?skip={reviews.Count}&take={PageSize}&sort={(int)sort}") ?? new();
+        var url = $"api/reviews?take={PageSize}&sort={(int)sort}";
+        if (cursor != null)
+            url += $"&cursor={Uri.EscapeDataString(cursor)}";
 
-        reviews.AddRange(page);
-        // Tam sayfa döndüyse büyük olasılıkla devamı var; boş/eksik sayfa sonu demek.
-        hasMore = page.Count == PageSize;
+        var page = await Api.GetFromJsonAsync<PagedResult<ReviewDto>>(url);
+
+        reviews.AddRange(page?.Items ?? new());
+        // Sayfanın devamı olup olmadığını sunucu söylüyor; istemci tahmin etmiyor.
+        cursor = page?.NextCursor;
+        hasMore = cursor != null;
         loading = false;
     }
 

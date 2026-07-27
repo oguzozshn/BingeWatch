@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Services;
@@ -29,10 +29,10 @@ namespace BingeWatch.API.Controllers
         /// <summary>Keşif akışı — <c>/lists</c> sayfası bunu okur.</summary>
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> Discover([FromQuery] int skip = 0, [FromQuery] int take = 20,
-            [FromQuery] ListSort sort = ListSort.Recent)
+        public async Task<IActionResult> Discover([FromQuery] string? cursor = null,
+            [FromQuery] int take = 20, [FromQuery] ListSort sort = ListSort.Recent)
         {
-            return Ok(await _listService.GetDiscoverAsync(sort, skip, take, ViewerId));
+            return Ok(await _listService.GetDiscoverAsync(sort, cursor, take, ViewerId));
         }
 
         [HttpGet("{listId:int}")]

@@ -159,10 +159,9 @@ namespace BingeWatch.API.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<List<ActivityDto>> GetFeedAsync(string viewerId, int skip, int take)
+        public async Task<PagedResult<ActivityDto>> GetFeedAsync(string viewerId, string? cursor, int take)
         {
             take = Math.Clamp(take, 1, 100);
-            skip = Math.Max(skip, 0);
 
             var followeeIds = await _context.Follows
                 .Where(f => f.FollowerId == viewerId)
@@ -176,19 +175,31 @@ namespace BingeWatch.API.Services
             // kişiler üzerinden akışa sızabilir; engellenenler iki yönde de elenir.
             var hidden = await _context.HiddenUserIdsAsync(viewerId);
 
-            var events = await _context.ActivityEvents
+            var query = _context.ActivityEvents
                 .Where(a => followeeIds.Contains(a.UserId))
                 .Where(a => !hidden.Contains(a.UserId)
-                         && (a.TargetUserId == null || !hidden.Contains(a.TargetUserId)))
+                         && (a.TargetUserId == null || !hidden.Contains(a.TargetUserId)));
+
+            // İmleçten sonrası: aynı saniyeye düşen olaylar için id ikinci anahtar.
+            var after = Cursor.DecodeKeyset(cursor);
+            if (after != null)
+            {
+                query = query.Where(a => a.CreatedAt < after.Value.Timestamp
+                                      || (a.CreatedAt == after.Value.Timestamp && a.Id < after.Value.Id));
+            }
+
+            var events = await query
                 .OrderByDescending(a => a.CreatedAt)
                 .ThenByDescending(a => a.Id)
-                .Skip(skip)
                 .Take(take)
                 .Include(a => a.User)
                 .Include(a => a.Show)
                 .Include(a => a.Episode).ThenInclude(e => e!.Season)
                 .Include(a => a.TargetUser)
                 .ToListAsync();
+
+            if (events.Count == 0)
+                return PagedResult<ActivityDto>.Empty();
 
             var reviewIds = events.Where(a => a.ReviewId != null).Select(a => a.ReviewId!.Value).ToList();
             var reviews = reviewIds.Count == 0
@@ -197,7 +208,7 @@ namespace BingeWatch.API.Services
                     .Where(r => reviewIds.Contains(r.Id))
                     .ToDictionaryAsync(r => r.Id);
 
-            return events.Select(a =>
+            var items = events.Select(a =>
             {
                 Review? review = null;
                 if (a.ReviewId != null)
@@ -231,6 +242,15 @@ namespace BingeWatch.API.Services
                         : a.TargetUser!.DisplayName
                 };
             }).ToList();
+
+            var last = events[^1];
+
+            return new PagedResult<ActivityDto>
+            {
+                Items = items,
+                // Sayfa tam dolmadıysa liste bitmiştir; boşuna bir istek daha atılmasın.
+                NextCursor = events.Count < take ? null : Cursor.EncodeKeyset(last.CreatedAt, last.Id)
+            };
         }
 
         private Task<ActivityEvent?> FindRatedAsync(string userId, int showId, int? seasonNumber, int? episodeId) =>

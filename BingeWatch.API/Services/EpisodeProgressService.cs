@@ -137,47 +137,78 @@ namespace BingeWatch.API.Services
             return watched.ToHashSet();
         }
 
+        /// <summary>
+        /// Ana sayfadaki "Sırada ne var" paneli. Dizi sayısından bağımsız olarak
+        /// üç sorgu atar: diziler, o dizilerin bölümleri ve kullanıcının izledikleri.
+        /// Gruplama bellekte yapılır — aktif dizi başına ayrı sorgu, en çok açılan
+        /// sayfayı dizi sayısıyla doğru orantılı yavaşlatıyordu.
+        /// </summary>
         public async Task<List<NextEpisodeDto>> GetNextUpAsync(string userId)
         {
-            var activeShowIds = await _context.UserShows
+            var activeShows = await _context.UserShows
                 .Where(us => us.UserId == userId
                              && us.Status != WatchStatus.Completed
                              && us.Status != WatchStatus.Dropped)
-                .Select(us => us.ShowId)
+                .Select(us => new
+                {
+                    us.ShowId,
+                    us.Show!.TmdbId,
+                    ShowName = us.Show.Name,
+                    us.Show.PosterPath
+                })
                 .ToListAsync();
 
+            if (activeShows.Count == 0)
+                return new List<NextEpisodeDto>();
+
+            var showIds = activeShows.Select(s => s.ShowId).ToList();
+
+            var episodes = await _context.Episodes
+                .Where(e => showIds.Contains(e.Season!.ShowId))
+                .OrderBy(e => e.Season!.SeasonNumber).ThenBy(e => e.EpisodeNumber)
+                .Select(e => new
+                {
+                    e.Id,
+                    e.Season!.ShowId,
+                    e.Season.SeasonNumber,
+                    e.EpisodeNumber,
+                    e.Name,
+                    e.AirDate
+                })
+                .ToListAsync();
+
+            var episodesByShow = episodes.GroupBy(e => e.ShowId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Kullanıcının izlediklerini bir kez çekiyoruz; bu küme diziye göre değişmiyor.
+            var watchedIds = (await _context.WatchedEpisodes
+                    .Where(w => w.UserId == userId && w.RewatchNo == 0)
+                    .Select(w => w.EpisodeId)
+                    .ToListAsync())
+                .ToHashSet();
+
+            var today = DateTime.UtcNow.Date;
             var result = new List<NextEpisodeDto>();
 
-            foreach (var showId in activeShowIds)
+            foreach (var show in activeShows)
             {
-                var show = await _context.Shows.FirstAsync(s => s.Id == showId);
+                if (!episodesByShow.TryGetValue(show.ShowId, out var showEpisodes))
+                    continue;
 
-                var episodes = await _context.Episodes
-                    .Include(e => e.Season)
-                    .Where(e => e.Season!.ShowId == showId)
-                    .OrderBy(e => e.Season!.SeasonNumber).ThenBy(e => e.EpisodeNumber)
-                    .ToListAsync();
-
-                var watchedIds = (await _context.WatchedEpisodes
-                        .Where(w => w.UserId == userId && w.RewatchNo == 0)
-                        .Select(w => w.EpisodeId)
-                        .ToListAsync())
-                    .ToHashSet();
-
-                var next = episodes.FirstOrDefault(e => !watchedIds.Contains(e.Id));
+                var next = showEpisodes.FirstOrDefault(e => !watchedIds.Contains(e.Id));
                 if (next == null)
                     continue; // her şeyi izlemiş
 
                 result.Add(new NextEpisodeDto
                 {
                     TmdbShowId = show.TmdbId,
-                    ShowName = show.Name,
+                    ShowName = show.ShowName,
                     ShowPosterPath = show.PosterPath,
-                    SeasonNumber = next.Season!.SeasonNumber,
+                    SeasonNumber = next.SeasonNumber,
                     EpisodeNumber = next.EpisodeNumber,
                     EpisodeName = next.Name,
                     AirDate = next.AirDate,
-                    IsUnaired = next.AirDate.HasValue && next.AirDate.Value.Date > DateTime.UtcNow.Date
+                    IsUnaired = next.AirDate.HasValue && next.AirDate.Value.Date > today
                 });
             }
 

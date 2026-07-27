@@ -19,7 +19,8 @@ namespace BingeWatch.API.Services
         /// <summary>Liste silinince ona bağlı tüm bildirimleri siler.</summary>
         Task RemoveForListAsync(int userListId);
 
-        Task<List<NotificationDto>> GetAsync(string userId, int skip, int take);
+        /// <summary>Bildirimler, en yeniden eskiye; imleç tabanlı sayfalama.</summary>
+        Task<PagedResult<NotificationDto>> GetAsync(string userId, string? cursor, int take);
 
         Task<int> GetUnreadCountAsync(string userId);
 

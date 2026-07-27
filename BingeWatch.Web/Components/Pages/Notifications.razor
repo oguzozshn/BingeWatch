@@ -61,7 +61,9 @@
     protected override async Task OnInitializedAsync()
     {
         var api = await GetApiAsync();
-        notifications = await api.GetFromJsonAsync<List<NotificationDto>>("api/notifications") ?? new();
+        // Bildirim listesi tek sayfa gösteriyor; ilk sayfa imleçsiz istenir.
+        var page = await api.GetFromJsonAsync<PagedResult<NotificationDto>>("api/notifications");
+        notifications = page?.Items ?? new();
     }
 
     private async Task<HttpClient> GetApiAsync()
