@@ -36,6 +36,7 @@ namespace BingeWatch.API
             builder.Services.AddScoped<IRatingService, RatingService>();
             builder.Services.AddScoped<IReviewService, ReviewService>();
             builder.Services.AddScoped<IFollowService, FollowService>();
+            builder.Services.AddScoped<IActivityService, ActivityService>();
             builder.Services.AddScoped<ITokenService, TokenService>();
             builder.Services.AddHostedService<TmdbSyncService>();
 

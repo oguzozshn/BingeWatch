@@ -9,11 +9,14 @@ namespace BingeWatch.API.Services
     {
         private readonly BingeOnDbContext _context;
         private readonly IShowCatalogService _catalogService;
+        private readonly IActivityService _activityService;
 
-        public ReviewService(BingeOnDbContext context, IShowCatalogService catalogService)
+        public ReviewService(BingeOnDbContext context, IShowCatalogService catalogService,
+            IActivityService activityService)
         {
             _context = context;
             _catalogService = catalogService;
+            _activityService = activityService;
         }
 
         public async Task<ReviewDto?> UpsertAsync(string userId, int showTmdbId, UpsertReviewRequest request)
@@ -55,6 +58,8 @@ namespace BingeWatch.API.Services
 
             await _context.SaveChangesAsync();
 
+            await _activityService.RecordReviewedAsync(userId, review.Id, show.Id, request.SeasonNumber);
+
             return (await ProjectAsync(new[] { review.Id })).Single();
         }
 
@@ -67,6 +72,9 @@ namespace BingeWatch.API.Services
 
             _context.Reviews.Remove(review);
             await _context.SaveChangesAsync();
+
+            await _activityService.RemoveReviewedAsync(reviewId);
+
             return true;
         }
 

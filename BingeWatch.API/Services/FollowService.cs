@@ -8,10 +8,12 @@ namespace BingeWatch.API.Services
     public class FollowService : IFollowService
     {
         private readonly BingeOnDbContext _context;
+        private readonly IActivityService _activityService;
 
-        public FollowService(BingeOnDbContext context)
+        public FollowService(BingeOnDbContext context, IActivityService activityService)
         {
             _context = context;
+            _activityService = activityService;
         }
 
         public async Task<FollowResult> FollowAsync(string followerId, string targetUsername)
@@ -30,6 +32,9 @@ namespace BingeWatch.API.Services
 
             _context.Follows.Add(new Follow { FollowerId = followerId, FolloweeId = target.Id });
             await _context.SaveChangesAsync();
+
+            await _activityService.RecordFollowedAsync(followerId, target.Id);
+
             return FollowResult.Ok;
         }
 
@@ -49,6 +54,9 @@ namespace BingeWatch.API.Services
 
             _context.Follows.Remove(follow);
             await _context.SaveChangesAsync();
+
+            await _activityService.RemoveFollowedAsync(followerId, target.Id);
+
             return FollowResult.Ok;
         }
 

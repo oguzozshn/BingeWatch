@@ -1,0 +1,13 @@
+.feed-page {
+    max-width: 720px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.feed-item {
+    margin-bottom: 12px;
+}
+
+.muted {
+    color: var(--bs-secondary-color, #9aa1ab);
+}

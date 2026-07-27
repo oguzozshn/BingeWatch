@@ -23,6 +23,7 @@ namespace BingeWatch.API.Data
 
         // Sosyal katman
         public DbSet<Follow> Follows { get; set; }
+        public DbSet<ActivityEvent> ActivityEvents { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -169,6 +170,42 @@ namespace BingeWatch.API.Data
                       .HasForeignKey(e => e.FolloweeId)
                       // Aynı tabloya ikinci cascade yolu; SQL Server izin vermez.
                       .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<ActivityEvent>(entity =>
+            {
+                entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.TargetUserId).HasMaxLength(450);
+                entity.Property(e => e.RatingValue).HasColumnType("decimal(2,1)");
+
+                // Akış, takip edilenlerin olaylarını tarihe göre okur.
+                entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+                // Puan/inceleme güncellemesinde mevcut olayı bulmak için.
+                entity.HasIndex(e => new { e.UserId, e.Type, e.ShowId });
+
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Aşağıdaki üç ilişki de AppUser cascade'i ile çoklu yol oluşturur.
+                entity.HasOne(e => e.Show)
+                      .WithMany()
+                      .HasForeignKey(e => e.ShowId)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(e => e.Episode)
+                      .WithMany()
+                      .HasForeignKey(e => e.EpisodeId)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(e => e.TargetUser)
+                      .WithMany()
+                      .HasForeignKey(e => e.TargetUserId)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                // ReviewId'ye FK verilmiyor: inceleme silinince olay da servis
+                // tarafından siliniyor, ayrıca cascade yolu kalabalıklaşıyor.
             });
         }
     }

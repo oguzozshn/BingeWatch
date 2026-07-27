@@ -8,10 +8,12 @@ namespace BingeWatch.API.Services
     public class EpisodeProgressService : IEpisodeProgressService
     {
         private readonly BingeOnDbContext _context;
+        private readonly IActivityService _activityService;
 
-        public EpisodeProgressService(BingeOnDbContext context)
+        public EpisodeProgressService(BingeOnDbContext context, IActivityService activityService)
         {
             _context = context;
+            _activityService = activityService;
         }
 
         public async Task<bool> SetEpisodeWatchedAsync(string userId, int episodeId, bool watched)
@@ -226,23 +228,38 @@ namespace BingeWatch.API.Services
             if (watched)
             {
                 var existingIds = existing.Select(w => w.EpisodeId).ToHashSet();
-                foreach (var id in episodeIds.Where(id => !existingIds.Contains(id)))
+                var newlyWatched = episodes.Where(e => !existingIds.Contains(e.Id)).ToList();
+
+                foreach (var episode in newlyWatched)
                 {
                     _context.WatchedEpisodes.Add(new WatchedEpisode
                     {
                         UserId = userId,
-                        EpisodeId = id,
+                        EpisodeId = episode.Id,
                         WatchedAt = DateTime.UtcNow,
                         RewatchNo = 0
                     });
                 }
-            }
-            else
-            {
-                _context.WatchedEpisodes.RemoveRange(existing);
+
+                await _context.SaveChangesAsync();
+
+                // Toplu işaretleme akışta tek satır olsun: son bölüm + kaç bölüm.
+                var last = newlyWatched
+                    .OrderBy(e => e.Season!.SeasonNumber).ThenBy(e => e.EpisodeNumber)
+                    .LastOrDefault();
+                if (last != null)
+                {
+                    await _activityService.RecordWatchedAsync(userId, last.Season!.ShowId,
+                        last.Id, newlyWatched.Count);
+                }
+
+                return;
             }
 
+            _context.WatchedEpisodes.RemoveRange(existing);
             await _context.SaveChangesAsync();
+
+            await _activityService.RemoveWatchedAsync(userId, episodeIds);
         }
 
         /// <summary>
