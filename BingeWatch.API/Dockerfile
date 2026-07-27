@@ -1,0 +1,40 @@
+# BingeWatch.API — çok aşamalı build.
+# Bağlam (context) solution kökü olmalı:
+#   docker build -f BingeWatch.API/Dockerfile -t bingewatch-api .
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# Önce yalnızca proje dosyaları: kaynak değiştiğinde restore katmanı
+# yeniden çalışmasın diye ayrı katmanda duruyor.
+COPY BingeWatch.sln .
+COPY BingeWatch.API/BingeWatch.API.csproj BingeWatch.API/
+COPY BingeWatch.Web/BingeWatch.Web.csproj BingeWatch.Web/
+COPY BingeWatch.Tests/BingeWatch.Tests.csproj BingeWatch.Tests/
+RUN dotnet restore BingeWatch.API/BingeWatch.API.csproj
+
+COPY . .
+RUN dotnet publish BingeWatch.API/BingeWatch.API.csproj \
+    -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+# curl runtime imajında hazır gelmiyor; compose'daki healthcheck buna bağlı.
+# Kurulmazsa yoklama her seferinde başarısız olur ve "api hazır" koşuluna
+# bağlı olan web servisi hiç ayağa kalkmaz.
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app/publish .
+
+# Root olmayan kullanıcı: aspnet imajında hazır gelen "app" kullanıcısı.
+USER app
+
+# aspnet imajının varsayılanı 8080.
+EXPOSE 8080
+ENV ASPNETCORE_HTTP_PORTS=8080
+
+ENTRYPOINT ["dotnet", "BingeWatch.API.dll"]

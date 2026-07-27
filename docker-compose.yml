@@ -1,0 +1,86 @@
+# BingeWatch — yerel/tek sunucu kurulumu.
+#
+# Çalıştırmadan önce .env dosyası oluştur (bkz. .env.example):
+#   docker compose up -d --build
+#
+# Sırlar compose dosyasında değil .env'de: bu dosya git'te, o değil.
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD .env dosyasinda tanimlanmali}
+      MSSQL_PID: Developer
+    ports:
+      # Yalnızca localhost'a bağlanıyor; SQL Server dışarıya açılmamalı.
+      - "127.0.0.1:1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      # API'nin "db hazır" beklemesi buna bakıyor. sqlcmd 2022 imajında
+      # /opt/mssql-tools18 altında ve sertifika kendinden imzalı (-C gerekli).
+      test:
+        [
+          "CMD-SHELL",
+          '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" || exit 1'
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: BingeWatch.API/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: >-
+        Server=db,1433;Database=BingeWatchDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};
+        TrustServerCertificate=True;MultipleActiveResultSets=true
+      Jwt__Key: ${JWT_KEY:?JWT_KEY .env dosyasinda tanimlanmali}
+      Jwt__Issuer: ${JWT_ISSUER:-BingeWatch}
+      Jwt__Audience: ${JWT_AUDIENCE:-BingeWatch}
+      Tmdb__ApiKey: ${TMDB_API_KEY:?TMDB_API_KEY .env dosyasinda tanimlanmali}
+      Tmdb__BaseUrl: https://api.themoviedb.org/3
+      # Moderasyon paneline erişecek kullanıcı adları (virgülle değil, indeksli):
+      #   Admin__Usernames__0=oguz
+      Admin__Usernames__0: ${ADMIN_USERNAME:-}
+    ports:
+      - "127.0.0.1:5054:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: BingeWatch.Web/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Konteyner ağında API "localhost" değil servis adıyla görünür.
+      Api__BaseUrl: http://api:8080/
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  mssql-data:

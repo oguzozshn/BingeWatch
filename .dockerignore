@@ -1,0 +1,29 @@
+# Build çıktıları ve yerel kalıntılar imaja girmemeli: hem katmanları şişirir
+# hem de host'un bin/obj'si konteyner runtime'ıyla uyuşmaz.
+**/bin/
+**/obj/
+**/out/
+
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+
+# Yerel geliştirme ayarları ve loglar
+**/appsettings.Development.json
+**/*.user
+*.log
+api.log
+api.err.log
+web.log
+web.err.log
+
+# Docker'ın kendi dosyaları
+**/Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Dokümantasyon build'i etkilemiyor
+docs/
+README.md

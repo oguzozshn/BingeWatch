@@ -1,20 +1,35 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using BingeWatch.Web.Components;
 using BingeWatch.Web.Models;
+using Serilog;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog — API ile aynı kurulum; konteynerde loglar stdout'a gidiyor.
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console());
 
 // Razor Components (Blazor Server / Interactive Server)
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// 🔑 API için Named HttpClient (EN DOĞRUSU)
+// API için Named HttpClient. Adres yapılandırmadan geliyor: konteynerde API
+// "localhost" değil compose ağındaki servis adı üzerinden görünüyor
+// (Api__BaseUrl ortam değişkeni). Yerelde appsettings'teki varsayılan geçerli.
+var apiBaseUrl = builder.Configuration["Api:BaseUrl"]
+    ?? throw new InvalidOperationException(
+        "Api:BaseUrl yapılandırılmamış. appsettings.json ya da Api__BaseUrl ortam değişkeniyle verilmeli.");
+
 builder.Services.AddHttpClient("ApiClient", client =>
 {
-    client.BaseAddress = new Uri("http://localhost:5054/");
+    client.BaseAddress = new Uri(apiBaseUrl);
     client.DefaultRequestHeaders.Accept.Add(
         new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
     );
@@ -34,13 +49,32 @@ builder.Services.AddCascadingAuthenticationState();
 
 var app = builder.Build();
 
+// Ters vekil arkasında şema ve istemci IP'si başlıklardan gelir. Bunlar
+// okunmazsa üretilen mutlak bağlantılar http:// olur ve cookie'nin Secure
+// bayrağı yanlış değerlendirilir. Zincirde tek vekil varsayılıyor.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+app.UseSerilogRequestLogging();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Konteynerde TLS ters vekilde sonlanıyor ve uygulama yalnızca HTTP dinliyor;
+// böyle bir kurulumda HTTPS'e yönlendirmek var olmayan bir porta yönlendirmek
+// demek. Yerelde açık kalsın diye varsayılan true.
+if (builder.Configuration.GetValue("EnableHttpsRedirection", true))
+    app.UseHttpsRedirection();
+
+// Blazor Server tarafında sınanacak bir bağımlılık yok: API'ye ulaşamamak
+// sayfaları boş bırakır ama süreci yeniden başlatmak bunu düzeltmez.
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }))
+   .AllowAnonymous();
 
 app.UseAuthentication();
 app.UseAuthorization();
