@@ -1,0 +1,36 @@
+.lists-page {
+    max-width: 860px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+}
+
+.page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.page-head h3 {
+    margin: 0;
+}
+
+.page-head a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.page-head a:hover {
+    text-decoration: underline;
+}
+
+.list-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+.muted {
+    opacity: .7;
+}

@@ -1,0 +1,187 @@
+@*
+    Dizi sayfasındaki "Listeye ekle" menüsü. Açılana kadar hiçbir istek atılmaz;
+    açılınca kullanıcının listeleri ve dizinin üyeliği tek istekte gelir.
+
+    Menüden yeni liste de açılabilir — kullanıcı listeyi önce başka sayfada
+    oluşturmak zorunda kalmasın.
+*@
+
+@inject IHttpClientFactory HttpClientFactory
+
+<AuthorizeView>
+    <Authorized>
+        <div class="add-to-list">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleAsync">
+                @(open ? "Kapat" : "Listeye ekle")
+            </button>
+
+            @if (open)
+            {
+                <div class="menu">
+                    @if (loading)
+                    {
+                        <p class="muted">Yükleniyor...</p>
+                    }
+                    else if (memberships.Count == 0 && !creating)
+                    {
+                        <p class="muted">Henüz listen yok.</p>
+                    }
+                    else
+                    {
+                        @foreach (var membership in memberships)
+                        {
+                            <button type="button" class="row-btn" disabled="@busy"
+                                    @onclick="() => ToggleMembershipAsync(membership)">
+                                <span class="tick">@(membership.ContainsShow ? "✓" : "")</span>
+                                <span class="title">@membership.Title</span>
+                                @if (!membership.IsPublic)
+                                {
+                                    <span class="private">gizli</span>
+                                }
+                            </button>
+                        }
+                    }
+
+                    @if (creating)
+                    {
+                        <div class="new-list">
+                            <input class="form-control form-control-sm" maxlength="200"
+                                   placeholder="Yeni liste adı" @bind="newTitle" @bind:event="oninput" />
+                            <button type="button" class="btn btn-sm btn-primary"
+                                    disabled="@(busy || string.IsNullOrWhiteSpace(newTitle))"
+                                    @onclick="CreateAndAddAsync">Oluştur ve ekle</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <button type="button" class="row-btn new" @onclick="() => creating = true">
+                            + Yeni liste
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    [Parameter, EditorRequired] public int TmdbShowId { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private List<ListMembershipDto> memberships = new();
+    private bool open;
+    private bool loading;
+    private bool busy;
+    private bool creating;
+    private string newTitle = string.Empty;
+
+    private async Task ToggleAsync()
+    {
+        open = !open;
+        if (!open)
+        {
+            creating = false;
+            return;
+        }
+
+        loading = true;
+        try
+        {
+            var client = await CreateClientAsync();
+            memberships = await client.GetFromJsonAsync<List<ListMembershipDto>>(
+                $"api/lists/membership?tmdbShowId={TmdbShowId}") ?? new();
+        }
+        catch
+        {
+            memberships = new();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task ToggleMembershipAsync(ListMembershipDto membership)
+    {
+        busy = true;
+        try
+        {
+            var client = await CreateClientAsync();
+
+            if (membership.ContainsShow)
+            {
+                // Öğe id'si menüde tutulmuyor; listeyi çekip bu dizinin öğesini bul.
+                var detail = await client.GetFromJsonAsync<UserListDetailDto>($"api/lists/{membership.ListId}");
+                var item = detail?.Items.FirstOrDefault(i => i.TmdbShowId == TmdbShowId);
+                if (item == null)
+                    return;
+
+                var removed = await client.DeleteAsync($"api/lists/{membership.ListId}/items/{item.Id}");
+                if (removed.IsSuccessStatusCode)
+                    membership.ContainsShow = false;
+            }
+            else
+            {
+                var added = await client.PostAsJsonAsync(
+                    $"api/lists/{membership.ListId}/items",
+                    new AddListItemRequest { TmdbShowId = TmdbShowId });
+
+                if (added.IsSuccessStatusCode)
+                    membership.ContainsShow = true;
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task CreateAndAddAsync()
+    {
+        busy = true;
+        try
+        {
+            var client = await CreateClientAsync();
+            var created = await client.PostAsJsonAsync("api/lists",
+                new UpsertListRequest { Title = newTitle });
+            if (!created.IsSuccessStatusCode)
+                return;
+
+            var list = await created.Content.ReadFromJsonAsync<UserListDetailDto>();
+            if (list == null)
+                return;
+
+            var added = await client.PostAsJsonAsync($"api/lists/{list.Id}/items",
+                new AddListItemRequest { TmdbShowId = TmdbShowId });
+
+            memberships.Insert(0, new ListMembershipDto
+            {
+                ListId = list.Id,
+                Title = list.Title,
+                IsPublic = list.IsPublic,
+                ContainsShow = added.IsSuccessStatusCode
+            });
+
+            newTitle = string.Empty;
+            creating = false;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        return client;
+    }
+}

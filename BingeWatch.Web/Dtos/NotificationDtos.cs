@@ -5,7 +5,8 @@ namespace BingeWatch.Web.Dtos
     {
         Followed = 1,
         ReviewLiked = 2,
-        ReviewCommented = 3
+        ReviewCommented = 3,
+        ListLiked = 4
     }
 
     public class NotificationDto
@@ -23,5 +24,8 @@ namespace BingeWatch.Web.Dtos
         public int? TmdbShowId { get; set; }
         public string? ShowName { get; set; }
         public int? SeasonNumber { get; set; }
+
+        public int? UserListId { get; set; }
+        public string? ListTitle { get; set; }
     }
 }

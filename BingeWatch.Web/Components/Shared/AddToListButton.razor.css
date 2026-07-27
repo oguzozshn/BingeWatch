@@ -1,0 +1,73 @@
+.add-to-list {
+    position: relative;
+    display: inline-block;
+}
+
+.menu {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + .35rem);
+    left: 0;
+    min-width: 240px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: .4rem;
+    border: 1px solid var(--bs-border-color, #444);
+    border-radius: .5rem;
+    background: var(--bs-body-bg, #1b1b1b);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+}
+
+.row-btn {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+    padding: .35rem .5rem;
+    border: none;
+    border-radius: .25rem;
+    background: none;
+    color: inherit;
+    text-align: left;
+    font-size: .9rem;
+    cursor: pointer;
+}
+
+.row-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, .08);
+}
+
+.row-btn.new {
+    opacity: .8;
+}
+
+.tick {
+    width: 1rem;
+    flex-shrink: 0;
+}
+
+.title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.private {
+    font-size: .7rem;
+    opacity: .6;
+    text-transform: uppercase;
+}
+
+.new-list {
+    display: flex;
+    gap: .35rem;
+    padding: .35rem .5rem;
+}
+
+.muted {
+    margin: 0;
+    padding: .35rem .5rem;
+    font-size: .85rem;
+    opacity: .7;
+}

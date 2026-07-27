@@ -1,0 +1,319 @@
+@page "/list/{ListId:int}"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>@(list?.Title ?? "Liste")</PageTitle>
+
+@if (loading)
+{
+    <p class="muted">Yükleniyor...</p>
+}
+else if (list == null)
+{
+    <p class="muted">Liste bulunamadı.</p>
+}
+else
+{
+    <div class="list-detail">
+        @if (editing)
+        {
+            <ListEditor Existing="list" OnSaved="OnEditedAsync" OnCancelled="() => editing = false" />
+        }
+        else
+        {
+            <header class="head">
+                <div>
+                    <h3>
+                        @list.Title
+                        @if (!list.IsPublic)
+                        {
+                            <span class="private-badge" title="Yalnızca sen görebilirsin">gizli</span>
+                        }
+                    </h3>
+                    <p class="owner">
+                        <a href="/@@@list.OwnerUsername">@list.OwnerDisplayName</a>
+                        · @list.ItemCount dizi
+                        · <ListLikeButton ListId="list.Id" LikeCount="list.LikeCount"
+                                          LikedByViewer="list.LikedByViewer" OnChanged="OnLikeChanged" />
+                    </p>
+                    @if (!string.IsNullOrWhiteSpace(list.Description))
+                    {
+                        <p class="desc">@list.Description</p>
+                    }
+                </div>
+
+                @if (list.IsOwner)
+                {
+                    <div class="owner-actions">
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                @onclick="() => editing = true">Düzenle</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                @onclick="() => confirmingDelete = true">Sil</button>
+                    </div>
+                }
+            </header>
+
+            @if (confirmingDelete)
+            {
+                <div class="confirm">
+                    <span>Liste kalıcı olarak silinsin mi?</span>
+                    <button type="button" class="btn btn-sm btn-danger" disabled="@busy"
+                            @onclick="DeleteListAsync">Evet, sil</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@busy"
+                            @onclick="() => confirmingDelete = false">Vazgeç</button>
+                </div>
+            }
+        }
+
+        @if (list.Items.Count == 0)
+        {
+            <p class="muted">
+                @(list.IsOwner
+                    ? "Liste boş — dizi sayfasındaki \"Listeye ekle\" ile doldurabilirsin."
+                    : "Liste boş.")
+            </p>
+        }
+        else
+        {
+            <ol class="items">
+                @foreach (var item in list.Items)
+                {
+                    <li class="item" @key="item.Id">
+                        <span class="rank">@(item.Position + 1)</span>
+
+                        <a class="poster" href="/show/@item.TmdbShowId">
+                            <img src="@PosterUrl(item.PosterPath)" alt="@item.ShowName" />
+                        </a>
+
+                        <div class="item-body">
+                            <a class="name" href="/show/@item.TmdbShowId">
+                                @item.ShowName
+                                @if (item.FirstAirYear.HasValue)
+                                {
+                                    <span class="year">(@item.FirstAirYear)</span>
+                                }
+                            </a>
+
+                            @if (list.IsOwner && editingNoteId == item.Id)
+                            {
+                                <div class="note-editor">
+                                    <textarea class="form-control" rows="2" maxlength="1000"
+                                              @bind="noteDraft"></textarea>
+                                    <div class="buttons">
+                                        <button type="button" class="btn btn-sm btn-primary" disabled="@busy"
+                                                @onclick="() => SaveNoteAsync(item)">Kaydet</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                disabled="@busy" @onclick="() => editingNoteId = null">Vazgeç</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                @if (!string.IsNullOrWhiteSpace(item.Note))
+                                {
+                                    <p class="note">@item.Note</p>
+                                }
+
+                                @if (list.IsOwner)
+                                {
+                                    <button type="button" class="link-btn" @onclick="() => StartNoteEdit(item)">
+                                        @(string.IsNullOrWhiteSpace(item.Note) ? "Not ekle" : "Notu düzenle")
+                                    </button>
+                                }
+                            }
+                        </div>
+
+                        @if (list.IsOwner)
+                        {
+                            <div class="item-actions">
+                                <button type="button" class="icon-btn" title="Yukarı taşı"
+                                        disabled="@(busy || item.Position == 0)"
+                                        @onclick="() => MoveAsync(item, -1)">▲</button>
+                                <button type="button" class="icon-btn" title="Aşağı taşı"
+                                        disabled="@(busy || item.Position == list.Items.Count - 1)"
+                                        @onclick="() => MoveAsync(item, 1)">▼</button>
+                                <button type="button" class="icon-btn danger" title="Listeden çıkar"
+                                        disabled="@busy" @onclick="() => RemoveItemAsync(item)">✕</button>
+                            </div>
+                        }
+                    </li>
+                }
+            </ol>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int ListId { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private UserListDetailDto? list;
+    private bool loading = true;
+    private bool editing;
+    private bool confirmingDelete;
+    private bool busy;
+
+    private int? editingNoteId;
+    private string? noteDraft;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        editing = false;
+        confirmingDelete = false;
+        editingNoteId = null;
+
+        try
+        {
+            var client = await CreateClientAsync();
+            list = await client.GetFromJsonAsync<UserListDetailDto>($"api/lists/{ListId}");
+        }
+        catch
+        {
+            list = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void OnEditedAsync(UserListDetailDto saved)
+    {
+        list = saved;
+        editing = false;
+    }
+
+    /// <summary>Beğeni durumunu modele yaz; düzenleme açılıp kapanınca buton geri sayılmasın.</summary>
+    private void OnLikeChanged(ListLikeStateDto state)
+    {
+        if (list == null)
+            return;
+
+        list.LikeCount = state.LikeCount;
+        list.LikedByViewer = state.LikedByViewer;
+    }
+
+    private void StartNoteEdit(UserListItemDto item)
+    {
+        editingNoteId = item.Id;
+        noteDraft = item.Note;
+    }
+
+    private async Task SaveNoteAsync(UserListItemDto item)
+    {
+        busy = true;
+        try
+        {
+            var client = await CreateClientAsync();
+            var response = await client.PutAsJsonAsync(
+                $"api/lists/{ListId}/items/{item.Id}", new UpdateListItemRequest { Note = noteDraft });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var saved = await response.Content.ReadFromJsonAsync<UserListItemDto>();
+                item.Note = saved?.Note;
+                editingNoteId = null;
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Öğeyi bir sıra yukarı/aşağı taşır. Yeni sıra istemcide oluşturulup tek
+    /// istekle gönderilir; sunucu sırayı doğrulayıp güncel listeyi geri döner.
+    /// </summary>
+    private async Task MoveAsync(UserListItemDto item, int delta)
+    {
+        if (list == null)
+            return;
+
+        var index = list.Items.IndexOf(item);
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= list.Items.Count)
+            return;
+
+        var order = list.Items.Select(i => i.Id).ToList();
+        (order[index], order[target]) = (order[target], order[index]);
+
+        busy = true;
+        try
+        {
+            var client = await CreateClientAsync();
+            var response = await client.PutAsJsonAsync(
+                $"api/lists/{ListId}/order", new ReorderListRequest { ItemIds = order });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var saved = await response.Content.ReadFromJsonAsync<UserListDetailDto>();
+                if (saved != null)
+                    list = saved;
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RemoveItemAsync(UserListItemDto item)
+    {
+        busy = true;
+        try
+        {
+            var client = await CreateClientAsync();
+            var response = await client.DeleteAsync($"api/lists/{ListId}/items/{item.Id}");
+            if (!response.IsSuccessStatusCode || list == null)
+                return;
+
+            list.Items.Remove(item);
+            list.ItemCount = list.Items.Count;
+            // Sunucu sırayı sıkıştırdı; ekrandaki numaralar da kaysın.
+            for (var i = 0; i < list.Items.Count; i++)
+                list.Items[i].Position = i;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DeleteListAsync()
+    {
+        busy = true;
+        try
+        {
+            var client = await CreateClientAsync();
+            var response = await client.DeleteAsync($"api/lists/{ListId}");
+            // Rota "/@kullaniciadi/lists"; "@" Razor'da kaçış gerektirdiği için birleştiriliyor.
+            if (response.IsSuccessStatusCode)
+                Navigation.NavigateTo("/" + '@' + list!.OwnerUsername + "/lists");
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        return client;
+    }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+}

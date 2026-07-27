@@ -14,14 +14,16 @@ namespace BingeWatch.API.Services
             _context = context;
         }
 
-        public async Task CreateAsync(string recipientId, string actorId, NotificationType type, int? reviewId = null)
+        public async Task CreateAsync(string recipientId, string actorId, NotificationType type,
+            int? reviewId = null, int? userListId = null)
         {
             // Kendi incelemeni beğenmek ya da kendini takip etmeye çalışmak bildirim üretmez.
             if (recipientId == actorId)
                 return;
 
             var exists = await _context.Notifications.AnyAsync(n =>
-                n.UserId == recipientId && n.ActorId == actorId && n.Type == type && n.ReviewId == reviewId);
+                n.UserId == recipientId && n.ActorId == actorId && n.Type == type
+                && n.ReviewId == reviewId && n.UserListId == userListId);
             if (exists)
                 return;
 
@@ -30,17 +32,19 @@ namespace BingeWatch.API.Services
                 UserId = recipientId,
                 ActorId = actorId,
                 Type = type,
-                ReviewId = reviewId
+                ReviewId = reviewId,
+                UserListId = userListId
             });
 
             await _context.SaveChangesAsync();
         }
 
-        public async Task RemoveAsync(string recipientId, string actorId, NotificationType type, int? reviewId = null)
+        public async Task RemoveAsync(string recipientId, string actorId, NotificationType type,
+            int? reviewId = null, int? userListId = null)
         {
             var rows = await _context.Notifications
-                .Where(n => n.UserId == recipientId && n.ActorId == actorId
-                            && n.Type == type && n.ReviewId == reviewId)
+                .Where(n => n.UserId == recipientId && n.ActorId == actorId && n.Type == type
+                            && n.ReviewId == reviewId && n.UserListId == userListId)
                 .ToListAsync();
             if (rows.Count == 0)
                 return;
@@ -53,6 +57,18 @@ namespace BingeWatch.API.Services
         {
             var rows = await _context.Notifications
                 .Where(n => n.ReviewId == reviewId)
+                .ToListAsync();
+            if (rows.Count == 0)
+                return;
+
+            _context.Notifications.RemoveRange(rows);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task RemoveForListAsync(int userListId)
+        {
+            var rows = await _context.Notifications
+                .Where(n => n.UserListId == userListId)
                 .ToListAsync();
             if (rows.Count == 0)
                 return;
@@ -83,11 +99,22 @@ namespace BingeWatch.API.Services
                     .Select(r => new { r.Id, r.Show!.TmdbId, r.Show.Name, r.SeasonNumber })
                     .ToDictionaryAsync(r => r.Id, r => (r.TmdbId, r.Name, r.SeasonNumber));
 
+            var listIds = rows.Where(n => n.UserListId != null).Select(n => n.UserListId!.Value).Distinct().ToList();
+            var listTitles = listIds.Count == 0
+                ? new Dictionary<int, string>()
+                : await _context.UserLists
+                    .Where(l => listIds.Contains(l.Id))
+                    .ToDictionaryAsync(l => l.Id, l => l.Title);
+
             return rows.Select(n =>
             {
                 (int TmdbId, string Name, int? SeasonNumber) review = default;
                 if (n.ReviewId != null)
                     reviews.TryGetValue(n.ReviewId.Value, out review);
+
+                string? listTitle = null;
+                if (n.UserListId != null)
+                    listTitles.TryGetValue(n.UserListId.Value, out listTitle);
 
                 return new NotificationDto
                 {
@@ -103,7 +130,9 @@ namespace BingeWatch.API.Services
                     ReviewId = n.ReviewId,
                     TmdbShowId = review.TmdbId == 0 ? null : review.TmdbId,
                     ShowName = review.Name,
-                    SeasonNumber = review.SeasonNumber
+                    SeasonNumber = review.SeasonNumber,
+                    UserListId = n.UserListId,
+                    ListTitle = listTitle
                 };
             }).ToList();
         }

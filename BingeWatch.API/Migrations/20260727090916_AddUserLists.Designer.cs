@@ -4,6 +4,7 @@ using BingeWatch.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BingeOn.API.Migrations
 {
     [DbContext(typeof(BingeOnDbContext))]
-    partial class BingeOnDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260727090916_AddUserLists")]
+    partial class AddUserLists
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -268,9 +271,6 @@ namespace BingeOn.API.Migrations
                         .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
-
-                    b.Property<int?>("UserListId")
-                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -597,35 +597,6 @@ namespace BingeOn.API.Migrations
                         .IsUnique();
 
                     b.ToTable("UserListItems");
-                });
-
-            modelBuilder.Entity("BingeWatch.API.Models.UserListLike", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<int>("UserListId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserListId", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("UserListLikes");
                 });
 
             modelBuilder.Entity("BingeWatch.API.Models.UserShow", b =>
@@ -1020,25 +991,6 @@ namespace BingeOn.API.Migrations
                         .IsRequired();
 
                     b.Navigation("Show");
-
-                    b.Navigation("UserList");
-                });
-
-            modelBuilder.Entity("BingeWatch.API.Models.UserListLike", b =>
-                {
-                    b.HasOne("BingeWatch.API.Models.AppUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("BingeWatch.API.Models.UserList", "UserList")
-                        .WithMany()
-                        .HasForeignKey("UserListId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
 
                     b.Navigation("UserList");
                 });

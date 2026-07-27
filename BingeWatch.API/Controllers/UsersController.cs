@@ -15,13 +15,15 @@ namespace BingeWatch.API.Controllers
         private readonly UserManager<AppUser> _userManager;
         private readonly IFollowService _followService;
         private readonly IUserStatsService _statsService;
+        private readonly IUserListService _listService;
 
         public UsersController(UserManager<AppUser> userManager, IFollowService followService,
-            IUserStatsService statsService)
+            IUserStatsService statsService, IUserListService listService)
         {
             _userManager = userManager;
             _followService = followService;
             _statsService = statsService;
+            _listService = listService;
         }
 
         /// <summary>Anonim istekte <c>null</c>; profil uç noktaları kimliği zorunlu kılmaz.</summary>
@@ -69,6 +71,14 @@ namespace BingeWatch.API.Controllers
         {
             var following = await _followService.GetFollowingAsync(username, ViewerId);
             return following == null ? NotFound() : Ok(following);
+        }
+
+        /// <summary>Kullanıcının listeleri; kapalı olanlar yalnızca sahibine döner.</summary>
+        [HttpGet("{username}/lists")]
+        public async Task<IActionResult> GetLists(string username)
+        {
+            var lists = await _listService.GetForUserAsync(username, ViewerId);
+            return lists == null ? NotFound() : Ok(lists);
         }
 
         [HttpPost("{username}/follow")]
