@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 27 Temmuz 2026, Faz 6.5 (altyapı) sonu.*
+*Son güncelleme: 27 Temmuz 2026, Faz 6.4 (SEO) sonu.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -36,6 +36,8 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 - Listeler, filtreli keşif, gelişmiş arama, istatistik sayfası (Faz 5)
 - **Moderasyon**: rate limiting, kullanıcı engelleme, içerik bildirimi ve
   `/admin/reports` paneli (Faz 6.1)
+- **Dizi sayfası anonime açık** — OG/Twitter kartları, schema.org `TVSeries`
+  yapılandırılmış verisi, `robots.txt` ve katalogdan üretilen `sitemap.xml` (Faz 6.4)
 
 ---
 
@@ -403,7 +405,31 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - Yol üstünde: WatchList'teki 6 `Console.WriteLine` `ILogger`'a taşındı
     (Faz 0'dan kalan madde) ve §7.1'deki **arama blur yarışı** kapandı —
     öneri listesine `@@onmousedown:preventDefault` eklendi
-- [ ] OG meta + prerender (SEO — Letterboxd trafiğinin büyük kısmı buradan gelir)
+- [x] OG meta + prerender (SEO — Letterboxd trafiğinin büyük kısmı buradan gelir)
+  - **Asıl engel prerender değildi, kimlik duvarıydı.** Blazor'ın `InteractiveServer`
+    modu zaten prerender ediyordu; ama ürünün en çok aranan sayfası olan
+    `/show/{id}` `[Authorize]` arkasındaydı — arama motoru hiçbir dizi sayfasını
+    göremiyordu. Sayfa herkese açıldı, kişisel katman (puanın, ilerlemen,
+    watchlist, favori, arkadaş puanları, inceleme formu, bölüm işaretleme)
+    `<AuthorizeView>` arkasına alındı. İlgili API uçları zaten `[Authorize]`
+    olduğu için anonimde o istekler hiç atılmıyor
+  - **`<PageMeta>`** — başlık, açıklama, canonical, OG ve Twitter kart etiketleri
+    tek komponentten. Canonical sorgu dizesini atıyor: filtre/sıralama
+    parametreleri aynı içeriği farklı URL'lerde gösteriyordu, arama motoru
+    bunları kopya sayardı. Kişisel sayfalar (`/notifications`,
+    `/settings/blocks`, `/admin/reports`) `noindex`
+  - **JSON-LD** — dizi sayfasında schema.org `TVSeries`: sezon/bölüm sayısı,
+    yayın tarihi, poster ve `aggregateRating`. Oy yoksa puan bloğu hiç
+    yazılmıyor (oysuz `aggregateRating` doğrulamada hata veriyor)
+  - **robots.txt + sitemap.xml** — ikisi de statik dosya değil uç nokta; sitemap
+    katalogdan üretiliyor (`/api/sitemap/*`) ve host adı istekten geliyor, aynı
+    dosya yerel/staging/üretimde paylaşılamazdı. Kişisel ve filtre sayfaları
+    taramaya kapalı. API'ye ulaşılamazsa sitemap boş değil **eksik** dönüyor:
+    500 vermek arama motoruna "site bozuk" sinyali olurdu
+  - İki tuzak: **aynı sayfada iki `<HeadContent>` olamıyor** (ikincisi ilkini
+    eziyor — JSON-LD ayrı blokta yazılınca çıktıya hiç düşmedi, `PageMeta`'ya
+    parametre olarak taşındı) ve `XmlWriter` bir `StringBuilder`'a yazarken
+    bildirime `encoding="utf-16"` koyuyor ama yanıt UTF-8 gidiyor
 - [~] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check —
       **kod tarafı bitti ve yerelde doğrulandı; Docker imajları build edilmedi**
       (geliştirme makinesinde Docker kurulu değil). Ayrıntı: [DEPLOY.md](DEPLOY.md)

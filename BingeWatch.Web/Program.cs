@@ -6,6 +6,7 @@ using BingeWatch.Web.Components;
 using BingeWatch.Web.Models;
 using Serilog;
 using Microsoft.AspNetCore.HttpOverrides;
+using BingeWatch.Web.Seo;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -132,6 +133,9 @@ app.MapPost("/account/logout", async (HttpContext http) =>
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/");
 });
+
+// robots.txt ve sitemap.xml — katalogdan üretiliyor, statik dosya değil.
+app.MapSeoEndpoints();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
