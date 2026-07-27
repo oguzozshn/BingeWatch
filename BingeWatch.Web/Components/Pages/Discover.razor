@@ -1,0 +1,311 @@
+@page "/discover"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Keşfet</PageTitle>
+
+<div class="discover-page">
+    <header class="page-head">
+        <h3>Keşfet</h3>
+
+        <AuthorizeView>
+            <Authorized>
+                <div class="scope-toggle">
+                    <button type="button" class="@ScopeClass(false)" @onclick="() => SetLibraryModeAsync(false)">
+                        Tüm diziler
+                    </button>
+                    <button type="button" class="@ScopeClass(true)" @onclick="() => SetLibraryModeAsync(true)">
+                        Kütüphanem
+                    </button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    <section class="filters">
+        <label>
+            Tür
+            <select class="form-select form-select-sm" @onchange="OnGenreChangedAsync">
+                <option value="">Hepsi</option>
+                @foreach (var genre in genres)
+                {
+                    <option value="@genre.Id" selected="@(genreId == genre.Id)">@genre.Name</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            Platform
+            <select class="form-select form-select-sm" @onchange="OnNetworkChangedAsync">
+                <option value="">Hepsi</option>
+                @foreach (var network in networks)
+                {
+                    <option value="@network.Id" selected="@(networkId == network.Id)">@network.Name</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            Yıl
+            <span class="year-range">
+                <input class="form-control form-control-sm" type="number" min="1950" max="2100"
+                       placeholder="ilk" value="@yearFrom" @onchange="OnYearFromChangedAsync" />
+                <input class="form-control form-control-sm" type="number" min="1950" max="2100"
+                       placeholder="son" value="@yearTo" @onchange="OnYearToChangedAsync" />
+            </span>
+        </label>
+
+        <label>
+            En az puan
+            <select class="form-select form-select-sm" @onchange="OnMinRatingChangedAsync">
+                <option value="">Fark etmez</option>
+                <option value="6" selected="@(minRating == 6)">6+</option>
+                <option value="7" selected="@(minRating == 7)">7+</option>
+                <option value="8" selected="@(minRating == 8)">8+</option>
+                <option value="9" selected="@(minRating == 9)">9+</option>
+            </select>
+        </label>
+
+        @if (libraryMode)
+        {
+            <label>
+                Durum
+                <select class="form-select form-select-sm" @onchange="OnStatusChangedAsync">
+                    <option value="1" selected="@(status == WatchStatus.Watching)">İzliyorum</option>
+                    <option value="2" selected="@(status == WatchStatus.Completed)">Bitirdim</option>
+                    <option value="0" selected="@(status == WatchStatus.PlanToWatch)">İzleyeceğim</option>
+                    <option value="4" selected="@(status == WatchStatus.OnHold)">Ertelendi</option>
+                    <option value="3" selected="@(status == WatchStatus.Dropped)">Bıraktım</option>
+                </select>
+            </label>
+        }
+
+        <label>
+            Sırala
+            <select class="form-select form-select-sm" @onchange="OnSortChangedAsync">
+                <option value="0" selected="@(sort == DiscoverSort.Popularity)">Popülerlik</option>
+                <option value="1" selected="@(sort == DiscoverSort.Rating)">Puan</option>
+                <option value="2" selected="@(sort == DiscoverSort.Newest)">En yeni</option>
+            </select>
+        </label>
+
+        @if (HasActiveFilter)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary clear"
+                    @onclick="ClearFiltersAsync">Filtreleri temizle</button>
+        }
+    </section>
+
+    @if (loading && shows.Count == 0)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (shows.Count == 0)
+    {
+        <p class="muted">
+            @(libraryMode
+                ? "Bu filtrelere uyan dizi kütüphanende yok."
+                : "Bu filtrelere uyan dizi bulunamadı.")
+        </p>
+    }
+    else
+    {
+        <div class="poster-grid">
+            @foreach (var show in shows)
+            {
+                <a class="poster-card" href="/show/@show.TmdbId" @key="show.TmdbId">
+                    @if (string.IsNullOrEmpty(show.PosterPath))
+                    {
+                        <span class="no-poster">@show.Name</span>
+                    }
+                    else
+                    {
+                        <img src="@PosterUrl(show.PosterPath)" alt="@show.Name" loading="lazy" />
+                    }
+                    <span class="title">@show.Name</span>
+                    <span class="meta">
+                        @(show.FirstAirYear?.ToString() ?? "—")
+                        @if (show.VoteAverage > 0)
+                        {
+                            <span class="score">★ @show.VoteAverage.ToString("0.0")</span>
+                        }
+                    </span>
+                </a>
+            }
+        </div>
+
+        @if (hasMore)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary load-more"
+                    disabled="@loading" @onclick="LoadMoreAsync">
+                @(loading ? "Yükleniyor..." : "Daha fazla")
+            </button>
+        }
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private readonly List<DiscoverShowDto> shows = new();
+    private List<GenreDto> genres = new();
+    private List<NetworkDto> networks = new();
+
+    private int? genreId;
+    private int? networkId;
+    private int? yearFrom;
+    private int? yearTo;
+    private double? minRating;
+    private DiscoverSort sort = DiscoverSort.Popularity;
+
+    // Kütüphane modunda durum filtresi zorunlu; varsayılan "izliyorum".
+    private bool libraryMode;
+    private WatchStatus status = WatchStatus.Watching;
+
+    private int page = 1;
+    private bool loading = true;
+    private bool hasMore;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = await CreateClientAsync();
+        genres = await client.GetFromJsonAsync<List<GenreDto>>("api/discover/genres") ?? new();
+        networks = await client.GetFromJsonAsync<List<NetworkDto>>("api/discover/networks") ?? new();
+
+        await ReloadAsync();
+    }
+
+    private bool HasActiveFilter =>
+        genreId != null || networkId != null || yearFrom != null || yearTo != null || minRating != null;
+
+    private string ScopeClass(bool library) =>
+        libraryMode == library ? "btn btn-sm btn-primary" : "btn btn-sm btn-outline-secondary";
+
+    private async Task SetLibraryModeAsync(bool library)
+    {
+        if (libraryMode == library)
+            return;
+
+        libraryMode = library;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        page = 1;
+        shows.Clear();
+        loading = true;
+        await LoadPageAsync();
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        page++;
+        loading = true;
+        await LoadPageAsync();
+    }
+
+    private async Task LoadPageAsync()
+    {
+        var client = await CreateClientAsync();
+
+        var parameters = new List<string> { $"page={page}", $"sort={(int)sort}" };
+
+        if (genreId is int genre)
+            parameters.Add($"genre={genre}");
+
+        if (networkId is int network)
+            parameters.Add($"network={network}");
+
+        if (yearFrom is int from)
+            parameters.Add($"yearFrom={from}");
+
+        if (yearTo is int to)
+            parameters.Add($"yearTo={to}");
+
+        if (minRating is double rating)
+            parameters.Add($"minRating={rating.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+
+        if (libraryMode)
+            parameters.Add($"status={(int)status}");
+
+        var result = await client.GetFromJsonAsync<DiscoverResultDto>(
+            "api/discover?" + string.Join("&", parameters));
+
+        shows.AddRange(result?.Results ?? new());
+        hasMore = result?.HasMore ?? false;
+        loading = false;
+    }
+
+    private async Task OnGenreChangedAsync(ChangeEventArgs e)
+    {
+        genreId = ParseInt(e.Value?.ToString());
+        await ReloadAsync();
+    }
+
+    private async Task OnNetworkChangedAsync(ChangeEventArgs e)
+    {
+        networkId = ParseInt(e.Value?.ToString());
+        await ReloadAsync();
+    }
+
+    private async Task OnYearFromChangedAsync(ChangeEventArgs e)
+    {
+        yearFrom = ParseInt(e.Value?.ToString());
+        await ReloadAsync();
+    }
+
+    private async Task OnYearToChangedAsync(ChangeEventArgs e)
+    {
+        yearTo = ParseInt(e.Value?.ToString());
+        await ReloadAsync();
+    }
+
+    private async Task OnMinRatingChangedAsync(ChangeEventArgs e)
+    {
+        minRating = ParseInt(e.Value?.ToString());
+        await ReloadAsync();
+    }
+
+    private async Task OnStatusChangedAsync(ChangeEventArgs e)
+    {
+        status = (WatchStatus)(ParseInt(e.Value?.ToString()) ?? 1);
+        await ReloadAsync();
+    }
+
+    private async Task OnSortChangedAsync(ChangeEventArgs e)
+    {
+        sort = (DiscoverSort)(ParseInt(e.Value?.ToString()) ?? 0);
+        await ReloadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        genreId = null;
+        networkId = null;
+        yearFrom = null;
+        yearTo = null;
+        minRating = null;
+        await ReloadAsync();
+    }
+
+    private static int? ParseInt(string? value) =>
+        int.TryParse(value, out var parsed) ? parsed : null;
+
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        return client;
+    }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w342{path}";
+}

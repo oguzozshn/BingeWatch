@@ -1,0 +1,98 @@
+@page "/person/{PersonId:int}"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>@(person?.Name ?? "Kişi")</PageTitle>
+
+@if (loading)
+{
+    <p class="muted">Yükleniyor...</p>
+}
+else if (person == null)
+{
+    <p class="muted">Kişi bulunamadı.</p>
+}
+else
+{
+    <div class="person-page">
+        <header class="head">
+            @if (!string.IsNullOrEmpty(person.ProfilePath))
+            {
+                <img class="photo" src="@ProfileUrl(person.ProfilePath)" alt="@person.Name" />
+            }
+            <div>
+                <h3>@person.Name</h3>
+                <p class="muted">@person.Credits.Count dizi</p>
+            </div>
+        </header>
+
+        @if (person.Credits.Count == 0)
+        {
+            <p class="muted">TMDb'de bu kişiye bağlı dizi yok.</p>
+        }
+        else
+        {
+            <div class="poster-grid">
+                @foreach (var credit in person.Credits)
+                {
+                    <a class="poster-card" href="/show/@credit.TmdbShowId" @key="credit.TmdbShowId">
+                        @if (string.IsNullOrEmpty(credit.PosterPath))
+                        {
+                            <span class="no-poster">@credit.Name</span>
+                        }
+                        else
+                        {
+                            <img src="@PosterUrl(credit.PosterPath)" alt="@credit.Name" loading="lazy" />
+                        }
+                        <span class="title">@credit.Name</span>
+                        @if (!string.IsNullOrWhiteSpace(credit.Role))
+                        {
+                            <span class="role">@credit.Role</span>
+                        }
+                        <span class="meta">
+                            @(credit.FirstAirYear?.ToString() ?? "—")
+                            @if (credit.EpisodeCount > 0)
+                            {
+                                <span>@credit.EpisodeCount bölüm</span>
+                            }
+                        </span>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int PersonId { get; set; }
+
+    private PersonCreditsDto? person;
+    private bool loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        person = null;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            person = await client.GetFromJsonAsync<PersonCreditsDto>($"api/discover/people/{PersonId}");
+        }
+        catch
+        {
+            person = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w342{path}";
+
+    private static string ProfileUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+}

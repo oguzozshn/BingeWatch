@@ -31,6 +31,8 @@ namespace BingeWatch.API.Services
         {
             var show = await _context.Shows
                 .Include(s => s.Seasons).ThenInclude(se => se.Episodes)
+                .Include(s => s.Genres)
+                .Include(s => s.Networks)
                 .FirstOrDefaultAsync(s => s.TmdbId == tmdbId);
 
             if (show != null && !forceSync && !IsStale(show))
@@ -59,6 +61,8 @@ namespace BingeWatch.API.Services
                 {
                     var existing = await _context.Shows
                         .Include(s => s.Seasons).ThenInclude(se => se.Episodes)
+                        .Include(s => s.Genres)
+                        .Include(s => s.Networks)
                         .FirstOrDefaultAsync(s => s.TmdbId == tmdbId, cancellationToken);
 
                     await SyncShowAsync(tmdbId, existing);
@@ -111,6 +115,9 @@ namespace BingeWatch.API.Services
             if (show.Id == 0)
                 _context.Shows.Add(show);
 
+            await SyncGenresAsync(show, details.Genres);
+            await SyncNetworksAsync(show, details.Networks);
+
             // Show.Id'ye ihtiyaç duyan Season satırları için (yeni dizilerde) önce kaydet.
             await _context.SaveChangesAsync();
 
@@ -162,6 +169,78 @@ namespace BingeWatch.API.Services
             await _context.SaveChangesAsync();
 
             return show;
+        }
+
+        /// <summary>
+        /// Dizinin türlerini TMDb'deki listeye eşitler. Tür satırları paylaşımlı ve
+        /// TMDb id'siyle anahtarlı; yeni görülen tür ilk kez burada oluşturulur.
+        /// </summary>
+        private async Task SyncGenresAsync(Show show, List<TmdbGenre> tmdbGenres)
+        {
+            if (tmdbGenres.Count == 0)
+            {
+                show.Genres.Clear();
+                return;
+            }
+
+            var ids = tmdbGenres.Select(g => g.Id).ToList();
+            var known = await _context.Genres.Where(g => ids.Contains(g.Id)).ToListAsync();
+
+            foreach (var tmdbGenre in tmdbGenres)
+            {
+                var genre = known.FirstOrDefault(g => g.Id == tmdbGenre.Id);
+                if (genre == null)
+                {
+                    genre = new Genre { Id = tmdbGenre.Id, Name = tmdbGenre.Name };
+                    _context.Genres.Add(genre);
+                    known.Add(genre);
+                }
+                else
+                {
+                    genre.Name = tmdbGenre.Name;
+                }
+            }
+
+            show.Genres.RemoveAll(g => !ids.Contains(g.Id));
+            foreach (var genre in known.Where(g => show.Genres.All(x => x.Id != g.Id)))
+                show.Genres.Add(genre);
+        }
+
+        private async Task SyncNetworksAsync(Show show, List<TmdbNetwork> tmdbNetworks)
+        {
+            if (tmdbNetworks.Count == 0)
+            {
+                show.Networks.Clear();
+                return;
+            }
+
+            var ids = tmdbNetworks.Select(n => n.Id).ToList();
+            var known = await _context.Networks.Where(n => ids.Contains(n.Id)).ToListAsync();
+
+            foreach (var tmdbNetwork in tmdbNetworks)
+            {
+                var network = known.FirstOrDefault(n => n.Id == tmdbNetwork.Id);
+                if (network == null)
+                {
+                    network = new Network
+                    {
+                        Id = tmdbNetwork.Id,
+                        Name = tmdbNetwork.Name,
+                        LogoPath = tmdbNetwork.LogoPath
+                    };
+                    _context.Networks.Add(network);
+                    known.Add(network);
+                }
+                else
+                {
+                    network.Name = tmdbNetwork.Name;
+                    network.LogoPath = tmdbNetwork.LogoPath;
+                }
+            }
+
+            show.Networks.RemoveAll(n => !ids.Contains(n.Id));
+            foreach (var network in known.Where(n => show.Networks.All(x => x.Id != n.Id)))
+                show.Networks.Add(network);
         }
     }
 }
