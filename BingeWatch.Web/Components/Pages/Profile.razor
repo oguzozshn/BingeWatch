@@ -49,6 +49,10 @@ else
 
         @if (stats != null)
         {
+            <p class="stats-link">
+                <a href="/@@@profile.Username/stats">Tüm istatistikler →</a>
+            </p>
+
             <section class="stat-cards">
                 <div class="stat-card">
                     <strong>@stats.WatchedEpisodeCount</strong>
@@ -99,7 +103,9 @@ else
                     {
                         <div class="year-row">
                             <span class="year">@year.Year</span>
-                            <span class="bar" style="width: @BarWidth(year.EpisodeCount)"></span>
+                            <span class="track">
+                                <span class="bar" style="width: @BarWidth(year.EpisodeCount)"></span>
+                            </span>
                             <span class="count">@year.EpisodeCount</span>
                         </div>
                     }

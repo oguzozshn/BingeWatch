@@ -36,5 +36,11 @@ namespace BingeWatch.API.Models
         public DateTime LastSyncedAt { get; set; }
 
         public List<Season> Seasons { get; set; } = new();
+
+        /// <summary>TMDb türleri; keşif filtresini ve profil tür dağılımını besler.</summary>
+        public List<Genre> Genres { get; set; } = new();
+
+        /// <summary>Yayıncı kanal/platformlar.</summary>
+        public List<Network> Networks { get; set; } = new();
     }
 }

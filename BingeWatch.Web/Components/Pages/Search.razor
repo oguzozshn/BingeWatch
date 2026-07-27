@@ -1,0 +1,141 @@
+@page "/search"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Arama</PageTitle>
+
+<div class="search-page">
+    <h3>Ara</h3>
+
+    <div class="search-box">
+        <input class="form-control" placeholder="Dizi ya da kişi adı" value="@query"
+               @oninput="OnQueryInput" @onkeydown="OnKeyDown" />
+        <button type="button" class="btn btn-primary" disabled="@(loading || string.IsNullOrWhiteSpace(query))"
+                @onclick="SearchAsync">
+            @(loading ? "Aranıyor..." : "Ara")
+        </button>
+    </div>
+
+    @if (result == null)
+    {
+        <p class="muted">Dizi adı yazabilir ya da bir oyuncu/yönetmen arayabilirsin.</p>
+    }
+    else
+    {
+        @if (result.People.Count > 0)
+        {
+            <section>
+                <h5>Kişiler</h5>
+                <div class="people">
+                    @foreach (var person in result.People)
+                    {
+                        <a class="person" href="/person/@person.TmdbId" @key="person.TmdbId">
+                            @if (string.IsNullOrEmpty(person.ProfilePath))
+                            {
+                                <span class="avatar empty">@Initials(person.Name)</span>
+                            }
+                            else
+                            {
+                                <img class="avatar" src="@ProfileUrl(person.ProfilePath)" alt="@person.Name" />
+                            }
+                            <span class="who">
+                                <strong>@person.Name</strong>
+                                @if (person.KnownForShows.Count > 0)
+                                {
+                                    <span class="known">@string.Join(", ", person.KnownForShows)</span>
+                                }
+                            </span>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
+
+        <section>
+            <h5>Diziler</h5>
+            @if (result.Shows.Count == 0)
+            {
+                <p class="muted">Eşleşen dizi yok.</p>
+            }
+            else
+            {
+                <div class="poster-grid">
+                    @foreach (var show in result.Shows)
+                    {
+                        <a class="poster-card" href="/show/@show.TmdbId" @key="show.TmdbId">
+                            @if (string.IsNullOrEmpty(show.PosterPath))
+                            {
+                                <span class="no-poster">@show.Name</span>
+                            }
+                            else
+                            {
+                                <img src="@PosterUrl(show.PosterPath)" alt="@show.Name" loading="lazy" />
+                            }
+                            <span class="title">@show.Name</span>
+                            <span class="meta">@(show.FirstAirYear?.ToString() ?? "—")</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    /// <summary>Adres çubuğundan gelen sorgu — navbar araması buraya yönlendirebilir.</summary>
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? InitialQuery { get; set; }
+
+    private string query = string.Empty;
+    private SearchResultDto? result;
+    private bool loading;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(InitialQuery) || InitialQuery == query)
+            return;
+
+        query = InitialQuery;
+        await SearchAsync();
+    }
+
+    private void OnQueryInput(ChangeEventArgs e) => query = e.Value?.ToString() ?? string.Empty;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await SearchAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return;
+
+        loading = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            result = await client.GetFromJsonAsync<SearchResultDto>(
+                $"api/discover/search?q={Uri.EscapeDataString(query)}&includePeople=true");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 0 ? "?" : string.Concat(parts.Take(2).Select(p => p[0]));
+    }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w342{path}";
+
+    private static string ProfileUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+}

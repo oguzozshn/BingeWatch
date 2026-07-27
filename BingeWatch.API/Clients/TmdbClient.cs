@@ -61,6 +61,65 @@ namespace BingeWatch.API.Clients
             return JsonSerializer.Deserialize<TmdbSeriesResult>(json, JsonOptions);
         }
 
+        /// <summary>
+        /// TMDb /discover/tv — filtreli keşif. Yerel katalog yalnızca dokunulmuş
+        /// dizileri içerdiği için tarama TMDb üzerinden yapılır.
+        /// <paramref name="query"/> hazır sorgu dizesidir (servis kurar).
+        /// </summary>
+        public async Task<TmdbSeriesResult?> DiscoverSeriesAsync(string query)
+        {
+            var response = await _httpClient.GetAsync($"/3/discover/tv?language=en-US&{query}");
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TmdbSeriesResult>(json, JsonOptions);
+        }
+
+        /// <summary>Dizi türlerinin tam listesi; filtre panelini besler.</summary>
+        public async Task<TmdbGenreListResponse?> GetTvGenresAsync()
+        {
+            var response = await _httpClient.GetAsync("/3/genre/tv/list?language=en-US");
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TmdbGenreListResponse>(json, JsonOptions);
+        }
+
+        public async Task<TmdbPersonSearchResult?> SearchPeopleAsync(string query, int page = 1)
+        {
+            var encodedQuery = Uri.EscapeDataString(query);
+            var response = await _httpClient.GetAsync(
+                $"/3/search/person?query={encodedQuery}&language=en-US&page={page}");
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TmdbPersonSearchResult>(json, JsonOptions);
+        }
+
+        public async Task<TmdbPersonItem?> GetPersonAsync(int personId)
+        {
+            var response = await _httpClient.GetAsync($"/3/person/{personId}?language=en-US");
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TmdbPersonItem>(json, JsonOptions);
+        }
+
+        /// <summary>Kişinin oyuncu ya da ekip olarak yer aldığı diziler.</summary>
+        public async Task<TmdbPersonTvCreditsResponse?> GetPersonTvCreditsAsync(int personId)
+        {
+            var response = await _httpClient.GetAsync($"/3/person/{personId}/tv_credits?language=en-US");
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<TmdbPersonTvCreditsResponse>(json, JsonOptions);
+        }
+
         /// <summary>Dizi özeti + sezon listesi + IMDb id, tek istekte (append_to_response).</summary>
         public async Task<TmdbShowDetailsResponse?> GetShowDetailsAsync(int tmdbId)
         {

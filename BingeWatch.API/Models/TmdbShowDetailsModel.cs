@@ -35,8 +35,42 @@ namespace BingeWatch.API.Models
         [JsonPropertyName("seasons")]
         public List<TmdbSeasonSummary> Seasons { get; set; } = new();
 
+        [JsonPropertyName("genres")]
+        public List<TmdbGenre> Genres { get; set; } = new();
+
+        [JsonPropertyName("networks")]
+        public List<TmdbNetwork> Networks { get; set; } = new();
+
         [JsonPropertyName("external_ids")]
         public TmdbExternalIds? ExternalIds { get; set; }
+    }
+
+    public class TmdbGenre
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class TmdbNetwork
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("logo_path")]
+        public string? LogoPath { get; set; }
+    }
+
+    /// <summary>TMDb GET /genre/tv/list yanıtı.</summary>
+    public class TmdbGenreListResponse
+    {
+        [JsonPropertyName("genres")]
+        public List<TmdbGenre> Genres { get; set; } = new();
     }
 
     public class TmdbSeasonSummary

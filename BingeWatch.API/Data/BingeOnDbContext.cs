@@ -14,6 +14,8 @@ namespace BingeWatch.API.Data
         public DbSet<Show> Shows { get; set; }
         public DbSet<Season> Seasons { get; set; }
         public DbSet<Episode> Episodes { get; set; }
+        public DbSet<Genre> Genres { get; set; }
+        public DbSet<Network> Networks { get; set; }
 
         // Kullanıcı katmanı
         public DbSet<UserShow> UserShows { get; set; }
@@ -53,6 +55,28 @@ namespace BingeWatch.API.Data
                       .WithOne(s => s.Show)
                       .HasForeignKey(s => s.ShowId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+                // Tür ve platform çoka-çok; ara tabloları EF'in varsayılan
+                // adlandırmasıyla (ShowGenre / NetworkShow) üretilir.
+                entity.HasMany(e => e.Genres)
+                      .WithMany(g => g.Shows);
+
+                entity.HasMany(e => e.Networks)
+                      .WithMany(n => n.Shows);
+            });
+
+            modelBuilder.Entity<Genre>(entity =>
+            {
+                // TMDb id'si birincil anahtar; EF'in kendi değer üretmesi engellenmeli.
+                entity.Property(e => e.Id).ValueGeneratedNever();
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            });
+
+            modelBuilder.Entity<Network>(entity =>
+            {
+                entity.Property(e => e.Id).ValueGeneratedNever();
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.LogoPath).HasMaxLength(500);
             });
 
             modelBuilder.Entity<Season>(entity =>

@@ -1,0 +1,256 @@
+.stats-page {
+    max-width: 900px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+}
+
+.page-head h3 {
+    margin: 0 0 1.25rem;
+}
+
+.page-head a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.page-head a:hover {
+    text-decoration: underline;
+}
+
+section {
+    margin-bottom: 2rem;
+}
+
+section h5 {
+    margin-bottom: .6rem;
+}
+
+.hint {
+    margin: -.35rem 0 .6rem;
+    font-size: .78rem;
+    opacity: .6;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: .75rem;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    padding: .75rem;
+    border: 1px solid var(--bs-border-color, #333);
+    border-radius: .5rem;
+}
+
+.card strong {
+    font-size: 1.3rem;
+    line-height: 1.1;
+}
+
+.card span {
+    font-size: .78rem;
+    opacity: .7;
+}
+
+.card small {
+    font-size: .68rem;
+    opacity: .5;
+}
+
+.status-bar {
+    display: flex;
+    height: 14px;
+    border-radius: 7px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .06);
+}
+
+.slice.watching,
+.dot.watching {
+    background: #4a9eff;
+}
+
+.slice.completed,
+.dot.completed {
+    background: #4cc38a;
+}
+
+.slice.planned,
+.dot.planned {
+    background: #8a8f98;
+}
+
+.slice.onhold,
+.dot.onhold {
+    background: #d9a441;
+}
+
+.slice.dropped,
+.dot.dropped {
+    background: #d96a6a;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .9rem;
+    list-style: none;
+    margin: .6rem 0 0;
+    padding: 0;
+    font-size: .8rem;
+    opacity: .85;
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+}
+
+.dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.yearly {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+}
+
+.year-row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    font-size: .85rem;
+}
+
+.year-row .label {
+    width: 3.2rem;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    opacity: .8;
+}
+
+.year-row .label.wide {
+    width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/*
+   Çubuk kendi rayının içinde: yüzde genişlik doğrudan flex satırında verilirse
+   flex-shrink çubukları orantısız sıkıştırıp farkları siliyordu.
+*/
+.year-row .track {
+    flex: 1;
+    min-width: 0;
+}
+
+.year-row .bar {
+    display: block;
+    height: 10px;
+    border-radius: 5px;
+    background: #4a9eff;
+    min-width: 3px;
+}
+
+.year-row .value {
+    display: flex;
+    gap: .4rem;
+    align-items: baseline;
+    white-space: nowrap;
+    opacity: .8;
+}
+
+.year-row .value small {
+    opacity: .6;
+}
+
+.top-shows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: .85rem;
+}
+
+.top-show {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.top-show img {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: .35rem;
+}
+
+.no-poster {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 2 / 3;
+    padding: .4rem;
+    border-radius: .35rem;
+    background: rgba(255, 255, 255, .06);
+    font-size: .75rem;
+    text-align: center;
+}
+
+.top-show .title {
+    font-size: .8rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.top-show:hover .title {
+    text-decoration: underline;
+}
+
+.top-show .meta {
+    font-size: .7rem;
+    opacity: .65;
+}
+
+.rating-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: .4rem;
+    height: 140px;
+}
+
+.rating-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1;
+    height: 100%;
+    gap: .3rem;
+}
+
+.rating-bar {
+    width: 100%;
+    border-radius: .25rem .25rem 0 0;
+    background: #e0b341;
+    min-height: 2px;
+}
+
+.rating-label {
+    font-size: .7rem;
+    opacity: .65;
+}
+
+.muted {
+    opacity: .7;
+}
