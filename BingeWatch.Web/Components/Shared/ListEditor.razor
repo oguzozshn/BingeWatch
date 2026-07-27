@@ -1,0 +1,103 @@
+@*
+    Liste oluşturma / düzenleme formu. Existing null ise POST, doluysa PUT eder;
+    iki ekranda da aynı alanlar göründüğü için tek komponent.
+*@
+
+@inject IHttpClientFactory HttpClientFactory
+
+<div class="list-editor">
+    <label>
+        Başlık
+        <input class="form-control" maxlength="200" @bind="title" @bind:event="oninput"
+               placeholder="Örn. En iyi polisiyeler" />
+    </label>
+
+    <label>
+        Açıklama
+        <textarea class="form-control" rows="3" maxlength="2000" @bind="description"
+                  placeholder="Listenin neyi topladığını anlat (isteğe bağlı)"></textarea>
+    </label>
+
+    <label class="check">
+        <input type="checkbox" @bind="isPublic" />
+        Herkese açık — kapatırsan listeyi yalnızca sen görürsün
+    </label>
+
+    @if (error != null)
+    {
+        <p class="error">@error</p>
+    }
+
+    <div class="buttons">
+        <button type="button" class="btn btn-sm btn-primary"
+                disabled="@(busy || string.IsNullOrWhiteSpace(title))" @onclick="SaveAsync">
+            @(busy ? "Kaydediliyor..." : "Kaydet")
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@busy"
+                @onclick="() => OnCancelled.InvokeAsync()">Vazgeç</button>
+    </div>
+</div>
+
+@code {
+    /// <summary>Doluysa düzenleme, boşsa yeni liste.</summary>
+    [Parameter] public UserListSummaryDto? Existing { get; set; }
+
+    [Parameter] public EventCallback<UserListDetailDto> OnSaved { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private string title = string.Empty;
+    private string? description;
+    private bool isPublic = true;
+    private bool busy;
+    private string? error;
+
+    protected override void OnParametersSet()
+    {
+        title = Existing?.Title ?? string.Empty;
+        description = Existing?.Description;
+        isPublic = Existing?.IsPublic ?? true;
+    }
+
+    private async Task SaveAsync()
+    {
+        busy = true;
+        error = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var authState = await AuthStateTask!;
+            var token = authState.User.FindFirst("api_token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var request = new UpsertListRequest
+            {
+                Title = title,
+                Description = description,
+                IsPublic = isPublic
+            };
+
+            var response = Existing == null
+                ? await client.PostAsJsonAsync("api/lists", request)
+                : await client.PutAsJsonAsync($"api/lists/{Existing.Id}", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                error = "Liste kaydedilemedi.";
+                return;
+            }
+
+            var saved = await response.Content.ReadFromJsonAsync<UserListDetailDto>();
+            if (saved != null)
+                await OnSaved.InvokeAsync(saved);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

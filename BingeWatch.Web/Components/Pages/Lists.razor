@@ -1,0 +1,104 @@
+@page "/@{Username}/lists"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>@Username — listeler</PageTitle>
+
+<div class="lists-page">
+    <header class="page-head">
+        <h3><a href="/@@@Username">@@@Username</a> listeleri</h3>
+        @if (isOwner)
+        {
+            <button type="button" class="btn btn-sm btn-primary" @onclick="() => creating = true"
+                    disabled="@creating">Yeni liste</button>
+        }
+    </header>
+
+    @if (creating)
+    {
+        <ListEditor OnSaved="OnCreated" OnCancelled="() => creating = false" />
+    }
+
+    @if (loading)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (lists == null)
+    {
+        <p class="muted">Kullanıcı bulunamadı.</p>
+    }
+    else if (lists.Count == 0)
+    {
+        <p class="muted">@(isOwner ? "Henüz liste oluşturmadın." : "Henüz herkese açık listesi yok.")</p>
+    }
+    else
+    {
+        <div class="list-grid">
+            @foreach (var list in lists)
+            {
+                <ListCard List="list" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Username { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private List<UserListSummaryDto>? lists;
+    private bool loading = true;
+    private bool creating;
+    private bool isOwner;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        lists = null;
+        creating = false;
+
+        var client = await CreateClientAsync();
+        try
+        {
+            lists = await client.GetFromJsonAsync<List<UserListSummaryDto>>(
+                $"api/users/{Uri.EscapeDataString(Username)}/lists");
+
+            // Sahiplik bilgisi listelerden okunur; hiç liste yoksa kullanıcı adı karşılaştırılır.
+            var authState = await AuthStateTask!;
+            isOwner = lists?.Count > 0
+                ? lists[0].IsOwner
+                : string.Equals(authState.User.Identity?.Name, Username, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            lists = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    /// <summary>Yeni liste kaydedilince doğrudan detayına gidilir; kullanıcı hemen dizi ekleyebilsin.</summary>
+    private void OnCreated(UserListDetailDto list)
+    {
+        creating = false;
+        Navigation.NavigateTo($"/list/{list.Id}");
+    }
+
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        return client;
+    }
+}

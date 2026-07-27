@@ -1,0 +1,178 @@
+.list-detail {
+    max-width: 800px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+}
+
+.head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.head h3 {
+    margin: 0 0 .25rem;
+}
+
+.private-badge {
+    margin-left: .4rem;
+    padding: .1rem .35rem;
+    border-radius: .25rem;
+    background: rgba(255, 255, 255, .12);
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    vertical-align: middle;
+}
+
+.owner {
+    margin: 0;
+    font-size: .85rem;
+    opacity: .75;
+}
+
+.owner a {
+    color: inherit;
+}
+
+.desc {
+    margin: .5rem 0 0;
+}
+
+.owner-actions {
+    display: flex;
+    gap: .5rem;
+    flex-shrink: 0;
+}
+
+.confirm {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: 1rem;
+    padding: .6rem .8rem;
+    border: 1px solid #b03030;
+    border-radius: .5rem;
+    font-size: .9rem;
+}
+
+.items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.item {
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    padding: .6rem;
+    border: 1px solid var(--bs-border-color, #333);
+    border-radius: .5rem;
+}
+
+.rank {
+    min-width: 1.5rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    opacity: .6;
+}
+
+.poster img {
+    width: 56px;
+    border-radius: .25rem;
+    display: block;
+}
+
+.item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.name {
+    color: inherit;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.name:hover {
+    text-decoration: underline;
+}
+
+.year {
+    font-weight: 400;
+    opacity: .6;
+}
+
+.note {
+    margin: .35rem 0 .25rem;
+    font-size: .9rem;
+    opacity: .9;
+}
+
+.note-editor {
+    margin-top: .4rem;
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+}
+
+.note-editor .buttons {
+    display: flex;
+    gap: .5rem;
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    opacity: .65;
+    font-size: .8rem;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.link-btn:hover {
+    opacity: 1;
+}
+
+.item-actions {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+}
+
+.icon-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: .25rem;
+    color: inherit;
+    opacity: .6;
+    line-height: 1;
+    padding: .15rem .35rem;
+    cursor: pointer;
+}
+
+.icon-btn:hover:not(:disabled) {
+    opacity: 1;
+    border-color: var(--bs-border-color, #444);
+}
+
+.icon-btn:disabled {
+    opacity: .2;
+    cursor: default;
+}
+
+.icon-btn.danger:hover:not(:disabled) {
+    color: #f08080;
+}
+
+.muted {
+    opacity: .7;
+}

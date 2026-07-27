@@ -40,6 +40,9 @@ else
             <a href="/@@@profile.Username/following">
                 <strong>@profile.FollowingCount</strong> takip
             </a>
+            <a href="/@@@profile.Username/lists">
+                <strong>@listCount</strong> liste
+            </a>
         </nav>
 
         <p class="muted">Katılım: @profile.CreatedAt.ToString("d MMMM yyyy")</p>
@@ -119,11 +122,15 @@ else
     // Takip butonuna basılınca sayaç sunucuya tekrar gitmeden güncellenir.
     private int followerCount;
 
+    // Görünür liste sayısı: sahibine kapalılar da dahil, başkasına yalnızca açıklar.
+    private int listCount;
+
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
         profile = null;
         stats = null;
+        listCount = 0;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
         // Token'sız istekte IsFollowedByViewer her zaman false döner; buton yanlış durumda başlar.
@@ -139,8 +146,14 @@ else
             followerCount = profile?.FollowerCount ?? 0;
 
             if (profile != null)
+            {
                 stats = await client.GetFromJsonAsync<UserStatsDto>(
                     $"api/users/{Uri.EscapeDataString(Username)}/stats");
+
+                var lists = await client.GetFromJsonAsync<List<UserListSummaryDto>>(
+                    $"api/users/{Uri.EscapeDataString(Username)}/lists");
+                listCount = lists?.Count ?? 0;
+            }
         }
         catch
         {

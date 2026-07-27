@@ -1,0 +1,49 @@
+@*
+    Liste kartı: ilk dört posterin mozaiği + başlık ve sayaç.
+    Liste sayfalarında ve (Faz 5'in ilerleyen adımında) keşifte kullanılır.
+*@
+
+<a class="list-card" href="/list/@List.Id">
+    <div class="poster-mosaic">
+        @if (List.PreviewPosterPaths.Count == 0)
+        {
+            <span class="empty-mosaic">boş liste</span>
+        }
+        else
+        {
+            @foreach (var path in List.PreviewPosterPaths)
+            {
+                <img src="@PosterUrl(path)" alt="" />
+            }
+        }
+    </div>
+
+    <div class="info">
+        <h5>
+            @List.Title
+            @if (!List.IsPublic)
+            {
+                <span class="private-badge" title="Yalnızca sen görebilirsin">gizli</span>
+            }
+        </h5>
+        <p class="count">@List.ItemCount dizi</p>
+        @if (ShowOwner)
+        {
+            <p class="owner">@List.OwnerDisplayName</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(List.Description))
+        {
+            <p class="desc">@List.Description</p>
+        }
+    </div>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public UserListSummaryDto List { get; set; } = new();
+
+    /// <summary>Keşif gibi karışık listelerde liste sahibi de gösterilir.</summary>
+    [Parameter] public bool ShowOwner { get; set; }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+}

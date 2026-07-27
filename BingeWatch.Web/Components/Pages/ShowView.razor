@@ -50,6 +50,8 @@ else
                         @(isFavorite ? "★ Favori" : "☆ Favoriye ekle")
                     </button>
                 }
+
+                <AddToListButton TmdbShowId="TmdbId" />
             </div>
 
             @if (progress != null && progress.TotalEpisodes > 0)
