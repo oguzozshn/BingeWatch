@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BingeWatch.API.Controllers
 {
@@ -51,6 +53,7 @@ namespace BingeWatch.API.Controllers
 
         [HttpPut("show/{tmdbId:int}")]
         [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
         public async Task<IActionResult> Upsert(int tmdbId, [FromBody] UpsertReviewRequest request)
         {
             var review = await _reviewService.UpsertAsync(CurrentUserId, tmdbId, request);
@@ -73,6 +76,7 @@ namespace BingeWatch.API.Controllers
 
         [HttpPost("{reviewId:int}/like")]
         [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
         public async Task<IActionResult> Like(int reviewId)
         {
             var state = await _interactionService.LikeAsync(CurrentUserId, reviewId);
@@ -97,6 +101,7 @@ namespace BingeWatch.API.Controllers
 
         [HttpPost("{reviewId:int}/comments")]
         [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
         public async Task<IActionResult> AddComment(int reviewId, [FromBody] AddCommentRequest request)
         {
             var comment = await _interactionService.AddCommentAsync(CurrentUserId, reviewId, request);

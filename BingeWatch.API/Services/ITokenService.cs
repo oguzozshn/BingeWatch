@@ -4,6 +4,7 @@ namespace BingeWatch.API.Services
 {
     public interface ITokenService
     {
-        string CreateToken(AppUser user);
+        /// <summary>Roller token'a claim olarak yazılır; API tarafı yetkilendirmeyi buradan okur.</summary>
+        string CreateToken(AppUser user, IEnumerable<string> roles);
     }
 }

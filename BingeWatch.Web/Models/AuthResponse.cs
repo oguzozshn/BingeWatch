@@ -6,6 +6,9 @@ namespace BingeWatch.Web.Models
         public string UserId { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
+
+        /// <summary>API'den gelen roller; cookie'ye rol claim'i olarak yazılır.</summary>
+        public List<string> Roles { get; set; } = new();
     }
 
     public class UserProfileDto

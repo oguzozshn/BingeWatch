@@ -21,6 +21,10 @@ namespace BingeWatch.API.Services
             if (recipientId == actorId)
                 return;
 
+            // Engel, bildirimi de kapatır: engellediğin biri sana bildirim gönderemez.
+            if (await _context.IsBlockedBetweenAsync(recipientId, actorId))
+                return;
+
             var exists = await _context.Notifications.AnyAsync(n =>
                 n.UserId == recipientId && n.ActorId == actorId && n.Type == type
                 && n.ReviewId == reviewId && n.UserListId == userListId);

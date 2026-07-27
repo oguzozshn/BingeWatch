@@ -1,0 +1,76 @@
+@*
+    Profildeki "Engelle" butonu. Engellemek geri dönüşü olan ama sert bir eylem
+    olduğu için tek tıkla değil, onay adımıyla çalışır.
+
+    Engelledikten sonra karşı profil isteği yapana da kapanır (API 404 döner),
+    bu yüzden buton sayfayı engel listesine yönlendirir — kullanıcı ne olduğunu
+    görsün ve isterse oradan geri alsın.
+*@
+
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<AuthorizeView>
+    <Authorized>
+        @if (!IsViewer)
+        {
+            @if (confirming)
+            {
+                <div class="block-confirm">
+                    <span>@Username engellensin mi? Aradaki takipler kalkar.</span>
+                    <button type="button" class="btn btn-sm btn-danger" disabled="@busy" @onclick="BlockAsync">
+                        @(busy ? "..." : "Engelle")
+                    </button>
+                    <button type="button" class="btn btn-sm btn-link" disabled="@busy"
+                            @onclick="() => confirming = false">
+                        Vazgeç
+                    </button>
+                </div>
+            }
+            else
+            {
+                <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => confirming = true">
+                    Engelle
+                </button>
+            }
+        }
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    [Parameter, EditorRequired] public string Username { get; set; } = string.Empty;
+
+    /// <summary>Profil isteği yapanın kendisine mi ait? Öyleyse buton çizilmez.</summary>
+    [Parameter] public bool IsViewer { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool confirming;
+    private bool busy;
+
+    private async Task BlockAsync()
+    {
+        busy = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var authState = await AuthStateTask!;
+            var token = authState.User.FindFirst("api_token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await client.PostAsync(
+                $"api/users/{Uri.EscapeDataString(Username)}/block", null);
+
+            if (response.IsSuccessStatusCode)
+                Navigation.NavigateTo("/settings/blocks");
+        }
+        finally
+        {
+            busy = false;
+            confirming = false;
+        }
+    }
+}

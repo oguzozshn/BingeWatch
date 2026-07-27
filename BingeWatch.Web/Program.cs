@@ -114,6 +114,10 @@ static async Task SignInAsync(HttpContext http, AuthResponse auth)
         new("display_name", auth.DisplayName),
         new("api_token", auth.Token),
     };
+
+    // Roller cookie'ye de yazılır; <AuthorizeView Roles="Admin"> sunucuya sormadan çalışsın.
+    claims.AddRange(auth.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
     var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
 }

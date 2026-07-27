@@ -20,6 +20,9 @@ namespace BingeWatch.API.Dtos
         public string UserId { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
+
+        /// <summary>Identity rolleri; şimdilik yalnızca "Admin" olabiliyor.</summary>
+        public List<string> Roles { get; set; } = new();
     }
 
     public class UserProfileDto

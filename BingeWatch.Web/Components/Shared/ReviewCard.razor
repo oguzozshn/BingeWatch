@@ -79,6 +79,10 @@
                 <button type="button" class="link-btn" @onclick="() => OnEdit.InvokeAsync(Review)">Düzenle</button>
                 <button type="button" class="link-btn danger" @onclick="() => OnDelete.InvokeAsync(Review)">Sil</button>
             }
+            else
+            {
+                <ReportButton TargetType="ReportTargetType.Review" TargetId="Review.Id" />
+            }
         </div>
 
         @if (commentsOpen)

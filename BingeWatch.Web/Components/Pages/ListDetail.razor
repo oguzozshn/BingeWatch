@@ -53,6 +53,12 @@ else
                                 @onclick="() => confirmingDelete = true">Sil</button>
                     </div>
                 }
+                else
+                {
+                    <div class="owner-actions">
+                        <ReportButton TargetType="ReportTargetType.UserList" TargetId="list.Id" />
+                    </div>
+                }
             </header>
 
             @if (confirmingDelete)
