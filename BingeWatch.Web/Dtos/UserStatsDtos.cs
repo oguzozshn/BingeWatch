@@ -33,4 +33,60 @@ namespace BingeWatch.Web.Dtos
     {
         public bool IsFavorite { get; set; }
     }
+
+    public class UserStatsDetailDto
+    {
+        public string Username { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+
+        public int WatchedEpisodeCount { get; set; }
+        public int TotalMinutes { get; set; }
+        public int EpisodesWithoutRuntime { get; set; }
+
+        public int ShowCount { get; set; }
+        public int ShowsWatchingCount { get; set; }
+        public int ShowsCompletedCount { get; set; }
+        public int ShowsDroppedCount { get; set; }
+        public int ShowsPlannedCount { get; set; }
+        public int ShowsOnHoldCount { get; set; }
+
+        public int ReviewCount { get; set; }
+        public int RatingCount { get; set; }
+        public double? AverageRating { get; set; }
+
+        public List<YearlyStatDto> Yearly { get; set; } = new();
+        public List<GenreStatDto> Genres { get; set; } = new();
+        public List<TopShowDto> TopShows { get; set; } = new();
+        public List<RatingBucketDto> RatingDistribution { get; set; } = new();
+    }
+
+    public class YearlyStatDto
+    {
+        public int Year { get; set; }
+        public int EpisodeCount { get; set; }
+        public int Minutes { get; set; }
+    }
+
+    public class GenreStatDto
+    {
+        public int GenreId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int EpisodeCount { get; set; }
+        public int ShowCount { get; set; }
+    }
+
+    public class TopShowDto
+    {
+        public int TmdbId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? PosterPath { get; set; }
+        public int EpisodeCount { get; set; }
+        public int Minutes { get; set; }
+    }
+
+    public class RatingBucketDto
+    {
+        public decimal Value { get; set; }
+        public int Count { get; set; }
+    }
 }

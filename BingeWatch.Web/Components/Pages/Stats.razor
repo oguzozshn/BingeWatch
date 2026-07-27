@@ -1,0 +1,240 @@
+@page "/@{Username}/stats"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>@Username — istatistikler</PageTitle>
+
+@if (loading)
+{
+    <p class="muted">Yükleniyor...</p>
+}
+else if (stats == null)
+{
+    <p class="muted">Kullanıcı bulunamadı.</p>
+}
+else
+{
+    <div class="stats-page">
+        <header class="page-head">
+            <h3><a href="/@@@stats.Username">@stats.DisplayName</a> istatistikleri</h3>
+        </header>
+
+        <section class="cards">
+            <div class="card">
+                <strong>@stats.WatchedEpisodeCount</strong>
+                <span>izlenen bölüm</span>
+            </div>
+            <div class="card">
+                <strong>@FormatDuration(stats.TotalMinutes)</strong>
+                <span>toplam süre</span>
+                @if (stats.EpisodesWithoutRuntime > 0)
+                {
+                    <small title="Bu bölümlerin süresi TMDb'de yok; toplama girmiyor">
+                        @stats.EpisodesWithoutRuntime bölüm süresiz
+                    </small>
+                }
+            </div>
+            <div class="card">
+                <strong>@stats.ShowCount</strong>
+                <span>dizi</span>
+            </div>
+            <div class="card">
+                <strong>@(stats.AverageRating?.ToString("0.0") ?? "—")</strong>
+                <span>ortalama puan</span>
+            </div>
+            <div class="card">
+                <strong>@stats.RatingCount</strong>
+                <span>puan</span>
+            </div>
+            <div class="card">
+                <strong>@stats.ReviewCount</strong>
+                <span>inceleme</span>
+            </div>
+        </section>
+
+        <section class="status-row">
+            <h5>Diziler</h5>
+            <div class="status-bar">
+                @foreach (var slice in StatusSlices())
+                {
+                    @if (slice.Count > 0)
+                    {
+                        <span class="slice @slice.Key" style="flex: @slice.Count" title="@slice.Label: @slice.Count"></span>
+                    }
+                }
+            </div>
+            <ul class="legend">
+                @foreach (var slice in StatusSlices().Where(s => s.Count > 0))
+                {
+                    <li><span class="dot @slice.Key"></span> @slice.Label <strong>@slice.Count</strong></li>
+                }
+            </ul>
+        </section>
+
+        @if (stats.Yearly.Count > 0)
+        {
+            <section>
+                <h5>Yıllara göre</h5>
+                <div class="yearly">
+                    @foreach (var year in stats.Yearly)
+                    {
+                        <div class="year-row">
+                            <span class="label">@year.Year</span>
+                            <span class="track">
+                                <span class="bar" style="width: @BarWidth(year.EpisodeCount, MaxYearlyEpisodes)"></span>
+                            </span>
+                            <span class="value">
+                                @year.EpisodeCount bölüm
+                                <small>@FormatDuration(year.Minutes)</small>
+                            </span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (stats.Genres.Count > 0)
+        {
+            <section>
+                <h5>Tür dağılımı</h5>
+                <p class="hint">
+                    Bir dizi birden çok türe ait olabilir; bölümler her türe ayrı sayılır.
+                </p>
+                <div class="yearly">
+                    @foreach (var genre in stats.Genres.Take(10))
+                    {
+                        <div class="year-row">
+                            <span class="label wide">@genre.Name</span>
+                            <span class="track">
+                                <span class="bar" style="width: @BarWidth(genre.EpisodeCount, MaxGenreEpisodes)"></span>
+                            </span>
+                            <span class="value">
+                                @genre.EpisodeCount bölüm
+                                <small>@genre.ShowCount dizi</small>
+                            </span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (stats.TopShows.Count > 0)
+        {
+            <section>
+                <h5>En çok izlenenler</h5>
+                <div class="top-shows">
+                    @foreach (var show in stats.TopShows)
+                    {
+                        <a class="top-show" href="/show/@show.TmdbId" @key="show.TmdbId">
+                            @if (string.IsNullOrEmpty(show.PosterPath))
+                            {
+                                <span class="no-poster">@show.Name</span>
+                            }
+                            else
+                            {
+                                <img src="@PosterUrl(show.PosterPath)" alt="@show.Name" loading="lazy" />
+                            }
+                            <span class="title">@show.Name</span>
+                            <span class="meta">@show.EpisodeCount bölüm · @FormatDuration(show.Minutes)</span>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (stats.RatingCount > 0)
+        {
+            <section>
+                <h5>Puan dağılımı</h5>
+                <div class="rating-bars">
+                    @foreach (var bucket in stats.RatingDistribution)
+                    {
+                        <div class="rating-col" title="@bucket.Value.ToString("0.#") yıldız: @bucket.Count">
+                            <span class="rating-bar" style="height: @BarHeight(bucket.Count)"></span>
+                            <span class="rating-label">@bucket.Value.ToString("0.#")</span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Username { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private UserStatsDetailDto? stats;
+    private bool loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        stats = null;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            // Gizli profilini sahibi görebilsin diye token taşınıyor.
+            var authState = await AuthStateTask!;
+            var token = authState.User.FindFirst("api_token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            stats = await client.GetFromJsonAsync<UserStatsDetailDto>(
+                $"api/users/{Uri.EscapeDataString(Username)}/stats/detail");
+        }
+        catch
+        {
+            stats = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private int MaxYearlyEpisodes => stats?.Yearly.Max(y => y.EpisodeCount) ?? 0;
+
+    private int MaxGenreEpisodes => stats?.Genres.Max(g => g.EpisodeCount) ?? 0;
+
+    private int MaxRatingCount => stats?.RatingDistribution.Max(b => b.Count) ?? 0;
+
+    private IEnumerable<(string Key, string Label, int Count)> StatusSlices()
+    {
+        if (stats == null)
+            yield break;
+
+        yield return ("watching", "İzliyorum", stats.ShowsWatchingCount);
+        yield return ("completed", "Bitirdim", stats.ShowsCompletedCount);
+        yield return ("planned", "İzleyeceğim", stats.ShowsPlannedCount);
+        yield return ("onhold", "Ertelendi", stats.ShowsOnHoldCount);
+        yield return ("dropped", "Bıraktım", stats.ShowsDroppedCount);
+    }
+
+    /// <summary>Çubuklar en yoğun satıra oranlanır; sıfır olmayan her satır görünür kalsın diye taban %4.</summary>
+    private static string BarWidth(int value, int max) =>
+        max == 0 ? "0%" : $"{Math.Max(4, value * 100 / max)}%";
+
+    private string BarHeight(int value) =>
+        MaxRatingCount == 0 ? "0%" : $"{Math.Max(3, value * 100 / MaxRatingCount)}%";
+
+    private static string FormatDuration(int minutes)
+    {
+        if (minutes < 60)
+            return $"{minutes} dk";
+
+        var hours = minutes / 60;
+        if (hours < 24)
+            return $"{hours} sa {minutes % 60} dk";
+
+        return $"{hours / 24} gün {hours % 24} sa";
+    }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+}

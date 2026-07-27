@@ -97,7 +97,17 @@
     color: var(--bs-secondary-color, #9aa1ab);
 }
 
+/*
+   Çubuk kendi rayının içinde: yüzde genişlik doğrudan flex satırında verilirse
+   flex-shrink çubukları orantısız sıkıştırıp farkları siliyordu.
+*/
+.track {
+    flex: 1;
+    min-width: 0;
+}
+
 .bar {
+    display: block;
     height: 10px;
     border-radius: 999px;
     background: var(--bs-link-color, #4da3ff);
@@ -106,4 +116,18 @@
 .count {
     font-size: 0.78rem;
     color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.stats-link {
+    margin: 0 0 0.75rem;
+    font-size: 0.85rem;
+}
+
+.stats-link a {
+    color: inherit;
+    opacity: 0.75;
+}
+
+.stats-link a:hover {
+    opacity: 1;
 }

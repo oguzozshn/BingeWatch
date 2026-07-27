@@ -59,6 +59,14 @@ namespace BingeWatch.API.Controllers
             return stats == null ? NotFound() : Ok(stats);
         }
 
+        /// <summary>İstatistik sayfasının tamamı; profil bloğundan ayrı ve daha ağır.</summary>
+        [HttpGet("{username}/stats/detail")]
+        public async Task<IActionResult> GetDetailedStats(string username)
+        {
+            var stats = await _statsService.GetDetailedStatsAsync(username, ViewerId);
+            return stats == null ? NotFound() : Ok(stats);
+        }
+
         [HttpGet("{username}/followers")]
         public async Task<IActionResult> GetFollowers(string username)
         {
