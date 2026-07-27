@@ -4,7 +4,10 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 
-<PageTitle>@(list?.Title ?? "Liste")</PageTitle>
+@* Liste sayfasi disariya paylasilan bir sayfa; kart onizlemesi olsun. *@
+<PageMeta Title="@(list?.Title ?? "Liste")"
+          Description="@ListDescription"
+          ImageUrl="@ListImageUrl" />
 
 @if (loading)
 {
@@ -322,4 +325,21 @@ else
 
     private static string PosterUrl(string? path) =>
         string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+
+    /// <summary>Paylaşım açıklaması: listenin kendi açıklaması, yoksa sahibi + kaç dizi.</summary>
+    private string ListDescription => list == null
+        ? string.Empty
+        : !string.IsNullOrWhiteSpace(list.Description)
+            ? list.Description
+            : $"{list.OwnerDisplayName} tarafından derlenen {list.ItemCount} dizilik liste.";
+
+    /// <summary>Önizleme görseli listenin ilk posteri; boş listede görsel yok.</summary>
+    private string? ListImageUrl
+    {
+        get
+        {
+            var poster = list?.PreviewPosterPaths.FirstOrDefault();
+            return string.IsNullOrEmpty(poster) ? null : $"https://image.tmdb.org/t/p/w500{poster}";
+        }
+    }
 }

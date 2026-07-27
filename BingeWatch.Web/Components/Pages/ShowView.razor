@@ -1,8 +1,19 @@
 ﻿@page "/show/{TmdbId:int}"
-@attribute [Authorize]
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+@*
+    Dizi sayfası bilerek herkese açık: ürünün en çok aranan ve dışarıdan
+    bağlantı alan sayfası bu. [Authorize] arkasındayken arama motoru hiçbir
+    dizi sayfasını göremiyordu (ROADMAP §6: "dizi ve inceleme sayfaları SEO
+    için prerender edilmeli" — kimlik duvarı bunu baştan imkânsız kılıyordu).
+
+    Kişisel katman (puanın, ilerlemen, watchlist, favori, arkadaş puanları)
+    <AuthorizeView> arkasında; anonim ziyaretçi diziyi görür, kendi verisini
+    görmez. İlgili API uçları zaten [Authorize] — istekler de atılmıyor.
+*@
 
 @if (loading)
 {
@@ -14,7 +25,12 @@ else if (show == null)
 }
 else
 {
-    <PageTitle>@show.Name</PageTitle>
+    @* schema.org TVSeries JSON-LD'si PageMeta üzerinden basılıyor: aynı sayfada
+       ikinci bir <HeadContent> ilkini eziyor, ayrı blokta yazınca çıktıya hiç
+       düşmüyordu. Botlar JS çalıştırmadığı için prerender'da olması şart. *@
+    <PageMeta Title="@MetaTitle" Description="@MetaDescription"
+              ImageUrl="@SocialImageUrl" OgType="video.tv_show"
+              JsonLd="@StructuredData" />
 
     <div class="show-container">
         <div class="left-panel">
@@ -31,37 +47,48 @@ else
                 </p>
             </div>
 
-            <div class="my-rating">
-                <span class="my-rating-label">Puanın</span>
-                <StarRating Value="myRatings.ShowRating" ShowValue="true" Size="lg"
-                            AriaLabel="Diziye puan ver"
-                            ValueChanged="RateShowAsync" />
-            </div>
+            <AuthorizeView>
+                <Authorized>
+                    <div class="my-rating">
+                        <span class="my-rating-label">Puanın</span>
+                        <StarRating Value="myRatings.ShowRating" ShowValue="true" Size="lg"
+                                    AriaLabel="Diziye puan ver"
+                                    ValueChanged="RateShowAsync" />
+                    </div>
 
-            <div class="list-actions">
-                <button class="watchlist-btn" @onclick="ToggleWatchlist">
-                    @(IsInWatchlist ? "❤️" : "♡")
-                </button>
+                    <div class="list-actions">
+                        <button type="button" class="watchlist-btn" @onclick="ToggleWatchlist"
+                                aria-label="@(IsInWatchlist ? "Watchlist'ten çıkar" : "Watchlist'e ekle")">
+                            <span aria-hidden="true">@(IsInWatchlist ? "❤️" : "♡")</span>
+                        </button>
 
-                @if (IsInWatchlist)
-                {
-                    <button class="favorite-btn @(isFavorite ? "on" : "")" @onclick="ToggleFavoriteAsync"
-                            title="Profilinde favori olarak göster">
-                        @(isFavorite ? "★ Favori" : "☆ Favoriye ekle")
-                    </button>
-                }
+                        @if (IsInWatchlist)
+                        {
+                            <button type="button" class="favorite-btn @(isFavorite ? "on" : "")"
+                                    @onclick="ToggleFavoriteAsync"
+                                    title="Profilinde favori olarak göster">
+                                @(isFavorite ? "★ Favori" : "☆ Favoriye ekle")
+                            </button>
+                        }
 
-                <AddToListButton TmdbShowId="TmdbId" />
-            </div>
+                        <AddToListButton TmdbShowId="TmdbId" />
+                    </div>
 
-            @if (progress != null && progress.TotalEpisodes > 0)
-            {
-                var pct = (int)Math.Round(100.0 * progress.WatchedEpisodes / progress.TotalEpisodes);
-                <div class="progress-block">
-                    <div class="progress-bar"><div class="progress-fill" style="width:@(pct)%"></div></div>
-                    <p class="progress-label">@progress.WatchedEpisodes / @progress.TotalEpisodes bölüm izlendi (@pct%)</p>
-                </div>
-            }
+                    @if (progress != null && progress.TotalEpisodes > 0)
+                    {
+                        var pct = (int)Math.Round(100.0 * progress.WatchedEpisodes / progress.TotalEpisodes);
+                        <div class="progress-block">
+                            <div class="progress-bar"><div class="progress-fill" style="width:@(pct)%"></div></div>
+                            <p class="progress-label">@progress.WatchedEpisodes / @progress.TotalEpisodes bölüm izlendi (@pct%)</p>
+                        </div>
+                    }
+                </Authorized>
+                <NotAuthorized>
+                    <p class="signin-nudge">
+                        <a href="/login">Giriş yap</a> — bölüm bölüm takip et, puanla, listene ekle.
+                    </p>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
 
         <div class="right-panel">
@@ -120,19 +147,23 @@ else
                         <h5 class="section-title">Bölüm ısı haritası</h5>
                         <EpisodeHeatmap Seasons="show.Seasons" PersonalRatings="myRatings.EpisodeRatings" />
 
-                        <h5 class="section-title">Sezon puanların</h5>
-                        <div class="season-ratings">
-                            @foreach (var season in show.Seasons)
-                            {
-                                var s = season;
-                                <div class="season-rating-row">
-                                    <span>@SeasonLabel(s)</span>
-                                    <StarRating Value="@SeasonRating(s.SeasonNumber)" Size="sm" ShowValue="true"
-                                                AriaLabel="@($"{SeasonLabel(s)} puanı")"
-                                                ValueChanged="v => RateSeasonAsync(s.SeasonNumber, v)" />
+                        <AuthorizeView>
+                            <Authorized>
+                                <h5 class="section-title">Sezon puanların</h5>
+                                <div class="season-ratings">
+                                    @foreach (var season in show.Seasons)
+                                    {
+                                        var s = season;
+                                        <div class="season-rating-row">
+                                            <span>@SeasonLabel(s)</span>
+                                            <StarRating Value="@SeasonRating(s.SeasonNumber)" Size="sm" ShowValue="true"
+                                                        AriaLabel="@($"{SeasonLabel(s)} puanı")"
+                                                        ValueChanged="v => RateSeasonAsync(s.SeasonNumber, v)" />
+                                        </div>
+                                    }
                                 </div>
-                            }
-                        </div>
+                            </Authorized>
+                        </AuthorizeView>
                     </section>
                     break;
 
@@ -151,7 +182,12 @@ else
                                         <h4>@SeasonLabel(s)</h4>
                                         <span class="season-count">@WatchedInSeason(s)/@s.Episodes.Count</span>
                                     </button>
-                                    <button class="season-action" @onclick="() => MarkSeasonWatched(s)">Sezonu izledim</button>
+                                    <AuthorizeView>
+                                        <Authorized>
+                                            <button type="button" class="season-action"
+                                                    @onclick="() => MarkSeasonWatched(s)">Sezonu izledim</button>
+                                        </Authorized>
+                                    </AuthorizeView>
                                 </div>
 
                                 @if (expanded)
@@ -162,23 +198,36 @@ else
                                             var ep = episode;
                                             var unaired = ep.AirDate.HasValue && ep.AirDate.Value.Date > DateTime.UtcNow.Date;
                                             <div class="episode-row @(ep.Watched ? "watched" : "") @(unaired ? "unaired" : "")">
-                                                <label class="episode-checkbox">
-                                                    <input type="checkbox" checked="@ep.Watched" disabled="@unaired"
-                                                           @onchange="e => MarkEpisodeWatched(ep, (bool)e.Value!)" />
-                                                    <span>@ep.EpisodeNumber. @ep.Name</span>
-                                                </label>
+                                                <AuthorizeView>
+                                                    <Authorized>
+                                                        <label class="episode-checkbox">
+                                                            <input type="checkbox" checked="@ep.Watched" disabled="@unaired"
+                                                                   @onchange="e => MarkEpisodeWatched(ep, (bool)e.Value!)" />
+                                                            <span>@ep.EpisodeNumber. @ep.Name</span>
+                                                        </label>
+                                                    </Authorized>
+                                                    <NotAuthorized>
+                                                        @* Anonim ziyaretçi bölüm listesini görür ama işaretleyemez. *@
+                                                        <span class="episode-title">@ep.EpisodeNumber. @ep.Name</span>
+                                                    </NotAuthorized>
+                                                </AuthorizeView>
 
                                                 <div class="episode-actions">
-                                                    @if (!unaired)
-                                                    {
-                                                        <StarRating Value="@EpisodeRating(ep.Id)" Size="sm"
-                                                                    AriaLabel="@($"{ep.EpisodeNumber}. bölüme puan ver")"
-                                                                    ValueChanged="v => RateEpisodeAsync(ep.Id, v)" />
-                                                    }
-                                                    @if (!ep.Watched && !unaired)
-                                                    {
-                                                        <button class="up-to-btn" @onclick="() => MarkWatchedUpTo(ep)">buraya kadar</button>
-                                                    }
+                                                    <AuthorizeView>
+                                                        <Authorized>
+                                                            @if (!unaired)
+                                                            {
+                                                                <StarRating Value="@EpisodeRating(ep.Id)" Size="sm"
+                                                                            AriaLabel="@($"{ep.EpisodeNumber}. bölüme puan ver")"
+                                                                            ValueChanged="v => RateEpisodeAsync(ep.Id, v)" />
+                                                            }
+                                                            @if (!ep.Watched && !unaired)
+                                                            {
+                                                                <button type="button" class="up-to-btn"
+                                                                        @onclick="() => MarkWatchedUpTo(ep)">buraya kadar</button>
+                                                            }
+                                                        </Authorized>
+                                                    </AuthorizeView>
                                                     @if (unaired && ep.AirDate.HasValue)
                                                     {
                                                         <span class="air-date">@ep.AirDate.Value.ToString("d MMM yyyy")</span>
@@ -196,6 +245,8 @@ else
                 case Tab.Reviews:
                     <section class="tab-panel" id="show-tabpanel" role="tabpanel"
                              aria-labelledby="@TabId(activeTab)" tabindex="0">
+                        <AuthorizeView>
+                        <Authorized>
                         <div class="review-form">
                             <div class="review-form-head">
                                 <h5 class="section-title">@(editingId == null ? "İnceleme yaz" : "İncelemeni düzenle")</h5>
@@ -233,10 +284,12 @@ else
                                 </button>
                             </div>
                         </div>
+                        </Authorized>
+                        </AuthorizeView>
 
                         @if (reviews.Count == 0)
                         {
-                            <p class="muted">Bu diziye henüz inceleme yazılmamış. İlk sen yaz.</p>
+                            <p class="muted">Bu diziye henüz inceleme yazılmamış.</p>
                         }
                         else
                         {
@@ -377,15 +430,22 @@ else
 
         var api = await GetApiAsync();
 
+        // Dizi bilgisi ve puan özeti anonime de açık (AllowAnonymous).
         show = await api.GetFromJsonAsync<ShowDetailDto>($"api/shows/{TmdbId}");
         if (show != null)
         {
-            progress = await api.GetFromJsonAsync<ShowProgressDto>($"api/shows/{TmdbId}/progress");
-            IsInWatchlist = await api.GetFromJsonAsync<bool>($"api/watchlist/status?seriesId={TmdbId}");
-            myRatings = await api.GetFromJsonAsync<ShowRatingsDto>($"api/shows/{TmdbId}/ratings/mine") ?? new();
             summary = await api.GetFromJsonAsync<RatingSummaryDto>($"api/shows/{TmdbId}/ratings/summary");
-            friendRatings = await api.GetFromJsonAsync<FriendRatingsDto>($"api/shows/{TmdbId}/ratings/friends");
-            isFavorite = IsInWatchlist && await api.GetFromJsonAsync<bool>($"api/watchlist/{TmdbId}/favorite");
+
+            // Kişisel katman yalnızca giriş yapmışta çekiliyor; anonim istekte
+            // bu uçlar 401 döner ve GetFromJsonAsync fırlatırdı.
+            if (currentUserId != null)
+            {
+                progress = await api.GetFromJsonAsync<ShowProgressDto>($"api/shows/{TmdbId}/progress");
+                IsInWatchlist = await api.GetFromJsonAsync<bool>($"api/watchlist/status?seriesId={TmdbId}");
+                myRatings = await api.GetFromJsonAsync<ShowRatingsDto>($"api/shows/{TmdbId}/ratings/mine") ?? new();
+                friendRatings = await api.GetFromJsonAsync<FriendRatingsDto>($"api/shows/{TmdbId}/ratings/friends");
+                isFavorite = IsInWatchlist && await api.GetFromJsonAsync<bool>($"api/watchlist/{TmdbId}/favorite");
+            }
 
             // İzlenmekte olan sezon açık başlasın: ilk yarım kalmış sezon.
             var current = show.Seasons.FirstOrDefault(s => s.Episodes.Any(e => !e.Watched))
@@ -417,6 +477,73 @@ else
 
         // Katalog API'si göreli yol döner; arama sonuçlarında tam URL gelebilir.
         return path.StartsWith("http") ? path : $"https://image.tmdb.org/t/p/w500{path}";
+    }
+
+    // ----- SEO ---------------------------------------------------------------
+
+    private string MetaTitle =>
+        show!.FirstAirDate.HasValue ? $"{show.Name} ({show.FirstAirDate.Value.Year})" : show.Name;
+
+    /// <summary>
+    /// Dizinin özeti; yoksa alanlardan bir cümle kuruluyor. Boş açıklama arama
+    /// sonucunda sayfayı adsız bırakıyor.
+    /// </summary>
+    private string MetaDescription =>
+        !string.IsNullOrWhiteSpace(show!.Overview)
+            ? show.Overview
+            : $"{show.Name} — {show.Seasons.Count} sezon, " +
+              $"{show.Seasons.Sum(s => s.Episodes.Count)} bölüm. BingeWatch'ta bölüm bölüm takip et, puanla, incele.";
+
+    /// <summary>Paylaşım görseli mutlak olmalı; botlar göreli yolu çözemiyor.</summary>
+    private string? SocialImageUrl => string.IsNullOrEmpty(show!.BackdropPath ?? show.PosterPath)
+        ? null
+        : $"https://image.tmdb.org/t/p/w780{show.BackdropPath ?? show.PosterPath}";
+
+    private string StructuredData
+    {
+        get
+        {
+            var data = new Dictionary<string, object?>
+            {
+                ["@context"] = "https://schema.org",
+                ["@type"] = "TVSeries",
+                ["name"] = show!.Name,
+                ["url"] = Navigation.Uri,
+                ["numberOfSeasons"] = show.Seasons.Count,
+                ["numberOfEpisodes"] = show.Seasons.Sum(s => s.Episodes.Count)
+            };
+
+            if (!string.IsNullOrWhiteSpace(show.Overview))
+                data["description"] = show.Overview;
+
+            if (!string.IsNullOrEmpty(show.PosterPath))
+                data["image"] = $"https://image.tmdb.org/t/p/w500{show.PosterPath}";
+
+            if (show.FirstAirDate.HasValue)
+                data["datePublished"] = show.FirstAirDate.Value.ToString("yyyy-MM-dd");
+
+            // Puan bloğu yalnızca gerçek oy varken; oysuz aggregateRating
+            // yapılandırılmış veri doğrulamasında hata veriyor.
+            if (show.VoteCount > 0)
+            {
+                data["aggregateRating"] = new Dictionary<string, object>
+                {
+                    ["@type"] = "AggregateRating",
+                    ["ratingValue"] = Math.Round(show.VoteAverage, 1),
+                    ["ratingCount"] = show.VoteCount,
+                    ["bestRating"] = 10,
+                    ["worstRating"] = 0
+                };
+            }
+
+            // </script> kaçışı: özet metninde geçerse sayfayı bozardı.
+            return System.Text.Json.JsonSerializer
+                .Serialize(data, new System.Text.Json.JsonSerializerOptions
+                {
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                })
+                .Replace("<", "\\u003c");
+        }
     }
 
     private static string SeasonLabel(SeasonDetailDto season) =>
