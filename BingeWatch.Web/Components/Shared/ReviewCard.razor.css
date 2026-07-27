@@ -97,9 +97,17 @@
 
 .actions {
     display: flex;
+    align-items: center;
     gap: 12px;
     margin-top: 10px;
 }
+
+.stat {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.link-btn.liked { color: #ff6b8a; }
 
 .link-btn {
     background: none;

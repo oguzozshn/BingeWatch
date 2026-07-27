@@ -1,0 +1,105 @@
+@page "/notifications"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Bildirimler</PageTitle>
+
+<div class="notifications-page">
+    <header class="page-head">
+        <h3>Bildirimler</h3>
+        @if (notifications?.Any(n => !n.IsRead) == true)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    disabled="@marking" @onclick="MarkAllReadAsync">
+                Tümünü okundu işaretle
+            </button>
+        }
+    </header>
+
+    @if (notifications == null)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (notifications.Count == 0)
+    {
+        <p class="muted">Henüz bildirimin yok.</p>
+    }
+    else
+    {
+        <ul class="list">
+            @foreach (var notification in notifications)
+            {
+                <li class="@(notification.IsRead ? "row-item" : "row-item unread")">
+                    <a class="actor" href="@ProfileUrl(notification.ActorUsername)">@notification.ActorDisplayName</a>
+                    <span class="text">@Sentence(notification)</span>
+                    @if (notification.TmdbShowId.HasValue)
+                    {
+                        <a class="show" href="/show/@notification.TmdbShowId">@notification.ShowName</a>
+                    }
+                    <time datetime="@notification.CreatedAt.ToString("o")">
+                        @notification.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")
+                    </time>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private List<NotificationDto>? notifications;
+    private bool marking;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var api = await GetApiAsync();
+        notifications = await api.GetFromJsonAsync<List<NotificationDto>>("api/notifications") ?? new();
+    }
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        marking = true;
+        try
+        {
+            var api = await GetApiAsync();
+            var response = await api.PostAsync("api/notifications/read", null);
+            if (!response.IsSuccessStatusCode || notifications == null)
+                return;
+
+            foreach (var notification in notifications)
+                notification.IsRead = true;
+        }
+        finally
+        {
+            marking = false;
+        }
+    }
+
+    private static string Sentence(NotificationDto notification) => notification.Type switch
+    {
+        NotificationType.Followed => "seni takip etmeye başladı",
+        NotificationType.ReviewLiked => notification.SeasonNumber.HasValue
+            ? $"{notification.SeasonNumber}. sezon incelemeni beğendi —"
+            : "incelemeni beğendi —",
+        _ => notification.SeasonNumber.HasValue
+            ? $"{notification.SeasonNumber}. sezon incelemene yorum yazdı —"
+            : "incelemene yorum yazdı —"
+    };
+
+    private static string ProfileUrl(string username) => "/" + '@' + username;
+}

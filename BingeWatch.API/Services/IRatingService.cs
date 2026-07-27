@@ -18,5 +18,11 @@ namespace BingeWatch.API.Services
 
         /// <summary>Dizinin tüm kullanıcılar üzerinden ortalaması ve dağılım histogramı.</summary>
         Task<RatingSummaryDto?> GetShowSummaryAsync(int showTmdbId);
+
+        /// <summary>
+        /// Kullanıcının takip ettiklerinin bu diziye verdiği puanlar. Yalnızca dizi
+        /// seviyesindeki puanlar sayılır; sezon/bölüm puanları karta girmez.
+        /// </summary>
+        Task<FriendRatingsDto?> GetFriendRatingsAsync(string userId, int showTmdbId);
     }
 }

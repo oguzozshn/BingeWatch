@@ -43,6 +43,66 @@ else
         </nav>
 
         <p class="muted">Katılım: @profile.CreatedAt.ToString("d MMMM yyyy")</p>
+
+        @if (stats != null)
+        {
+            <section class="stat-cards">
+                <div class="stat-card">
+                    <strong>@stats.WatchedEpisodeCount</strong>
+                    <span>bölüm</span>
+                </div>
+                <div class="stat-card">
+                    <strong>@stats.ShowsCompletedCount</strong>
+                    <span>bitirilen dizi</span>
+                </div>
+                <div class="stat-card">
+                    <strong>@stats.ShowsWatchingCount</strong>
+                    <span>izleniyor</span>
+                </div>
+                <div class="stat-card">
+                    <strong>@(stats.AverageRating?.ToString("0.0") ?? "—")</strong>
+                    <span>ortalama puan</span>
+                </div>
+                <div class="stat-card">
+                    <strong>@stats.ReviewCount</strong>
+                    <span>inceleme</span>
+                </div>
+                <div class="stat-card">
+                    <strong>@FormatHours(stats.TotalMinutes)</strong>
+                    <span>izlenen süre</span>
+                </div>
+            </section>
+
+            @if (stats.FavoriteShows.Count > 0)
+            {
+                <section class="favorites">
+                    <h5>Favoriler</h5>
+                    <div class="poster-row">
+                        @foreach (var show in stats.FavoriteShows.Take(4))
+                        {
+                            <a href="/show/@show.TmdbId" title="@show.Name">
+                                <img src="@PosterUrl(show.PosterPath)" alt="@show.Name" />
+                            </a>
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (stats.YearlyCounts.Count > 0)
+            {
+                <section class="yearly">
+                    <h5>Yıllara göre</h5>
+                    @foreach (var year in stats.YearlyCounts)
+                    {
+                        <div class="year-row">
+                            <span class="year">@year.Year</span>
+                            <span class="bar" style="width: @BarWidth(year.EpisodeCount)"></span>
+                            <span class="count">@year.EpisodeCount</span>
+                        </div>
+                    }
+                </section>
+            }
+        }
     </div>
 }
 
@@ -53,6 +113,7 @@ else
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
     private UserProfileDto? profile;
+    private UserStatsDto? stats;
     private bool loading = true;
 
     // Takip butonuna basılınca sayaç sunucuya tekrar gitmeden güncellenir.
@@ -62,6 +123,7 @@ else
     {
         loading = true;
         profile = null;
+        stats = null;
 
         var client = HttpClientFactory.CreateClient("ApiClient");
         // Token'sız istekte IsFollowedByViewer her zaman false döner; buton yanlış durumda başlar.
@@ -75,6 +137,10 @@ else
         {
             profile = await client.GetFromJsonAsync<UserProfileDto>($"api/users/{Uri.EscapeDataString(Username)}");
             followerCount = profile?.FollowerCount ?? 0;
+
+            if (profile != null)
+                stats = await client.GetFromJsonAsync<UserStatsDto>(
+                    $"api/users/{Uri.EscapeDataString(Username)}/stats");
         }
         catch
         {
@@ -87,4 +153,20 @@ else
     }
 
     private void OnFollowChanged(bool isFollowing) => followerCount += isFollowing ? 1 : -1;
+
+    private static string FormatHours(int minutes) =>
+        minutes < 60 ? $"{minutes} dk" : $"{minutes / 60} sa";
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+
+    /// <summary>Yıllık çubukların genişliği en yoğun yıla göre oranlanır.</summary>
+    private string BarWidth(int count)
+    {
+        var max = stats?.YearlyCounts.Max(y => y.EpisodeCount) ?? 0;
+        if (max == 0)
+            return "0%";
+
+        return $"{Math.Max(4, count * 100 / max)}%";
+    }
 }

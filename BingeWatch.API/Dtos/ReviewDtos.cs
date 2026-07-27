@@ -30,6 +30,13 @@ namespace BingeWatch.API.Dtos
         /// <summary>Yazarın aynı hedefe verdiği puan (varsa) — inceleme kartında gösterilir.</summary>
         public decimal? Rating { get; set; }
 
+        public int LikeCount { get; set; }
+
+        /// <summary>İsteği yapan bu incelemeyi beğenmiş mi? Anonimde <c>false</c>.</summary>
+        public bool LikedByViewer { get; set; }
+
+        public int CommentCount { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

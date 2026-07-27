@@ -13,14 +13,17 @@ namespace BingeWatch.API.Services
         /// <summary>İncelemeyi siler. Kayıt yoksa ya da sahibi değilse <c>false</c>.</summary>
         Task<bool> DeleteAsync(string userId, int reviewId);
 
-        /// <summary>Bir dizinin incelemeleri, yeniden eskiye.</summary>
-        Task<List<ReviewDto>> GetForShowAsync(int showTmdbId, int? seasonNumber = null);
+        /// <summary>
+        /// Bir dizinin incelemeleri, yeniden eskiye. <paramref name="viewerId"/> beğeni
+        /// durumunu doldurmak için; anonimde <c>null</c> geçilir.
+        /// </summary>
+        Task<List<ReviewDto>> GetForShowAsync(int showTmdbId, int? seasonNumber = null, string? viewerId = null);
 
         /// <summary>Kullanıcının bu dizideki kendi incelemeleri (dizi geneli + sezonlar).</summary>
         Task<List<ReviewDto>> GetOwnForShowAsync(string userId, int showTmdbId);
 
         /// <summary>Genel inceleme akışı (<c>/reviews</c>).</summary>
-        Task<List<ReviewDto>> GetFeedAsync(int skip, int take, ReviewSort sort);
+        Task<List<ReviewDto>> GetFeedAsync(int skip, int take, ReviewSort sort, string? viewerId = null);
     }
 
     public enum ReviewSort

@@ -38,7 +38,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedUsersAsync(context, "ali", "veli");
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
 
             var result = await service.FollowAsync("ali", "veli");
 
@@ -53,7 +53,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedUsersAsync(context, "ali", "veli");
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
 
             await service.FollowAsync("ali", "veli");
             var second = await service.FollowAsync("ali", "veli");
@@ -67,7 +67,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedUsersAsync(context, "ali");
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
 
             var result = await service.FollowAsync("ali", "ali");
 
@@ -80,7 +80,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedUsersAsync(context, "ali");
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
 
             var result = await service.FollowAsync("ali", "kimse");
 
@@ -95,7 +95,7 @@ namespace BingeWatch.Tests
             var target = await context.Users.FirstAsync(u => u.Id == "gizli");
             target.IsPrivate = true;
             await context.SaveChangesAsync();
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
 
             var result = await service.FollowAsync("ali", "gizli");
 
@@ -107,7 +107,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedUsersAsync(context, "ali", "veli");
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
             await service.FollowAsync("ali", "veli");
 
             Assert.Equal(FollowResult.Ok, await service.UnfollowAsync("ali", "veli"));
@@ -120,7 +120,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedUsersAsync(context, "ali", "veli", "ayse");
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
 
             // ayse ve veli, ali'yi takip ediyor; sıralama en yeniden eskiye.
             context.Follows.Add(new Follow
@@ -148,7 +148,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedUsersAsync(context, "ali", "veli");
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
             await service.FollowAsync("ali", "veli");
 
             var following = await service.GetFollowingAsync("ali", viewerId: null);
@@ -168,7 +168,7 @@ namespace BingeWatch.Tests
             var target = await context.Users.FirstAsync(u => u.Id == "gizli");
             target.IsPrivate = true;
             await context.SaveChangesAsync();
-            var service = new FollowService(context, new ActivityService(context));
+            var service = new FollowService(context, new ActivityService(context), new NotificationService(context));
 
             Assert.Null(await service.GetFollowersAsync("gizli", "ali"));
             Assert.NotNull(await service.GetFollowersAsync("gizli", "gizli"));

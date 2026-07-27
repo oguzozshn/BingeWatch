@@ -41,4 +41,21 @@ namespace BingeWatch.Web.Dtos
         public int Count { get; set; }
         public Dictionary<string, int> Distribution { get; set; } = new();
     }
+
+    /// <summary>Dizi sayfasındaki "takip ettiklerinin puanı" kartı.</summary>
+    public class FriendRatingsDto
+    {
+        public int TmdbId { get; set; }
+        public double? Average { get; set; }
+        public int Count { get; set; }
+        public List<FriendRatingDto> Ratings { get; set; } = new();
+    }
+
+    public class FriendRatingDto
+    {
+        public string Username { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string? AvatarUrl { get; set; }
+        public decimal Value { get; set; }
+    }
 }

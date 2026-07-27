@@ -150,6 +150,50 @@ namespace BingeWatch.API.Services
             };
         }
 
+        public async Task<FriendRatingsDto?> GetFriendRatingsAsync(string userId, int showTmdbId)
+        {
+            var show = await _context.Shows.FirstOrDefaultAsync(s => s.TmdbId == showTmdbId);
+            if (show == null)
+                return null;
+
+            var followeeIds = await _context.Follows
+                .Where(f => f.FollowerId == userId)
+                .Select(f => f.FolloweeId)
+                .ToListAsync();
+
+            if (followeeIds.Count == 0)
+                return new FriendRatingsDto { TmdbId = show.TmdbId };
+
+            var rows = await _context.Ratings
+                .Where(r => r.TargetType == RatingTargetType.Show && r.TargetId == show.Id)
+                .Where(r => followeeIds.Contains(r.UserId))
+                .Select(r => new
+                {
+                    r.Value,
+                    r.User!.UserName,
+                    r.User.DisplayName,
+                    r.User.AvatarUrl
+                })
+                .ToListAsync();
+
+            return new FriendRatingsDto
+            {
+                TmdbId = show.TmdbId,
+                Count = rows.Count,
+                Average = rows.Count == 0 ? null : (double)rows.Average(r => r.Value),
+                Ratings = rows
+                    .OrderByDescending(r => r.Value)
+                    .Select(r => new FriendRatingDto
+                    {
+                        Username = r.UserName ?? string.Empty,
+                        DisplayName = string.IsNullOrWhiteSpace(r.DisplayName) ? r.UserName ?? string.Empty : r.DisplayName,
+                        AvatarUrl = r.AvatarUrl,
+                        Value = r.Value
+                    })
+                    .ToList()
+            };
+        }
+
         /// <summary>
         /// İsteğin hedefini yerel katalog id'sine çevirir; dizinin kendi id'sini de döner
         /// (aktivite olayı dizi bazında yazılıyor). Hedef bulunamazsa <c>null</c>; böylece

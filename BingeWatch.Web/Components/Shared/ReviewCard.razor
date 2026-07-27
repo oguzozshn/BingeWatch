@@ -4,7 +4,12 @@
 
     Spoiler bayrağı işaretliyse gövde varsayılan olarak gizlenir — kullanıcı
     bilerek açmalı.
+
+    Beğeni ve yorum sayıları DTO ile birlikte gelir; yorumlar ancak kullanıcı
+    açtığında çekilir (ReviewComments).
 *@
+
+@inject IHttpClientFactory HttpClientFactory
 
 <article class="review">
     @if (ShowContext)
@@ -52,12 +57,33 @@
             <p class="text">@Review.Body</p>
         }
 
-        @if (CanEdit)
-        {
-            <div class="actions">
+        <div class="actions">
+            <AuthorizeView>
+                <Authorized>
+                    <button type="button" class="@(liked ? "link-btn liked" : "link-btn")"
+                            disabled="@likeBusy" @onclick="ToggleLikeAsync">
+                        @(liked ? "♥" : "♡") @likeCount
+                    </button>
+                </Authorized>
+                <NotAuthorized>
+                    <span class="stat">♡ @likeCount</span>
+                </NotAuthorized>
+            </AuthorizeView>
+
+            <button type="button" class="link-btn" @onclick="ToggleComments">
+                @(commentsOpen ? "Yorumları gizle" : $"{commentCount} yorum")
+            </button>
+
+            @if (CanEdit)
+            {
                 <button type="button" class="link-btn" @onclick="() => OnEdit.InvokeAsync(Review)">Düzenle</button>
                 <button type="button" class="link-btn danger" @onclick="() => OnDelete.InvokeAsync(Review)">Sil</button>
-            </div>
+            }
+        </div>
+
+        @if (commentsOpen)
+        {
+            <ReviewComments ReviewId="Review.Id" OnCountChanged="OnCommentCountChanged" />
         }
     </div>
 </article>
@@ -73,7 +99,67 @@
     [Parameter] public EventCallback<ReviewDto> OnEdit { get; set; }
     [Parameter] public EventCallback<ReviewDto> OnDelete { get; set; }
 
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
     private bool spoilerRevealed;
+
+    // Beğeni/yorum durumu tıklamada yerel olarak güncellenir; liste yeniden çekilmez.
+    private bool liked;
+    private int likeCount;
+    private int commentCount;
+    private bool likeBusy;
+    private bool commentsOpen;
+
+    private int renderedReviewId;
+
+    protected override void OnParametersSet()
+    {
+        // Aynı kart farklı bir incelemeye bağlandığında (liste sanallaştırma) durumu tazele.
+        if (renderedReviewId == Review.Id)
+            return;
+
+        renderedReviewId = Review.Id;
+        liked = Review.LikedByViewer;
+        likeCount = Review.LikeCount;
+        commentCount = Review.CommentCount;
+        commentsOpen = false;
+        spoilerRevealed = false;
+    }
+
+    private async Task ToggleLikeAsync()
+    {
+        likeBusy = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var authState = await AuthStateTask!;
+            var token = authState.User.FindFirst("api_token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var url = $"api/reviews/{Review.Id}/like";
+            var response = liked ? await client.DeleteAsync(url) : await client.PostAsync(url, null);
+            if (!response.IsSuccessStatusCode)
+                return;
+
+            var state = await response.Content.ReadFromJsonAsync<ReviewLikeStateDto>();
+            if (state != null)
+            {
+                liked = state.LikedByViewer;
+                likeCount = state.LikeCount;
+            }
+        }
+        finally
+        {
+            likeBusy = false;
+        }
+    }
+
+    private void ToggleComments() => commentsOpen = !commentsOpen;
+
+    private void OnCommentCountChanged(int count) => commentCount = count;
 
     /// <summary>Profil rotası "/@kullaniciadi"; "@" Razor'da kaçış gerektirdiği için burada birleştiriliyor.</summary>
     private string ProfileUrl => "/" + '@' + Review.Username;

@@ -1,0 +1,130 @@
+@*
+    Bir incelemenin yorumları. Thread'siz, tek seviye (bkz. ROADMAP §3.C).
+    Yalnızca kullanıcı "N yorum"a bastığında yüklenir.
+*@
+
+@inject IHttpClientFactory HttpClientFactory
+
+<div class="comments">
+    @if (comments == null)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else
+    {
+        @foreach (var comment in comments)
+        {
+            <div class="comment">
+                <div class="line">
+                    <a class="author" href="@ProfileUrl(comment.Username)">@comment.DisplayName</a>
+                    <time datetime="@comment.CreatedAt.ToString("o")">
+                        @comment.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")
+                    </time>
+                    @if (comment.CanDelete)
+                    {
+                        <button type="button" class="link-btn danger"
+                                @onclick="() => DeleteAsync(comment)">Sil</button>
+                    }
+                </div>
+                <p class="text">@comment.Body</p>
+            </div>
+        }
+
+        @if (comments.Count == 0)
+        {
+            <p class="muted">Henüz yorum yok.</p>
+        }
+
+        <AuthorizeView>
+            <Authorized>
+                <div class="composer">
+                    <textarea class="form-control form-control-sm" rows="2" placeholder="Yorumun..."
+                              @bind="draft" @bind:event="oninput"></textarea>
+                    <button type="button" class="btn btn-sm btn-primary"
+                            disabled="@(saving || string.IsNullOrWhiteSpace(draft))"
+                            @onclick="AddAsync">
+                        @(saving ? "Gönderiliyor..." : "Gönder")
+                    </button>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <p class="muted"><a href="/login">Giriş yap</a> ve yorum bırak.</p>
+            </NotAuthorized>
+        </AuthorizeView>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int ReviewId { get; set; }
+
+    /// <summary>Yorum eklenip silindikçe kartın "N yorum" sayacı güncellensin.</summary>
+    [Parameter] public EventCallback<int> OnCountChanged { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private List<ReviewCommentDto>? comments;
+    private string draft = string.Empty;
+    private bool saving;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    private async Task LoadAsync()
+    {
+        var api = await GetApiAsync();
+        comments = await api.GetFromJsonAsync<List<ReviewCommentDto>>($"api/reviews/{ReviewId}/comments") ?? new();
+    }
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(draft))
+            return;
+
+        saving = true;
+        try
+        {
+            var api = await GetApiAsync();
+            var response = await api.PostAsJsonAsync($"api/reviews/{ReviewId}/comments",
+                new AddCommentRequest { Body = draft });
+            if (!response.IsSuccessStatusCode)
+                return;
+
+            var created = await response.Content.ReadFromJsonAsync<ReviewCommentDto>();
+            if (created != null)
+            {
+                comments ??= new();
+                comments.Add(created);
+                draft = string.Empty;
+                await OnCountChanged.InvokeAsync(comments.Count);
+            }
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task DeleteAsync(ReviewCommentDto comment)
+    {
+        var api = await GetApiAsync();
+        var response = await api.DeleteAsync($"api/reviews/comments/{comment.Id}");
+        if (!response.IsSuccessStatusCode)
+            return;
+
+        comments?.Remove(comment);
+        await OnCountChanged.InvokeAsync(comments?.Count ?? 0);
+    }
+
+    private static string ProfileUrl(string username) => "/" + '@' + username;
+}

@@ -32,7 +32,7 @@ namespace BingeWatch.Tests
         }
 
         private static ReviewService CreateService(BingeOnDbContext context) =>
-            new(context, new LocalOnlyCatalogService(context), new ActivityService(context));
+            new(context, new LocalOnlyCatalogService(context), new ActivityService(context), new NotificationService(context));
 
         private static async Task<Show> SeedAsync(BingeOnDbContext context, string userId = "user1")
         {

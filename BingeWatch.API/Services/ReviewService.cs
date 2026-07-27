@@ -10,13 +10,15 @@ namespace BingeWatch.API.Services
         private readonly BingeOnDbContext _context;
         private readonly IShowCatalogService _catalogService;
         private readonly IActivityService _activityService;
+        private readonly INotificationService _notificationService;
 
         public ReviewService(BingeOnDbContext context, IShowCatalogService catalogService,
-            IActivityService activityService)
+            IActivityService activityService, INotificationService notificationService)
         {
             _context = context;
             _catalogService = catalogService;
             _activityService = activityService;
+            _notificationService = notificationService;
         }
 
         public async Task<ReviewDto?> UpsertAsync(string userId, int showTmdbId, UpsertReviewRequest request)
@@ -74,11 +76,14 @@ namespace BingeWatch.API.Services
             await _context.SaveChangesAsync();
 
             await _activityService.RemoveReviewedAsync(reviewId);
+            // Beğeni/yorum satırları FK cascade ile gitti; bildirimlerin FK'si yok, elle siliniyor.
+            await _notificationService.RemoveForReviewAsync(reviewId);
 
             return true;
         }
 
-        public async Task<List<ReviewDto>> GetForShowAsync(int showTmdbId, int? seasonNumber = null)
+        public async Task<List<ReviewDto>> GetForShowAsync(int showTmdbId, int? seasonNumber = null,
+            string? viewerId = null)
         {
             var show = await _context.Shows.FirstOrDefaultAsync(s => s.TmdbId == showTmdbId);
             if (show == null)
@@ -93,7 +98,7 @@ namespace BingeWatch.API.Services
                 .Select(r => r.Id)
                 .ToListAsync();
 
-            return await ProjectAsync(ids);
+            return await ProjectAsync(ids, viewerId);
         }
 
         public async Task<List<ReviewDto>> GetOwnForShowAsync(string userId, int showTmdbId)
@@ -108,10 +113,11 @@ namespace BingeWatch.API.Services
                 .Select(r => r.Id)
                 .ToListAsync();
 
-            return await ProjectAsync(ids);
+            return await ProjectAsync(ids, userId);
         }
 
-        public async Task<List<ReviewDto>> GetFeedAsync(int skip, int take, ReviewSort sort)
+        public async Task<List<ReviewDto>> GetFeedAsync(int skip, int take, ReviewSort sort,
+            string? viewerId = null)
         {
             take = Math.Clamp(take, 1, 100);
             skip = Math.Max(skip, 0);
@@ -125,7 +131,7 @@ namespace BingeWatch.API.Services
             // HighestRated puana göre sıralanır; puan ayrı tabloda olduğu için
             // projeksiyondan sonra sıralamak, kova kova sayfalamaktan basit ve yeterli.
             var ids = await ordered.Skip(skip).Take(take).Select(r => r.Id).ToListAsync();
-            var result = await ProjectAsync(ids);
+            var result = await ProjectAsync(ids, viewerId);
 
             if (sort == ReviewSort.HighestRated)
                 result = result.OrderByDescending(r => r.Rating ?? -1).ToList();
@@ -137,7 +143,7 @@ namespace BingeWatch.API.Services
         /// İnceleme id'lerini yazarı, dizisi ve yazarın aynı hedefe verdiği puanla
         /// birlikte DTO'ya çevirir. Sıra <paramref name="reviewIds"/>'in sırasıdır.
         /// </summary>
-        private async Task<List<ReviewDto>> ProjectAsync(IReadOnlyList<int> reviewIds)
+        private async Task<List<ReviewDto>> ProjectAsync(IReadOnlyList<int> reviewIds, string? viewerId = null)
         {
             if (reviewIds.Count == 0)
                 return new List<ReviewDto>();
@@ -170,6 +176,26 @@ namespace BingeWatch.API.Services
                          || (r.TargetType == RatingTargetType.Season && seasonIds.Contains(r.TargetId)))
                 .ToListAsync();
 
+            // Beğeni ve yorum sayıları tek sorguda toplanır; kart başına ek istek olmasın.
+            var likeCounts = await _context.ReviewLikes
+                .Where(l => reviewIds.Contains(l.ReviewId))
+                .GroupBy(l => l.ReviewId)
+                .Select(g => new { ReviewId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ReviewId, x => x.Count);
+
+            var likedByViewer = viewerId == null
+                ? new HashSet<int>()
+                : (await _context.ReviewLikes
+                    .Where(l => l.UserId == viewerId && reviewIds.Contains(l.ReviewId))
+                    .Select(l => l.ReviewId)
+                    .ToListAsync()).ToHashSet();
+
+            var commentCounts = await _context.ReviewComments
+                .Where(c => reviewIds.Contains(c.ReviewId))
+                .GroupBy(c => c.ReviewId)
+                .Select(g => new { ReviewId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ReviewId, x => x.Count);
+
             var byId = rows.ToDictionary(x => x.Review.Id, x =>
             {
                 var r = x.Review;
@@ -194,6 +220,9 @@ namespace BingeWatch.API.Services
                         : ratings.FirstOrDefault(rt => rt.UserId == r.UserId
                                                     && rt.TargetType == targetType
                                                     && rt.TargetId == targetId)?.Value,
+                    LikeCount = likeCounts.TryGetValue(r.Id, out var likes) ? likes : 0,
+                    LikedByViewer = likedByViewer.Contains(r.Id),
+                    CommentCount = commentCounts.TryGetValue(r.Id, out var comments) ? comments : 0,
                     CreatedAt = r.CreatedAt,
                     UpdatedAt = r.UpdatedAt
                 };

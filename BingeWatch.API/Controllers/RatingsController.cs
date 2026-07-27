@@ -43,6 +43,18 @@ namespace BingeWatch.API.Controllers
             return Ok(summary);
         }
 
+        /// <summary>Takip edilenlerin bu diziye verdiği puanlar (dizi seviyesi).</summary>
+        [HttpGet("friends")]
+        [Authorize]
+        public async Task<IActionResult> GetFriendRatings(int tmdbId)
+        {
+            var friends = await _ratingService.GetFriendRatingsAsync(CurrentUserId, tmdbId);
+            if (friends == null)
+                return NotFound();
+
+            return Ok(friends);
+        }
+
         [HttpPut]
         [Authorize]
         public async Task<IActionResult> SetRating(int tmdbId, [FromBody] SetRatingRequest request)

@@ -189,7 +189,7 @@ namespace BingeWatch.Tests
             using var context = CreateContext();
             var show = await SeedAsync(context, "ali");
             var activity = new ActivityService(context);
-            var reviews = new ReviewService(context, new LocalOnlyCatalogService(context), activity);
+            var reviews = new ReviewService(context, new LocalOnlyCatalogService(context), activity, new NotificationService(context));
 
             var created = await reviews.UpsertAsync("ali", show.TmdbId, new UpsertReviewRequest { Body = "İyiydi" });
             Assert.NotNull(created);
