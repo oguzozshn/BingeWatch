@@ -155,7 +155,8 @@
         {
             var client = await CreateClientAsync();
             var url = status == null ? "api/admin/reports" : $"api/admin/reports?status={status}";
-            reports = await client.GetFromJsonAsync<List<ReportDto>>(url) ?? new();
+            var page = await client.GetFromJsonAsync<PagedResult<ReportDto>>(url);
+            reports = page?.Items ?? new();
         }
         catch
         {

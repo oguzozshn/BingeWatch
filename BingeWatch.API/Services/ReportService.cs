@@ -60,16 +60,23 @@ namespace BingeWatch.API.Services
             return ReportResult.Ok;
         }
 
-        public async Task<List<ReportDto>> GetQueueAsync(ReportStatus? status, int skip, int take)
+        public async Task<PagedResult<ReportDto>> GetQueueAsync(ReportStatus? status, string? cursor, int take)
         {
             take = Math.Clamp(take, 1, 100);
-            skip = Math.Max(skip, 0);
 
-            var reports = await _context.Reports
-                .Where(r => status == null ? r.Status == ReportStatus.Open : r.Status == status)
+            var query = _context.Reports
+                .Where(r => status == null ? r.Status == ReportStatus.Open : r.Status == status);
+
+            var after = Cursor.DecodeKeyset(cursor);
+            if (after != null)
+            {
+                query = query.Where(r => r.CreatedAt < after.Value.Timestamp
+                                      || (r.CreatedAt == after.Value.Timestamp && r.Id < after.Value.Id));
+            }
+
+            var reports = await query
                 .OrderByDescending(r => r.CreatedAt)
                 .ThenByDescending(r => r.Id)
-                .Skip(skip)
                 .Take(take)
                 .Include(r => r.Reporter)
                 .Include(r => r.TargetUser)
@@ -77,7 +84,7 @@ namespace BingeWatch.API.Services
                 .ToListAsync();
 
             if (reports.Count == 0)
-                return new List<ReportDto>();
+                return PagedResult<ReportDto>.Empty();
 
             // Hedef kullanıcı başına açık bildirim sayısı; moderatör tekrar edeni ayırsın.
             var targetUserIds = reports.Select(r => r.TargetUserId).Distinct().ToList();
@@ -89,7 +96,7 @@ namespace BingeWatch.API.Services
 
             var previews = await LoadPreviewsAsync(reports);
 
-            return reports.Select(r =>
+            var items = reports.Select(r =>
             {
                 previews.TryGetValue((r.TargetType, r.TargetId ?? 0), out var preview);
                 openCounts.TryGetValue(r.TargetUserId, out var openForTarget);
@@ -114,6 +121,14 @@ namespace BingeWatch.API.Services
                     ResolutionNote = r.ResolutionNote
                 };
             }).ToList();
+
+            var last = reports[^1];
+
+            return new PagedResult<ReportDto>
+            {
+                Items = items,
+                NextCursor = reports.Count < take ? null : Cursor.EncodeKeyset(last.CreatedAt, last.Id)
+            };
         }
 
         public Task<int> GetOpenCountAsync() =>

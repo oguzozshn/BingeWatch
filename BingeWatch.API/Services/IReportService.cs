@@ -7,8 +7,11 @@ namespace BingeWatch.API.Services
     {
         Task<ReportResult> CreateAsync(string reporterId, CreateReportRequest request);
 
-        /// <summary>Moderasyon kuyruğu; <paramref name="status"/> boşsa yalnızca açıklar döner.</summary>
-        Task<List<ReportDto>> GetQueueAsync(ReportStatus? status, int skip, int take);
+        /// <summary>
+        /// Moderasyon kuyruğu; <paramref name="status"/> boşsa yalnızca açıklar döner.
+        /// İmleç tabanlı sayfalama.
+        /// </summary>
+        Task<PagedResult<ReportDto>> GetQueueAsync(ReportStatus? status, string? cursor, int take);
 
         Task<int> GetOpenCountAsync();
 

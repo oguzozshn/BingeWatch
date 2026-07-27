@@ -1,4 +1,4 @@
-using BingeWatch.API.Data;
+﻿using BingeWatch.API.Data;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
 using BingeWatch.API.Services;
@@ -221,7 +221,7 @@ namespace BingeWatch.Tests
 
             Assert.Equal(1, marked);
             Assert.Equal(0, await service.GetUnreadCountAsync("ali"));
-            Assert.Single(await service.GetAsync("ali", 0, 20));
+            Assert.Single((await service.GetAsync("ali", null, 20)).Items);
         }
 
         [Fact]

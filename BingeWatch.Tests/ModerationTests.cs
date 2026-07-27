@@ -1,4 +1,4 @@
-using BingeWatch.API.Data;
+﻿using BingeWatch.API.Data;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
 using BingeWatch.API.Services;
@@ -147,7 +147,7 @@ namespace BingeWatch.Tests
             await new BlockService(context).BlockAsync("okur", "yazar");
 
             Assert.Empty(await reviews.GetForShowAsync(show.TmdbId, null, "okur"));
-            Assert.Empty(await reviews.GetFeedAsync(0, 20, ReviewSort.Newest, "okur"));
+            Assert.Empty((await reviews.GetFeedAsync(null, 20, ReviewSort.Newest, "okur")).Items);
             // Anonim ziyaretçi ve yazarın kendisi etkilenmez.
             Assert.Single(await reviews.GetForShowAsync(show.TmdbId));
         }
@@ -200,11 +200,11 @@ namespace BingeWatch.Tests
 
             await follows.FollowAsync("ali", "veli");
             await activity.RecordRatedAsync("veli", show.Id, RatingTargetType.Show, null, null, 4.0m);
-            Assert.NotEmpty(await activity.GetFeedAsync("ali", 0, 20));
+            Assert.NotEmpty((await activity.GetFeedAsync("ali", null, 20)).Items);
 
             await new BlockService(context).BlockAsync("ali", "veli");
 
-            Assert.Empty(await activity.GetFeedAsync("ali", 0, 20));
+            Assert.Empty((await activity.GetFeedAsync("ali", null, 20)).Items);
         }
 
         [Fact]
@@ -218,11 +218,11 @@ namespace BingeWatch.Tests
             var list = await lists.CreateAsync("sahip", new UpsertListRequest { Title = "En iyiler", IsPublic = true });
             await lists.AddItemAsync("sahip", list!.Id, new AddListItemRequest { TmdbShowId = show.TmdbId });
 
-            Assert.Single(await lists.GetDiscoverAsync(ListSort.Recent, 0, 20, "okur"));
+            Assert.Single((await lists.GetDiscoverAsync(ListSort.Recent, null, 20, "okur")).Items);
 
             await new BlockService(context).BlockAsync("okur", "sahip");
 
-            Assert.Empty(await lists.GetDiscoverAsync(ListSort.Recent, 0, 20, "okur"));
+            Assert.Empty((await lists.GetDiscoverAsync(ListSort.Recent, null, 20, "okur")).Items);
             Assert.Null(await lists.GetForUserAsync("sahip", "okur"));
             Assert.Null(await lists.GetDetailAsync(list.Id, "okur"));
             Assert.Null(await lists.LikeAsync("okur", list.Id));
@@ -390,7 +390,7 @@ namespace BingeWatch.Tests
             await reports.CreateAsync("baskasi",
                 new CreateReportRequest { TargetType = ReportTargetType.ReviewComment, TargetId = comment.Id });
 
-            var queue = await reports.GetQueueAsync(null, 0, 20);
+            var queue = (await reports.GetQueueAsync(null, null, 20)).Items;
 
             Assert.Equal(2, queue.Count);
             Assert.All(queue, r => Assert.Equal("yazar", r.TargetUsername));

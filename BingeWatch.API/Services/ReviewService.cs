@@ -118,31 +118,87 @@ namespace BingeWatch.API.Services
             return await ProjectAsync(ids, userId);
         }
 
-        public async Task<List<ReviewDto>> GetFeedAsync(int skip, int take, ReviewSort sort,
+        public async Task<PagedResult<ReviewDto>> GetFeedAsync(string? cursor, int take, ReviewSort sort,
             string? viewerId = null)
         {
             take = Math.Clamp(take, 1, 100);
-            skip = Math.Max(skip, 0);
 
             var hidden = await _context.HiddenUserIdsAsync(viewerId);
             var visible = _context.Reviews.Where(r => !hidden.Contains(r.UserId));
 
-            var ordered = sort switch
+            // Puana göre sıralamada anahtar satırda durmuyor (ayrı Ratings tablosu),
+            // keyset imleci kurulamıyor — o sıralama offset'te kalıyor. Zaman sıralı
+            // ikisinde imleç (CreatedAt, Id) çiftini taşır.
+            var offset = sort == ReviewSort.HighestRated ? Cursor.DecodeOffset(cursor) : 0;
+
+            if (sort != ReviewSort.HighestRated)
             {
-                ReviewSort.Oldest => visible.OrderBy(r => r.CreatedAt),
-                _ => visible.OrderByDescending(r => r.CreatedAt)
-            };
+                var after = Cursor.DecodeKeyset(cursor);
+                if (after != null)
+                {
+                    visible = sort == ReviewSort.Oldest
+                        ? visible.Where(r => r.CreatedAt > after.Value.Timestamp
+                                          || (r.CreatedAt == after.Value.Timestamp && r.Id > after.Value.Id))
+                        : visible.Where(r => r.CreatedAt < after.Value.Timestamp
+                                          || (r.CreatedAt == after.Value.Timestamp && r.Id < after.Value.Id));
+                }
+            }
 
-            // HighestRated puana göre sıralanır; puan ayrı tabloda olduğu için
-            // projeksiyondan sonra sıralamak, kova kova sayfalamaktan basit ve yeterli.
-            var ids = await ordered.Skip(skip).Take(take).Select(r => r.Id).ToListAsync();
-            var result = await ProjectAsync(ids, viewerId);
+            // Skip(0) bile SQL'e OFFSET yazdırıyor; keyset yolunda gereksiz.
+            var ordered = Order(visible, sort);
+            var paged = offset > 0 ? ordered.Skip(offset) : (IQueryable<Review>)ordered;
 
-            if (sort == ReviewSort.HighestRated)
-                result = result.OrderByDescending(r => r.Rating ?? -1).ToList();
+            var rows = await paged
+                .Take(take)
+                .Select(r => new { r.Id, r.CreatedAt })
+                .ToListAsync();
 
-            return result;
+            if (rows.Count == 0)
+                return PagedResult<ReviewDto>.Empty();
+
+            var items = await ProjectAsync(rows.Select(r => r.Id).ToList(), viewerId);
+
+            string? nextCursor = null;
+            if (rows.Count == take)
+            {
+                nextCursor = sort == ReviewSort.HighestRated
+                    ? Cursor.EncodeOffset(offset + rows.Count)
+                    : Cursor.EncodeKeyset(rows[^1].CreatedAt, rows[^1].Id);
+            }
+
+            return new PagedResult<ReviewDto> { Items = items, NextCursor = nextCursor };
         }
+
+        /// <summary>
+        /// Akış sıralaması. <see cref="ReviewSort.HighestRated"/> puana göre sıralanır
+        /// ve puan ayrı tabloda durduğu için alt sorguyla çekilir — sayfayı çektikten
+        /// sonra bellekte sıralamak yalnızca o sayfayı sıralar, "en yüksek puanlı"
+        /// listesi ikinci sayfadan itibaren anlamını kaybederdi.
+        /// Puansız incelemeler sona düşer (azalan sıralamada NULL en sonda).
+        /// </summary>
+        private IOrderedQueryable<Review> Order(IQueryable<Review> reviews, ReviewSort sort) => sort switch
+        {
+            ReviewSort.Oldest => reviews.OrderBy(r => r.CreatedAt).ThenBy(r => r.Id),
+            // Puan ayrı tabloda ve Rating.TargetId polimorfik: sezon hedefinde sezonun
+            // yerel id'sine çevrilmesi gerekiyor. Alt sorgu buraya açık yazılmalı —
+            // ayrı bir metoda alınırsa EF ifade ağacını çeviremiyor.
+            ReviewSort.HighestRated => reviews
+                .OrderByDescending(r => _context.Ratings
+                    .Where(rt => rt.UserId == r.UserId)
+                    .Where(rt => (r.SeasonNumber == null
+                                  && rt.TargetType == RatingTargetType.Show
+                                  && rt.TargetId == r.ShowId)
+                              || (r.SeasonNumber != null
+                                  && rt.TargetType == RatingTargetType.Season
+                                  && _context.Seasons.Any(s => s.Id == rt.TargetId
+                                                            && s.ShowId == r.ShowId
+                                                            && s.SeasonNumber == r.SeasonNumber)))
+                    .Select(rt => (decimal?)rt.Value)
+                    .FirstOrDefault())
+                .ThenByDescending(r => r.CreatedAt)
+                .ThenByDescending(r => r.Id),
+            _ => reviews.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
+        };
 
         /// <summary>
         /// İnceleme id'lerini yazarı, dizisi ve yazarın aynı hedefe verdiği puanla

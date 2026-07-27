@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Services;
@@ -31,10 +31,10 @@ namespace BingeWatch.API.Controllers
         /// <summary>Genel inceleme akışı — <c>/reviews</c> sayfası bunu okur.</summary>
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetFeed([FromQuery] int skip = 0, [FromQuery] int take = 20,
-            [FromQuery] ReviewSort sort = ReviewSort.Newest)
+        public async Task<IActionResult> GetFeed([FromQuery] string? cursor = null,
+            [FromQuery] int take = 20, [FromQuery] ReviewSort sort = ReviewSort.Newest)
         {
-            return Ok(await _reviewService.GetFeedAsync(skip, take, sort, ViewerId));
+            return Ok(await _reviewService.GetFeedAsync(cursor, take, sort, ViewerId));
         }
 
         [HttpGet("show/{tmdbId:int}")]

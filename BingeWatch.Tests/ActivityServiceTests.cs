@@ -1,4 +1,4 @@
-using BingeWatch.API.Data;
+﻿using BingeWatch.API.Data;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
 using BingeWatch.API.Services;
@@ -130,7 +130,7 @@ namespace BingeWatch.Tests
             await service.RecordRatedAsync("ali", show.Id, RatingTargetType.Show, null, null, 3.0m);
             await service.RecordRatedAsync("yabanci", show.Id, RatingTargetType.Show, null, null, 5.0m);
 
-            var feed = await service.GetFeedAsync("ali", skip: 0, take: 20);
+            var feed = (await service.GetFeedAsync("ali", cursor: null, take: 20)).Items;
 
             // Takip edilmeyen "yabanci" akışta yok; en yeni olay başta.
             Assert.Equal(new[] { "ali", "veli" }, feed.Select(f => f.Username));
@@ -152,7 +152,7 @@ namespace BingeWatch.Tests
             await context.SaveChangesAsync();
             await service.RecordReviewedAsync("ali", review.Id, show.Id, seasonNumber: null);
 
-            var feed = await service.GetFeedAsync("ali", skip: 0, take: 20);
+            var feed = (await service.GetFeedAsync("ali", cursor: null, take: 20)).Items;
 
             var reviewed = feed.Single(f => f.Type == ActivityType.Reviewed);
             Assert.Equal("Harika dizi", reviewed.ReviewExcerpt);

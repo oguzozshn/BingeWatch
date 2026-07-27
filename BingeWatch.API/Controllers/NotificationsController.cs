@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using BingeWatch.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,9 +20,9 @@ namespace BingeWatch.API.Controllers
         private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
         [HttpGet]
-        public async Task<IActionResult> Get([FromQuery] int skip = 0, [FromQuery] int take = 30)
+        public async Task<IActionResult> Get([FromQuery] string? cursor = null, [FromQuery] int take = 30)
         {
-            return Ok(await _notificationService.GetAsync(CurrentUserId, skip, take));
+            return Ok(await _notificationService.GetAsync(CurrentUserId, cursor, take));
         }
 
         /// <summary>Navbar'daki zil rozeti bunu okur.</summary>
