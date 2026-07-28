@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 27 Temmuz 2026, Faz 6.4 (SEO) sonu.*
+*Son güncelleme: 28 Temmuz 2026, Faz 6.6 (E2E) devam ediyor.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -197,9 +197,16 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
 
 ### Faz 0 — Temizlik & Güvenlik (atlanamaz)
 
-- [x] TMDb + OMDb anahtarlarını User Secrets'a taşı (`appsettings.json` artık boş) — ⚠️ anahtarların
-      sağlayıcı tarafında **iptal edilip yenilendiği repodan doğrulanamaz**; yapılmadıysa git
-      geçmişindeki eski anahtarlar hâlâ geçerli demektir
+- [x] TMDb + OMDb anahtarlarını User Secrets'a taşı (`appsettings.json` artık boş) —
+      ✅ **28.07.2026'da doğrulandı:** git geçmişindeki (`137683d`) eski TMDb token'ı
+      TMDb'ye sorulduğunda **401** dönüyor, yani gerçekten iptal edilmiş. OMDb anahtarı
+      da artık ölü kod: `omdb` geçen tek dosya bu doküman, kodda tek referans yok.
+      ⚠️ Ama "taşı" maddesinin yalnızca **sil** yarısı yapılmıştı: user-secrets deposu
+      (`%APPDATA%\Microsoft\UserSecrets\`) bu makinede hiç oluşturulmamıştı. Anahtar
+      25.07 16:31'de `appsettings.json`'dan silindiğinden beri API **açılamıyordu**
+      (`Jwt:Key is not configured`). 28.07'de `Tmdb:ApiKey`, `Jwt:Key`, `Jwt:Issuer`,
+      `Jwt:Audience` girildi. Depo proje klasörünün dışında olduğu için OneDrive ile
+      senkronlanmıyor — yeni makinede baştan girilmesi gerekiyor
 - [x] `.gitignore` düzelt (`.github/` kuralı kaldırıldı, CI eklenebiliyor)
 - [x] Ölü kodu sil: `weatherforecast`, `Counter.razor`, `Weather.razor`, `Ping`, NavMenu linkleri
 - [ ] `Console.WriteLine` → `ILogger`; debug markup'ını temizle — **kısmen**: API tarafı `ILogger`'a
@@ -459,7 +466,21 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
     Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
     çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
-- [ ] E2E test (Playwright), yük testi
+- [~] E2E test (Playwright), yük testi — **anonim yüzey kapsandı (13 test yeşil);
+      girişli akışlar ve yük testi duruyor**
+  - **TMDb'ye bağımlı değil.** `CatalogSeeder` kataloğu doğrudan `BingeWatchDb_E2E`
+    veritabanına yazıyor: `TmdbStatus="Ended"` + taze `LastSyncedAt` olan bir satırı
+    `ShowCatalogService` bayat saymadığı için TMDb'ye hiç gidilmiyor. Böylece süit
+    kişisel API anahtarına, ağa ve dışarıda değişen veriye bağlı olmuyor —
+    "Breaking Bad kaç sezon" sorusunun cevabı testin kontrolünde
+  - **Ayrı veritabanı** — testler kayıt/puanlama satırı yazacak; `BingeOnDb`'ye
+    karışırsa elle bakılan veriyle test verisi ayırt edilemez
+  - `AppFixture` API ve Web süreçlerini 5074/5182'de kaldırıyor (elle çalıştırılan
+    5054/5162 ile çakışmasın), `/health` bekliyor, her test kendi tarayıcı
+    bağlamında koşuyor
+  - **Playwright tarayıcısı ayrıca kurulmalı:** `BingeWatch.E2E/bin/.../playwright.ps1
+    install chromium`. Kurulmadan süitin tamamı düşer
+  - Yol üstünde iki gerçek hata bulundu, ikisi de düzeltildi (bkz. §7.2)
 
 ---
 
@@ -486,27 +507,54 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 
 ### 7.1 Açık sorunlar
 
-**Rolsüz `[Authorize]` sayfaları anonim ziyaretçiyi yönlendirmiyor.** `/feed`,
-`/watchlist`, `/settings/blocks` gibi sayfalar giriş yapmamış ziyaretçiye boş
-kabuk olarak çiziliyor; `<RedirectToLogin>` statik SSR sırasında tetiklenmiyor.
-Rol gerektiren `/admin/reports` doğru yönlendiriyor. **Güvenlik açığı değil** —
-API tarafı 401 döndüğü için veri sızmıyor, yalnızca kötü bir karşılama.
-Düzeltmesi render moduyla ilgili (statik SSR'da yönlendirme), Faz 6.3'ün
-erişilebilirlik kapsamına girmedi — Faz 6.4'e (SEO/prerender) bırakıldı,
-prerender kararı zaten aynı kodu değiştirecek.
-
 **Docker imajları hiç build edilmedi.** Faz 6.5'te yazılan `Dockerfile`'lar ve
 `docker-compose.yml` gerçek bir Docker üzerinde denenmedi — geliştirme
-makinesinde Docker kurulu değil. Kod tarafı (yapılandırılabilir adresler,
-Serilog, health check, migration yeniden denemesi) yerelde uçtan uca doğrulandı.
-İlk çalıştırmada bakılacak yerler: [DEPLOY.md](DEPLOY.md) §4.
+makinesinde Docker kurulu değil. İlk çalıştırmada bakılacak yerler:
+[DEPLOY.md](DEPLOY.md) §4.
 
-**Sekme deseni ve engelleme akışı klavyeyle uçtan uca denenmedi.** Dizi sayfası
-ve moderasyon paneli giriş gerektirdiği için tarayıcı doğrulaması yalnızca
-anonim sayfalarda yapılabildi; kod yapısı doğru ama gerçek oturumda test
-edilmesi gerekiyor (Faz 6.6'daki Playwright bunu kapsayacak).
+⚠️ **Faz 6.5'in "kod tarafı yerelde uçtan uca doğrulandı" notu şüpheli.** 28.07'de
+görüldü ki API 25.07 16:31'den beri bu makinede hiç açılamıyordu (`Jwt:Key`
+eksikti — bkz. Faz 0). Serilog, health check ve migration yeniden denemesi
+gerçek bir çalıştırmayla değil, büyük ihtimalle yalnızca okumayla doğrulanmış.
+Anahtarlar girildikten sonra `/health` ve `/health/ready` çalıştığı görüldü;
+gerisi hâlâ doğrulanmayı bekliyor.
 
-### 7.2 Faz 6.3'te çözülenler
+**Girişli akışlar E2E'de kapsanmadı.** Faz 6.6'daki süit yalnızca anonim yüzeyi
+tutuyor. Dizi sayfasının sekme deseni, bölüm işaretleme, puanlama ve engelleme
+akışı gerçek oturumda hâlâ test edilmedi.
+
+**Yük testi hiç yazılmadı.** `NBomber` paketleri `BingeWatch.E2E.csproj`'da
+referans olarak duruyor ama tek satır senaryo yok. Yazılırsa CI'a değil elle
+çalıştırılan bir teşhis aracı olarak kurulmalı: yük üreticisi ile uygulama aynı
+makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anlamlı.
+
+### 7.2 Faz 6.6'da bulunan ve çözülenler
+
+- ✅ **Atlama bağlantısına ileri Tab ile ulaşılamıyordu.** `Routes.razor`'daki
+  `<FocusOnNavigate Selector="h1">` odağı **ilk yüklemede de** `h1`'e alıyordu.
+  Odak `h1`'e oturunca DOM'da ondan önce gelen her şey — Faz 6.3'te eklenen
+  "İçeriğe atla" bağlantısı **ve navbar'ın tamamı** — ileri Tab ile erişilemez
+  hale geliyordu; menüye ancak Shift+Tab ile ulaşılabiliyordu. Yani Faz 6.3'ün
+  eklediği atlama bağlantısı hiç çalışmamış. Ölçüm: sayfa yüklenince
+  `document.activeElement` = `h1`, ilk Tab → `select.sort-select` (içerik ortası).
+  `FocusOnNavigate` kaldırıldı, yerine
+  [navigation-focus.js](../BingeWatch.Web/wwwroot/js/navigation-focus.js): Blazor'ın
+  `enhancedload` olayına bağlanıyor, bu olay ilk yüklemede tetiklenmediği için
+  odak belgenin başında kalıyor; gezinmede ise `h1`'e taşınıyor.
+  **Tuzak:** `enhancedload` son DOM yamasından önce tetiklenebiliyor — odaklanan
+  `h1` düğümü sonradan değişince odak `body`'ye düşüyordu; odaklama kısa bir
+  pencerede (0/50/200 ms) tekrarlanıyor
+- ✅ **§7.1'in "rolsüz `[Authorize]` sayfaları yönlendirmiyor" maddesi yanlıştı.**
+  Ölçüldü: `/notifications`, `/feed`, `/watchlist`, `/settings/blocks` ve
+  `/admin/reports` **hepsi 302 ile `/login`'e gidiyor** (cookie auth
+  middleware'i, `ReturnUrl` parametresiyle) ve gövde boş dönüyor. Madde
+  kaldırıldı, yerine yönlendirmeyi doğrulayan `[Theory]` testi kondu
+- ℹ️ **Yan sonuç: `NoIndex` meta etiketi crawler'a hiç ulaşmıyor.** `NoIndex="true"`
+  verilen sayfaların hepsi `[Authorize]` arkasında ve anonim istek 302 alıyor;
+  gövde üretilmediği için `<meta name="robots">` de yazılmıyor. Zararsız ama
+  ölü — asıl koruma yönlendirmenin kendisi. Faz 6.4'ün bu kararı fazlalık
+
+### 7.3 Faz 6.3'te çözülenler
 
 - ✅ **WatchList arama blur yarışı** (eski §7.1): "Ara" butonuna tıklamak input'u
   blur ediyor, `OnSearchBlur`'ün 200 ms'lik zamanlayıcısı sonuçlarla yarışıyordu.
@@ -515,12 +563,12 @@ edilmesi gerekiyor (Faz 6.6'daki Playwright bunu kapsayacak).
 - ✅ **WatchList'teki `Console.WriteLine` çağrıları** (Faz 0'dan kalan, 6 adet)
   `ILogger`'a taşındı.
 
-### 7.3 Faz 3'te çözülenler
+### 7.4 Faz 3'te çözülenler
 
 - ✅ **Sezonlar katlanamıyor**: ShowView'daki sezonlar artık akordiyon; varsayılan kapalı,
   ilk yarım kalmış sezon açık başlar.
 
-### 7.4 Faz 2'de çözülenler
+### 7.5 Faz 2'de çözülenler
 
 - ✅ **Kalp butonu** (eski §7.1): kök neden doğrulandı — Web `SeriesDto.FirstAirDate` `string`,
   API `DateTime?` bekliyordu ve `ShowYear` çıplak yıl (`"2008"`) gönderiyordu. ShowView'ın
@@ -532,11 +580,7 @@ edilmesi gerekiyor (Faz 6.6'daki Playwright bunu kapsayacak).
   düşürüyordu. `NullableDateTimeConverter` eklendi.
 - ✅ **N+1 `external_ids` çağrıları** (§2.3) ve **`WatchListItem` → `UserShow` migration'ı**.
 
-### 7.5 Tamamlanmamış / ertelenen maddeler
-
-**Faz 0'dan kalan**
-
-- API anahtarlarının sağlayıcı tarafında iptal/yenileme durumu doğrulanmadı (bkz. Faz 0)
+### 7.6 Tamamlanmamış / ertelenen maddeler
 
 **Faz 1'de bilinçli ertelenen**
 

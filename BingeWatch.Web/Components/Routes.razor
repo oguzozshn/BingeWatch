@@ -5,6 +5,8 @@
                 <RedirectToLogin />
             </NotAuthorized>
         </AuthorizeRouteView>
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        @* <FocusOnNavigate> buradan kaldırıldı: odağı ilk yüklemede de h1'e
+           alıyor, atlama bağlantısını ve navbar'ı ileri Tab'dan düşürüyordu.
+           Yerine wwwroot/js/navigation-focus.js — yalnızca gezinmede odaklar. *@
     </Found>
 </Router>
