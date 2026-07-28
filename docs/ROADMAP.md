@@ -33,8 +33,8 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 - Bölüm ısı haritası: TMDb ve kişisel puan katmanları toggle'lı
 - Dizi sayfası sekmeli: Genel Bakış / Bölümler / İncelemeler / Benzer
 - Takip, aktivite akışı, inceleme beğeni/yorumları, bildirimler (Faz 4)
-- **Bölüm tartışmaları** — bölüm satırının altında açılan iplik; yalnızca o
-  bölümü izlemiş olana açık, hiçbir akışa düşmez (Faz 7)
+- **Bölüm sayfası + bölüm tartışmaları** — `/show/{id}/season/{n}/episode/{m}`;
+  iplik yalnızca o bölümü izlemiş olana açık ve hiçbir akışa düşmez (Faz 7)
 - Listeler, filtreli keşif, gelişmiş arama, istatistik sayfası (Faz 5)
 - **Moderasyon**: rate limiting, kullanıcı engelleme, içerik bildirimi ve
   `/admin/reports` paneli (Faz 6.1)
@@ -594,8 +594,26 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
   - Yan etkiler zaten doğru çalışıyordu: dizi durumu "Bitirdim"den geri düşüyor
       ve akış olayı siliniyor (yanlış tıklama takipçilerin akışında kalmıyor)
 
-- [x] **Bölüm tartışmaları** — bölüm satırının altında açılan yorum ipliği;
+- [x] **Bölüm tartışmaları** — bölümün kendi sayfasında yorum ipliği;
       **yalnızca o bölümü izlemiş olana açık.**
+  - **Bölüm sayfası** `/show/{tmdbId}/season/{n}/episode/{m}` — ilk tasarımda
+      iplik dizi sayfasındaki bölüm satırının altında açılıyordu; iki sebeple
+      taşındı. Tartışma dar bir satıra sığmıyordu ve bir tartışmanın
+      **paylaşılabilir bir adresi** olması gerekiyordu. Rota sezon/bölüm
+      numarasından kuruluyor, yerel bölüm id'sinden değil: id katalog yeniden
+      tohumlanınca değişir, "S1B1" değişmez
+  - **Bölüm satırı yeniden yapılandırıldı:** başlık artık sayfaya giden bir
+      `<a>`, işaretleme ayrı bir onay kutusu. Eskiden başlık onay kutusunun
+      `<label>`ıydı — yani gezinme ile eylem tek hedefti. Faz 6.3'te watchlist
+      kartında düzeltilen kalıbın aynısı
+  - **Ayrı uç** (`GET /api/shows/{id}/season/{n}/episode/{m}`) — bölüm özetini
+      `ShowDetailDto`'ya eklemek dizi sayfasının yükünü 62 bölümlük bir dizide
+      ~20 KB şişiriyordu ve o veri orada hiç kullanılmıyor. Uç tek yanıtta
+      bölüm detayını, kullanıcının işaretini ve puanını, üst kırıntıları ve
+      sezon sınırını geçen komşu bölümleri veriyor
+  - **Meta açıklamasına bölüm özeti konmuyor** — TMDb özetleri olay anlatıyor
+      ve arama sonucunda spoiler olarak görünürdü. Sayfanın kendisi özeti
+      gösteriyor; oraya kullanıcı ne okuyacağını bilerek geliyor
   - **§3'ün kararını çiğnemiyor, kapsamını daraltıyor.** §3 bölüm bazlı *yazılı
       incelemeyi* reddetmişti; gerekçe "bugün ne izledim" akışının spoiler
       çöplüğüne dönmesiydi. Buradaki iplik **hiçbir akışa düşmüyor**: ne
@@ -633,6 +651,9 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
       uygulandı, anonim → kilitli, girişli+izlememiş → kilitli, işaretleyince
       açıldı, yorum yazıldı, işaret kaldırılınca kapandı ve yorum korundu,
       akışta yorum olayı çıkmadı. API ve tarayıcı konsolunda hata yok
+  - **İki hesapla da doğrulandı:** ikinci kullanıcı bölümü izlemeden ipliği
+      göremiyor, işaretleyince birincinin yorumunu görüyor ve kendi yorumu
+      olmadığı için "Sil" yerine "Bildir" çıkıyor
 
 ---
 

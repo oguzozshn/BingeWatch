@@ -13,13 +13,15 @@ namespace BingeWatch.API.Controllers
         private readonly IShowCatalogService _catalogService;
         private readonly IEpisodeProgressService _progressService;
         private readonly ITmdbService _tmdbService;
+        private readonly IRatingService _ratingService;
 
         public ShowsController(IShowCatalogService catalogService, IEpisodeProgressService progressService,
-            ITmdbService tmdbService)
+            ITmdbService tmdbService, IRatingService ratingService)
         {
             _catalogService = catalogService;
             _progressService = progressService;
             _tmdbService = tmdbService;
+            _ratingService = ratingService;
         }
 
         private string? CurrentUserId => User.Identity?.IsAuthenticated == true
@@ -79,6 +81,74 @@ namespace BingeWatch.API.Controllers
             };
 
             return Ok(dto);
+        }
+
+        /// <summary>
+        /// Bölüm sayfası. Rota sezon/bölüm numarasıyla kuruluyor, yerel id ile
+        /// değil: id katalog yeniden tohumlanınca değişir, "S1E1" değişmez.
+        /// Bölüm sayfası anonime de açık (dizi sayfasıyla aynı gerekçe, SEO);
+        /// kişisel alanlar yalnızca kimlik doğrulanmışsa doluyor.
+        /// </summary>
+        [HttpGet("{tmdbId}/season/{seasonNumber}/episode/{episodeNumber}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetEpisode(int tmdbId, int seasonNumber, int episodeNumber)
+        {
+            var show = await _catalogService.GetOrSyncShowAsync(tmdbId);
+            if (show == null)
+                return NotFound(new { message = "Show not found on TMDb" });
+
+            var season = show.Seasons.FirstOrDefault(s => s.SeasonNumber == seasonNumber);
+            var episode = season?.Episodes.FirstOrDefault(e => e.EpisodeNumber == episodeNumber);
+            if (season == null || episode == null)
+                return NotFound(new { message = "Episode not found" });
+
+            var userId = CurrentUserId;
+            var watchedEpisodeIds = userId != null
+                ? await _progressService.GetWatchedEpisodeIdsAsync(userId, tmdbId)
+                : new HashSet<int>();
+
+            decimal? myRating = null;
+            if (userId != null)
+            {
+                var ratings = await _ratingService.GetUserRatingsForShowAsync(userId, tmdbId);
+                if (ratings != null && ratings.EpisodeRatings.TryGetValue(episode.Id, out var value))
+                    myRating = value;
+            }
+
+            // Komşular sezon sınırını geçmeli: bir sezonun son bölümünden
+            // sonraki, sonraki sezonun ilk bölümü.
+            var flat = show.Seasons
+                .OrderBy(s => s.SeasonNumber)
+                .SelectMany(s => s.Episodes.OrderBy(e => e.EpisodeNumber)
+                                           .Select(e => new EpisodeRefDto
+                                           {
+                                               SeasonNumber = s.SeasonNumber,
+                                               EpisodeNumber = e.EpisodeNumber,
+                                               Name = e.Name
+                                           }))
+                .ToList();
+
+            var index = flat.FindIndex(r => r.SeasonNumber == seasonNumber && r.EpisodeNumber == episodeNumber);
+
+            return Ok(new EpisodePageDto
+            {
+                TmdbShowId = show.TmdbId,
+                ShowName = show.Name,
+                SeasonNumber = season.SeasonNumber,
+                SeasonName = season.Name,
+                Id = episode.Id,
+                EpisodeNumber = episode.EpisodeNumber,
+                Name = episode.Name,
+                Overview = episode.Overview,
+                StillPath = episode.StillPath,
+                AirDate = episode.AirDate,
+                Runtime = episode.Runtime,
+                TmdbVoteAverage = episode.TmdbVoteAverage,
+                Watched = watchedEpisodeIds.Contains(episode.Id),
+                MyRating = myRating,
+                Previous = index > 0 ? flat[index - 1] : null,
+                Next = index >= 0 && index < flat.Count - 1 ? flat[index + 1] : null
+            });
         }
 
         /// <summary>Dizi sayfasındaki "Benzer" sekmesi.</summary>

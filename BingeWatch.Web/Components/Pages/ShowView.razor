@@ -204,22 +204,22 @@ else
                                         {
                                             var ep = episode;
                                             var unaired = ep.AirDate.HasValue && ep.AirDate.Value.Date > DateTime.UtcNow.Date;
-                                            var commentsOpen = openCommentEpisodes.Contains(ep.Id);
-                                            <div class="episode-block">
                                             <div class="episode-row @(ep.Watched ? "watched" : "") @(unaired ? "unaired" : "")">
+                                                @* Gezinme ile eylem ayrı kontrollerde: başlık bölüm sayfasına
+                                                   götürür, onay kutusu işaretler. Eskiden başlık onay kutusunun
+                                                   <label>'ıydı, yani ikisi tek hedefti (Faz 6.3'te watchlist
+                                                   kartında düzeltilen kalıbın aynısı). *@
                                                 <AuthorizeView>
                                                     <Authorized>
-                                                        <label class="episode-checkbox">
-                                                            <input type="checkbox" checked="@ep.Watched" disabled="@unaired"
-                                                                   @onchange="e => MarkEpisodeWatched(ep, (bool)e.Value!)" />
-                                                            <span>@ep.EpisodeNumber. @ep.Name</span>
-                                                        </label>
+                                                        <input type="checkbox" class="episode-check"
+                                                               checked="@ep.Watched" disabled="@unaired"
+                                                               aria-label="@($"{ep.EpisodeNumber}. bölümü izledim olarak işaretle")"
+                                                               @onchange="e => MarkEpisodeWatched(ep, (bool)e.Value!)" />
                                                     </Authorized>
-                                                    <NotAuthorized>
-                                                        @* Anonim ziyaretçi bölüm listesini görür ama işaretleyemez. *@
-                                                        <span class="episode-title">@ep.EpisodeNumber. @ep.Name</span>
-                                                    </NotAuthorized>
                                                 </AuthorizeView>
+                                                <a class="episode-title" href="@EpisodeUrl(s.SeasonNumber, ep.EpisodeNumber)">
+                                                    @ep.EpisodeNumber. @ep.Name
+                                                </a>
 
                                                 <div class="episode-actions">
                                                     <AuthorizeView>
@@ -241,24 +241,7 @@ else
                                                     {
                                                         <span class="air-date">@ep.AirDate.Value.ToString("d MMM yyyy")</span>
                                                     }
-                                                    else
-                                                    {
-                                                        @* Anonim ziyaretçide de duruyor: kapının neden kapalı
-                                                           olduğunu ancak açınca öğrenebilir. *@
-                                                        <button type="button" class="comments-btn"
-                                                                aria-expanded="@Aria(commentsOpen)"
-                                                                aria-controls="@($"ep-comments-{ep.Id}")"
-                                                                @onclick="() => ToggleComments(ep.Id)">Yorumlar</button>
-                                                    }
                                                 </div>
-                                            </div>
-
-                                            @if (commentsOpen)
-                                            {
-                                                <div class="episode-comments-panel" id="@($"ep-comments-{ep.Id}")">
-                                                    <EpisodeComments EpisodeId="ep.Id" />
-                                                </div>
-                                            }
                                             </div>
                                         }
                                     </div>
@@ -430,10 +413,6 @@ else
     // Sezonlar varsayılan olarak kapalı; çok sezonlu dizilerde sayfa uzamasın.
     private readonly HashSet<int> expandedSeasons = new();
 
-    // Açılmış yorum iplikleri. İplik ancak açılınca çekilir (inceleme
-    // yorumlarındaki desenin aynısı) — bölüm listesi bunu beklemesin.
-    private readonly HashSet<int> openCommentEpisodes = new();
-
     // İnceleme formu
     private string? draftSeasonNumber;
     private string draftBody = string.Empty;
@@ -592,11 +571,8 @@ else
             expandedSeasons.Add(seasonNumber);
     }
 
-    private void ToggleComments(int episodeId)
-    {
-        if (!openCommentEpisodes.Remove(episodeId))
-            openCommentEpisodes.Add(episodeId);
-    }
+    private string EpisodeUrl(int seasonNumber, int episodeNumber) =>
+        $"/show/{TmdbId}/season/{seasonNumber}/episode/{episodeNumber}";
 
     private decimal? SeasonRating(int seasonNumber) =>
         myRatings.SeasonRatings.TryGetValue(seasonNumber, out var v) ? v : null;
