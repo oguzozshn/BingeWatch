@@ -11,6 +11,12 @@
     {
         <div class="alert alert-danger" role="alert">Kullanıcı adı ya da şifre hatalı.</div>
     }
+    @if (Reset == "1")
+    {
+        <div class="alert alert-success" role="alert">
+            Şifren güncellendi. Yeni şifrenle giriş yapabilirsin.
+        </div>
+    }
     <form method="post" action="/account/login" data-enhance="false">
         <input type="hidden" name="returnUrl" value="@ReturnUrl" />
         <div class="mb-3">
@@ -25,7 +31,10 @@
         </div>
         <button class="btn btn-primary" type="submit">Giriş yap</button>
     </form>
-    <p class="mt-3">Hesabın yok mu? <a href="/register">Kayıt ol</a></p>
+    <p class="mt-3">
+        <a href="/forgot-password">Şifreni mi unuttun?</a>
+    </p>
+    <p>Hesabın yok mu? <a href="/register">Kayıt ol</a></p>
 </div>
 
 @code {
@@ -34,4 +43,8 @@
 
     [SupplyParameterFromQuery(Name = "returnUrl")]
     private string? ReturnUrl { get; set; }
+
+    /// <summary>Şifre sıfırlamadan sonra buraya yönlendiriliyor.</summary>
+    [SupplyParameterFromQuery(Name = "reset")]
+    private string? Reset { get; set; }
 }

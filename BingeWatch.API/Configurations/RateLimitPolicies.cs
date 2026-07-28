@@ -36,8 +36,16 @@ namespace BingeWatch.API.Configurations
         /// ölçülen şey uygulama değil, jeton kovası oluyor. Varsayılanlar eski
         /// sabit değerlerle aynı, yani üretim davranışı değişmiyor.
         /// <para>
-        /// Güvenlikle ilgili politikalar (giriş denemesi, bildirim, yazma)
-        /// bilerek sabit bırakıldı: onları gevşetmenin meşru bir sebebi yok.
+        /// Giriş/kayıt kotası (<c>RateLimiting:AuthPermitLimit</c>) da
+        /// okunuyor. Başta bilerek sabit bırakılmıştı ("gevşetmenin meşru bir
+        /// sebebi yok") ama E2E süiti koşu başına birkaç kayıt + şifre sıfırlama
+        /// çağrısı yapıyor; süiti kısa aralıkla iki kez koşturmak kotayı
+        /// dolduruyor ve testler gerçek bir hata yokken kırmızıya düşüyordu.
+        /// Test edilebilirlik meşru bir sebep. Varsayılan değişmedi.
+        /// </para>
+        /// <para>
+        /// Bildirim ve yazma politikaları sabit: onları gevşetmeyi gerektiren
+        /// bir durum çıkmadı.
         /// </para>
         /// </param>
         public static IServiceCollection AddBingeWatchRateLimiting(
@@ -45,6 +53,7 @@ namespace BingeWatch.API.Configurations
         {
             var tokenLimit = configuration?.GetValue("RateLimiting:GlobalTokenLimit", 240) ?? 240;
             var tokensPerPeriod = configuration?.GetValue("RateLimiting:GlobalTokensPerMinute", 120) ?? 120;
+            var authPermitLimit = configuration?.GetValue("RateLimiting:AuthPermitLimit", 10) ?? 10;
 
             services.AddRateLimiter(options =>
             {
@@ -88,7 +97,7 @@ namespace BingeWatch.API.Configurations
                 options.AddPolicy(RateLimitPolicies.Auth, context =>
                     RateLimitPartition.GetFixedWindowLimiter(ClientIp(context), _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 10,
+                        PermitLimit = authPermitLimit,
                         Window = TimeSpan.FromMinutes(5),
                         QueueLimit = 0
                     }));

@@ -14,6 +14,25 @@ namespace BingeWatch.API.Dtos
         public string Password { get; set; } = string.Empty;
     }
 
+    public class ForgotPasswordRequest
+    {
+        public string Email { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Sıfırlama sayfasının Web tarafındaki adresi (ör.
+        /// <c>https://site/reset-password</c>). API kendi adresini bilir ama
+        /// kullanıcının tıklayacağı sayfa Web'de; adres oradan geliyor.
+        /// </summary>
+        public string ResetUrlBase { get; set; } = string.Empty;
+    }
+
+    public class ResetPasswordRequest
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Token { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+    }
+
     public class AuthResponse
     {
         public string Token { get; set; } = string.Empty;

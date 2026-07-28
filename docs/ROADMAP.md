@@ -220,7 +220,23 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
 ### Faz 1 — Kimlik & Kullanıcı
 
 - [x] ASP.NET Core Identity — API'de `AppUser : IdentityUser`; Web tarayıcıya **cookie auth** sunuyor, Web→API arası JWT (cookie claim'i içinde taşınıyor, BFF benzeri)
-- [x] Kayıt / giriş / çıkış (şifre sıfırlama henüz yok — sonraki iterasyon)
+- [x] Kayıt / giriş / çıkış
+- [~] Şifre sıfırlama — **akış tamam, üretim teslimatı yok.** `/forgot-password`
+      ve `/reset-password` sayfaları, Identity token üretimi ve sıfırlama uçları
+      çalışıyor; uçtan uca test altında. Teslimat `IPasswordResetNotifier`
+      arkasında: Development'ta bağlantı loga yazılıyor, üretimde gerçek bir
+      gönderici (SMTP) kaydedilene kadar özellik **kapalı** — uç 503 dönüyor
+  - **Hesap sayımına kapalı:** e-posta kayıtlı olsun olmasın `/forgot-password`
+    her zaman aynı 200 ve aynı ekranı veriyor. "Böyle bir kullanıcı yok" demek,
+    adresleri tek tek deneyerek üyeleri saymaya izin verirdi. Aynı sebeple
+    geçersiz token ile bilinmeyen hesap aynı hatayı döndürüyor
+  - Token sorgu dizesinde taşındığı için base64url kodlanıyor; ham Identity
+    token'ı `+` gibi karakterler içeriyor ve kodlanmadan bozuluyor
+  - Sıfırlama sonrası `ResetAccessFailedCountAsync` çağrılıyor: kilitli hesap
+    doğru parolayla bile giremeyip sebebini anlayamıyordu
+  - Üretimde loglayan uygulamanın sessizce devreye girmemesi önemliydi — log,
+    hesap ele geçirmeye yeten bağlantılarla dolardı. Ama **açılışta patlatmak da
+    yanlıştı**: eksik olan tek bir özelliğin teslimatı, uygulamanın tamamı değil
 - [x] `UserProfile` alanları AppUser üzerinde (DisplayName, Bio, AvatarUrl, IsPrivate) + `/@username` profil sayfası
 - [x] `WatchListController` `[Authorize]`; `userId` route'tan değil `ClaimsPrincipal`'dan (`ClaimTypes.NameIdentifier`) alınıyor
 - [x] `WatchListItem` → `UserShow` migration'ı — **Faz 2'de yapıldı**: `WatchListItem` tablosu
@@ -481,7 +497,10 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     bağlamında koşuyor
   - **Playwright tarayıcısı ayrıca kurulmalı:** `BingeWatch.E2E/bin/.../playwright.ps1
     install chromium`. Kurulmadan süitin tamamı düşer
-  - **CI'da koşuyor** — `ci.yml`'e ayrı `e2e` işi eklendi. Süit hiçbir sırra
+  - **CI'da koşuyor ve gerçek koşuda doğrulandı** — PR
+    [#12](https://github.com/oguzozshn/BingeWatch/pull/12): `e2e` işi Linux
+    koşucusunda `Passed: 17`, `build-and-test` 148 birim testi. `ci.yml`'e ayrı
+    `e2e` işi eklendi. Süit hiçbir sırra
     bağlı değil: kataloğu kendi tohumluyor ve JWT ayarlarını kendi veriyor
     (öncesinde geliştiricinin user-secrets deposuna gizliden bağlıydı, CI'da
     API hiç açılmazdı). LocalDB Windows'a özgü olduğu için Linux koşucuda SQL
@@ -557,6 +576,11 @@ referans olarak duruyor ama tek satır senaryo yok. Yazılırsa CI'a değil elle
 çalıştırılan bir teşhis aracı olarak kurulmalı: yük üreticisi ile uygulama aynı
 makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anlamlı.
 
+**Şifre sıfırlama üretimde kapalı.** Akış tamam ama gerçek bir gönderici yok;
+`DisabledPasswordResetNotifier` kayıtlı ve uç 503 dönüyor. Açmak için
+`IPasswordResetNotifier`'ın SMTP uygulaması yazılıp `Program.cs`'te
+kaydedilmeli — başka hiçbir yer değişmiyor.
+
 ### 7.2 Faz 6.6'da bulunan ve çözülenler
 
 - ✅ **ARIA durum nitelikleri geçersiz yazılıyordu — Faz 6.3'ün ARIA işi sessizce
@@ -597,6 +621,10 @@ makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anla
   `/admin/reports` **hepsi 302 ile `/login`'e gidiyor** (cookie auth
   middleware'i, `ReturnUrl` parametresiyle) ve gövde boş dönüyor. Madde
   kaldırıldı, yerine yönlendirmeyi doğrulayan `[Theory]` testi kondu
+- ✅ **Eski proje adı kullanıcıya görünen yerlerde kalmıştı** — navbar markası
+  `BingeOn.Web`, Swagger başlığı `BingeOn API`. Kod tanımlayıcıları
+  (`BingeOnDbContext`, `BingeOnDb` veritabanı adı) bilerek değiştirilmedi:
+  migration ve bağlantı dizesi zinciri açılıyor, kazancı yok
 - ℹ️ **Yan sonuç: `NoIndex` meta etiketi crawler'a hiç ulaşmıyor.** `NoIndex="true"`
   verilen sayfaların hepsi `[Authorize]` arkasında ve anonim istek 302 alıyor;
   gövde üretilmediği için `<meta name="robots">` de yazılmıyor. Zararsız ama
@@ -630,9 +658,10 @@ makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anla
 
 ### 7.6 Tamamlanmamış / ertelenen maddeler
 
-**Faz 1'de bilinçli ertelenen**
+**Faz 1'de ertelenip sonradan yapılanlar**
 
-- Şifre sıfırlama akışı
+- ✅ Şifre sıfırlama akışı — 28.07.2026'da eklendi. Teslimat üretimde hâlâ
+  kapalı; ayrıntı §7.1'de
 
 ---
 

@@ -58,7 +58,11 @@ namespace BingeWatch.E2E
                 ("ConnectionStrings__DefaultConnection", ConnectionString),
                 ("Jwt__Key", TestJwtKey),
                 ("Jwt__Issuer", "BingeWatch.E2E"),
-                ("Jwt__Audience", "BingeWatch.E2E"));
+                ("Jwt__Audience", "BingeWatch.E2E"),
+                // Süit koşu başına birkaç kayıt + şifre sıfırlama çağrısı
+                // yapıyor; üretim kotası (10/5dk) süiti kısa aralıkla iki kez
+                // koşturunca doluyor ve testler gerçek hata yokken düşüyordu.
+                ("RateLimiting__AuthPermitLimit", "1000"));
             _web = StartServer(root, "BingeWatch.Web", _webOutput, WebUrl, ("Api__BaseUrl", ApiUrl + "/"));
 
             await WaitForHealthAsync(ApiUrl + "/health", "API", _apiOutput);
@@ -75,8 +79,8 @@ namespace BingeWatch.E2E
             });
 
             // Tarayıcıdan sonra: kayıt formu üzerinden açılıyorlar.
-            PrimaryUser = await RegisterAsync("gezgin");
-            SecondaryUser = await RegisterAsync("komsu");
+            PrimaryUser = await RegisterUserAsync("gezgin");
+            SecondaryUser = await RegisterUserAsync("komsu");
         }
 
         public async Task DisposeAsync()
@@ -99,6 +103,18 @@ namespace BingeWatch.E2E
         {
             lock (_webOutput)
                 return string.Join(Environment.NewLine, _webOutput.TakeLast(lines));
+        }
+
+        /// <summary>
+        /// API sunucusunun son log satırları. Şifre sıfırlama testi bunu
+        /// kullanıyor: Development'ta sıfırlama bağlantısı loga yazılıyor
+        /// (<c>LoggingPasswordResetNotifier</c>), yani e-posta altyapısı
+        /// olmadan da akışın tamamı uçtan uca sınanabiliyor.
+        /// </summary>
+        public string ApiLogTail(int lines = 60)
+        {
+            lock (_apiOutput)
+                return string.Join(Environment.NewLine, _apiOutput.TakeLast(lines));
         }
 
         /// <summary>Her test kendi tarayıcı bağlamında koşar; çerezler sızmasın.</summary>
@@ -133,11 +149,12 @@ namespace BingeWatch.E2E
         /// atmak daha hızlı olurdu ama kayıt akışının kendisi de test edilen
         /// yüzeyin parçası.
         /// </summary>
-        private async Task<TestUser> RegisterAsync(string prefix)
+        public async Task<TestUser> RegisterUserAsync(string prefix)
         {
             // Veritabanı çalıştırmalar arasında kalıcı; sabit kullanıcı adı
             // ikinci koşuda "zaten var" hatası verirdi.
             var username = prefix + Guid.NewGuid().ToString("N")[..8];
+            var email = $"{username}@ornek.test";
 
             var context = await Browser.NewContextAsync(new BrowserNewContextOptions
             {
@@ -151,7 +168,7 @@ namespace BingeWatch.E2E
 
                 await page.FillAsync("#register-username", username);
                 await page.FillAsync("#register-displayname", $"Test {prefix}");
-                await page.FillAsync("#register-email", $"{username}@ornek.test");
+                await page.FillAsync("#register-email", email);
                 await page.FillAsync("#register-password", Password);
                 await page.ClickAsync("form[action='/account/register'] button[type=submit]");
 
@@ -160,7 +177,7 @@ namespace BingeWatch.E2E
                     new PageWaitForURLOptions { Timeout = 20_000 });
 
                 var state = await context.StorageStateAsync();
-                return new TestUser(username, state);
+                return new TestUser(username, email, state);
             }
             finally
             {
@@ -292,5 +309,5 @@ namespace BingeWatch.E2E
     /// Test hesabı. <paramref name="StorageState"/> Playwright'ın çerez
     /// anlık görüntüsü — yeni bağlama verildiğinde oturum hazır gelir.
     /// </summary>
-    public record TestUser(string Username, string StorageState);
+    public record TestUser(string Username, string Email, string StorageState);
 }
