@@ -39,6 +39,49 @@ namespace BingeWatch.API.Dtos
         public DateTime? WatchedAt { get; set; }
     }
 
+    /// <summary>
+    /// Bölüm sayfasının tek istekte ihtiyaç duyduğu her şey: bölüm detayı,
+    /// kullanıcının işareti ve puanı, üst kırıntılar ve komşu bölümler.
+    ///
+    /// Ayrı bir DTO olmasının sebebi <see cref="EpisodeDetailDto"/>'ya
+    /// <c>Overview</c> eklememek: dizi sayfası bütün bölümleri döndürüyor ve
+    /// özetler orada kullanılmadan yükü ~20 KB şişiriyordu.
+    /// </summary>
+    public class EpisodePageDto
+    {
+        public int TmdbShowId { get; set; }
+        public string ShowName { get; set; } = string.Empty;
+
+        public int SeasonNumber { get; set; }
+        public string? SeasonName { get; set; }
+
+        /// <summary>Yerel DB id'si — işaretleme, puanlama ve yorum uçları bunu bekler.</summary>
+        public int Id { get; set; }
+        public int EpisodeNumber { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Overview { get; set; }
+        public string? StillPath { get; set; }
+        public DateTime? AirDate { get; set; }
+        public int? Runtime { get; set; }
+        public double TmdbVoteAverage { get; set; }
+
+        /// <summary>Anonim istekte her zaman false / null.</summary>
+        public bool Watched { get; set; }
+        public decimal? MyRating { get; set; }
+
+        /// <summary>Sezon sınırını da geçen komşular; uçlarda <c>null</c>.</summary>
+        public EpisodeRefDto? Previous { get; set; }
+        public EpisodeRefDto? Next { get; set; }
+    }
+
+    /// <summary>Komşu bölüme bağlantı kurmaya yeten en küçük bilgi.</summary>
+    public class EpisodeRefDto
+    {
+        public int SeasonNumber { get; set; }
+        public int EpisodeNumber { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
     public class MarkWatchedRequest
     {
         public bool Watched { get; set; } = true;

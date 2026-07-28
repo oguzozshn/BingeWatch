@@ -1,0 +1,131 @@
+.loading {
+    color: var(--bs-secondary-color, #9aa1ab);
+    padding: 24px 0;
+}
+
+.crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+    margin-bottom: 12px;
+}
+
+.crumbs a { text-decoration: none; }
+.crumbs a:hover { text-decoration: underline; }
+
+.episode-page {
+    max-width: 820px;
+}
+
+.episode-head {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.still {
+    width: 320px;
+    max-width: 100%;
+    border-radius: 10px;
+    display: block;
+}
+
+.head-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.code {
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color, #9aa1ab);
+    margin: 0 0 2px;
+}
+
+.facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+    margin: 8px 0 0;
+}
+
+.muted { color: var(--bs-secondary-color, #9aa1ab); }
+
+.unaired-note {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+    margin: 10px 0 0;
+}
+
+.personal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-top: 14px;
+}
+
+.watch-btn {
+    background: none;
+    border: 1px solid var(--bs-border-color, #3a3d45);
+    color: inherit;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    min-height: 34px;
+}
+
+.watch-btn:hover,
+.watch-btn:focus-visible {
+    border-color: var(--bs-link-color, #4da3ff);
+}
+
+.watch-btn.on {
+    border-color: var(--bs-success-text-emphasis, #75b798);
+    color: var(--bs-success-text-emphasis, #75b798);
+}
+
+.overview {
+    margin: 20px 0 0;
+    line-height: 1.6;
+}
+
+.episode-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 24px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--bs-border-color, #3a3d45);
+}
+
+.nav-link {
+    font-size: 0.85rem;
+    text-decoration: none;
+    min-height: 24px;
+}
+
+.nav-link:hover { text-decoration: underline; }
+
+.discussion {
+    margin-top: 28px;
+}
+
+.discussion h2 {
+    font-size: 1.05rem;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 640px) {
+    .episode-head {
+        flex-direction: column;
+    }
+
+    .still { width: 100%; }
+}

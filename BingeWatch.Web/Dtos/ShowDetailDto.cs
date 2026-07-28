@@ -36,6 +36,38 @@ namespace BingeWatch.Web.Dtos
         public DateTime? WatchedAt { get; set; }
     }
 
+    /// <summary>API'deki <c>EpisodePageDto</c> ile aynı şekilde — bölüm sayfası tek istekte alır.</summary>
+    public class EpisodePageDto
+    {
+        public int TmdbShowId { get; set; }
+        public string ShowName { get; set; } = string.Empty;
+
+        public int SeasonNumber { get; set; }
+        public string? SeasonName { get; set; }
+
+        public int Id { get; set; }
+        public int EpisodeNumber { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Overview { get; set; }
+        public string? StillPath { get; set; }
+        public DateTime? AirDate { get; set; }
+        public int? Runtime { get; set; }
+        public double TmdbVoteAverage { get; set; }
+
+        public bool Watched { get; set; }
+        public decimal? MyRating { get; set; }
+
+        public EpisodeRefDto? Previous { get; set; }
+        public EpisodeRefDto? Next { get; set; }
+    }
+
+    public class EpisodeRefDto
+    {
+        public int SeasonNumber { get; set; }
+        public int EpisodeNumber { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
     public class MarkWatchedRequest
     {
         public bool Watched { get; set; } = true;

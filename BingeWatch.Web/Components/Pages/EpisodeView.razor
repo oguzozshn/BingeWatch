@@ -1,0 +1,228 @@
+@page "/show/{TmdbId:int}/season/{SeasonNumber:int}/episode/{EpisodeNumber:int}"
+@rendermode InteractiveServer
+
+@inject IHttpClientFactory HttpClientFactory
+
+@*
+    Bölümün kendi sayfası. Tartışma ipliği burada yaşıyor — dizi sayfasındaki
+    bölüm satırının altında değil. İki sebep: iplik dar bir satıra sığmıyordu ve
+    bir tartışmanın paylaşılabilir bir adresi olması gerekiyor.
+
+    Rota sezon/bölüm numarasından kuruluyor, yerel bölüm id'sinden değil:
+    id katalog yeniden tohumlanınca değişir, "S1B1" değişmez.
+
+    Dizi sayfası gibi anonime açık; kişisel katman (izleme işareti, puan) ve
+    yorum ipliği kendi kapılarının arkasında.
+*@
+
+@if (loading)
+{
+    <p class="loading">Yükleniyor...</p>
+}
+else if (ep == null)
+{
+    <p class="loading">Bölüm bulunamadı.</p>
+}
+else
+{
+    <PageMeta Title="@MetaTitle" Description="@MetaDescription"
+              ImageUrl="@SocialImageUrl" OgType="video.episode" />
+
+    <nav class="crumbs" aria-label="Konum">
+        <a href="/show/@TmdbId">@ep.ShowName</a>
+        <span aria-hidden="true">›</span>
+        <span>@SeasonLabel</span>
+    </nav>
+
+    <article class="episode-page">
+        <header class="episode-head">
+            @if (!string.IsNullOrEmpty(ep.StillPath))
+            {
+                <img class="still" src="@StillUrl(ep.StillPath)" alt="" />
+            }
+
+            <div class="head-info">
+                <p class="code">@EpisodeCode</p>
+                <h1>@ep.Name</h1>
+
+                <p class="facts">
+                    @if (ep.AirDate.HasValue)
+                    {
+                        <span>@ep.AirDate.Value.ToString("d MMMM yyyy")</span>
+                    }
+                    @if (ep.Runtime is > 0)
+                    {
+                        <span>@ep.Runtime dk</span>
+                    }
+                    @if (ep.TmdbVoteAverage > 0)
+                    {
+                        <span>⭐ @ep.TmdbVoteAverage.ToString("0.0") <span class="muted">TMDb</span></span>
+                    }
+                </p>
+
+                @if (Unaired)
+                {
+                    <p class="unaired-note">Bu bölüm henüz yayınlanmadı.</p>
+                }
+
+                <AuthorizeView>
+                    <Authorized>
+                        @if (!Unaired)
+                        {
+                            <div class="personal">
+                                <button type="button" class="watch-btn @(ep.Watched ? "on" : "")"
+                                        @onclick="ToggleWatchedAsync">
+                                    @(ep.Watched ? "✓ İzledim" : "İzledim olarak işaretle")
+                                </button>
+
+                                <StarRating Value="@ep.MyRating" Size="lg" ShowValue="true"
+                                            AriaLabel="Bölüme puan ver"
+                                            ValueChanged="RateAsync" />
+                            </div>
+                        }
+                    </Authorized>
+                    <NotAuthorized>
+                        <p class="muted">
+                            <a href="/login">Giriş yap</a> — bölümü işaretle, puanla, tartışmaya katıl.
+                        </p>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(ep.Overview))
+        {
+            <p class="overview">@ep.Overview</p>
+        }
+
+        <nav class="episode-nav" aria-label="Bölümler arası gezinme">
+            @if (ep.Previous != null)
+            {
+                <a class="nav-link" href="@Url(ep.Previous)">← @Code(ep.Previous)</a>
+            }
+            else
+            {
+                <span></span>
+            }
+            @if (ep.Next != null)
+            {
+                <a class="nav-link" href="@Url(ep.Next)">@Code(ep.Next) →</a>
+            }
+        </nav>
+
+        <section class="discussion">
+            <h2>Tartışma</h2>
+            @* @key izleme durumunu taşıyor: bölümü işaretleyince bileşen yeniden
+               kuruluyor ve iplik kilidi tazeleniyor. EpisodeId değişmediği için
+               OnParametersSetAsync tek başına tetiklenmezdi. *@
+            <EpisodeComments EpisodeId="ep.Id" @key="@($"{ep.Id}-{ep.Watched}")" />
+        </section>
+    </article>
+}
+
+@code {
+    [Parameter] public int TmdbId { get; set; }
+    [Parameter] public int SeasonNumber { get; set; }
+    [Parameter] public int EpisodeNumber { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private EpisodePageDto? ep;
+    private bool loading = true;
+
+    private bool Unaired => ep!.AirDate.HasValue && ep.AirDate.Value.Date > DateTime.UtcNow.Date;
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        var api = await GetApiAsync();
+
+        // Tek istek: bölüm detayı, işaret, puan, kırıntılar ve komşular bir arada.
+        var response = await api.GetAsync(
+            $"api/shows/{TmdbId}/season/{SeasonNumber}/episode/{EpisodeNumber}");
+
+        ep = response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<EpisodePageDto>()
+            : null;
+
+        loading = false;
+    }
+
+    private async Task ToggleWatchedAsync()
+    {
+        var api = await GetApiAsync();
+        var response = await api.PostAsJsonAsync(
+            $"api/shows/{TmdbId}/episodes/{ep!.Id}/watched",
+            new MarkWatchedRequest { Watched = !ep.Watched });
+
+        if (response.IsSuccessStatusCode)
+            ep.Watched = !ep.Watched;
+    }
+
+    private async Task RateAsync(decimal? value)
+    {
+        var api = await GetApiAsync();
+        var request = new SetRatingRequest
+        {
+            TargetType = RatingTargetType.Episode,
+            EpisodeId = ep!.Id,
+            Value = value ?? 0
+        };
+
+        var response = value.HasValue
+            ? await api.PutAsJsonAsync($"api/shows/{TmdbId}/ratings", request)
+            : await api.SendAsync(new HttpRequestMessage(HttpMethod.Delete, $"api/shows/{TmdbId}/ratings")
+            {
+                Content = JsonContent.Create(request)
+            });
+
+        if (response.IsSuccessStatusCode)
+            ep.MyRating = value;
+    }
+
+    private string Url(EpisodeRefDto r) =>
+        $"/show/{TmdbId}/season/{r.SeasonNumber}/episode/{r.EpisodeNumber}";
+
+    private static string Code(EpisodeRefDto r) => $"S{r.SeasonNumber}B{r.EpisodeNumber}";
+
+    private string EpisodeCode => $"S{SeasonNumber}B{EpisodeNumber}";
+
+    private string SeasonLabel =>
+        string.IsNullOrEmpty(ep?.SeasonName) ? $"Sezon {SeasonNumber}" : ep!.SeasonName!;
+
+    private static string StillUrl(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return "";
+
+        return path.StartsWith("http") ? path : $"https://image.tmdb.org/t/p/w780{path}";
+    }
+
+    // ----- SEO ---------------------------------------------------------------
+
+    private string MetaTitle => $"{ep!.ShowName} {EpisodeCode} — {ep.Name}";
+
+    /// <summary>
+    /// Bölüm özeti bilerek meta açıklamasına konmuyor: TMDb özetleri olay
+    /// anlatıyor ve arama sonucunda spoiler olarak görünürdü. Sayfanın kendisi
+    /// özeti gösteriyor — oraya kullanıcı ne okuyacağını bilerek geliyor.
+    /// </summary>
+    private string MetaDescription =>
+        $"{ep!.ShowName} dizisinin {EpisodeCode} bölümü — {ep.Name}. " +
+        "Bölümü izleyenlerin yorumlarını oku, kendi puanını ver.";
+
+    private string? SocialImageUrl =>
+        string.IsNullOrEmpty(ep!.StillPath) ? null : StillUrl(ep.StillPath);
+}
