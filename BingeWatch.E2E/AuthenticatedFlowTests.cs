@@ -244,6 +244,120 @@ namespace BingeWatch.E2E
         }
 
         /// <summary>
+        /// Bölüm başlığı artık bir bağlantı: bölümün kendi sayfasına götürmeli.
+        /// Eskiden başlık onay kutusunun <c>&lt;label&gt;</c>'ıydı, yani tıklamak
+        /// işaretliyordu — gezinme ile eylem tek hedefteydi.
+        /// </summary>
+        [Fact]
+        public async Task EpisodeTitle_LinksToEpisodePage()
+        {
+            var page = await OpenShowAsync();
+
+            await page.GetByRole(AriaRole.Tab, new() { Name = "Bölümler" }).ClickAsync();
+            await ExpandFirstSeasonAsync(page);
+
+            var link = page.Locator(".episode-row a.episode-title").First;
+            await Assertions.Expect(link).ToBeVisibleAsync();
+            await Assertions.Expect(link).ToHaveAttributeAsync(
+                "href", $"/show/{SeedShowId}/season/1/episode/1");
+
+            await link.ClickAsync();
+
+            await page.WaitForURLAsync($"**/show/{SeedShowId}/season/1/episode/1",
+                new() { Timeout = 15_000 });
+            // Tohumlanan bölüm adı "S01E01"; başlık bölümün kendisi olmalı,
+            // dizinin adı değil.
+            await Assertions.Expect(page.Locator("h1")).ToHaveTextAsync("S01E01");
+        }
+
+        /// <summary>
+        /// Özelliğin bütün iddiası: <b>ipliği yalnızca bölümü izlemiş olan
+        /// açar.</b> Birim testleri bunu servis seviyesinde kanıtlıyor; burada
+        /// aynı kural gerçek tarayıcıda, gerçek devrede doğrulanıyor.
+        /// <para>
+        /// Bölüm sayfasına dizi sayfasından <i>bağlantıyla</i> geliniyor: Blazor'ın
+        /// gelişmiş gezinmesi devreyi koruduğu için sayfa daha açılırken
+        /// etkileşimli oluyor. Doğrudan <c>GotoAsync</c> ile gelinseydi yeni bir
+        /// devre kurulana kadar tıklamalar yutulurdu (ROADMAP §6.6'daki tuzak).
+        /// </para>
+        /// <para>
+        /// Bilerek tek hesapla: <see cref="BlockedUser_ProfileIsHiddenBothWays"/>
+        /// iki test hesabını kalıcı olarak engelliyor ve xUnit sırayı garanti
+        /// etmiyor. "Başkasının yorumunu görme" senaryosu bu yüzden burada değil,
+        /// birim testinde (<c>GetThreadAsync_OpensThreadForUserWhoWatched</c>).
+        /// </para>
+        /// </summary>
+        [Fact]
+        public async Task EpisodeDiscussion_UnlocksOnlyAfterWatching()
+        {
+            var page = await OpenShowAsync();
+
+            await page.GetByRole(AriaRole.Tab, new() { Name = "Bölümler" }).ClickAsync();
+            await ExpandFirstSeasonAsync(page);
+
+            // 4. bölüm: ilk bölümü işaretleme testi kullanıyor, aynı satırda
+            // buluşmasınlar. Kapı bölüm başına olduğu için bu yeterli izolasyon.
+            await page.Locator(".episode-row a.episode-title").Nth(3).ClickAsync();
+            await page.WaitForURLAsync($"**/show/{SeedShowId}/season/1/episode/4",
+                new() { Timeout = 15_000 });
+
+            var thread = page.Locator(".discussion .episode-comments");
+            var composer = page.Locator(".discussion textarea");
+
+            // İzlemeden önce: kilitli, yazma kutusu yok.
+            await Assertions.Expect(thread).ToContainTextAsync("işaretleyince");
+            await Assertions.Expect(composer).ToHaveCountAsync(0);
+
+            var watch = page.Locator(".watch-btn");
+            await Assertions.Expect(watch).ToBeVisibleAsync();
+            await watch.ClickAsync();
+
+            // İşaretleme iplik bileşenini @key ile yeniden kuruyor; kilit
+            // sayfa yenilenmeden açılmalı.
+            await Assertions.Expect(watch).ToHaveClassAsync(new Regex(@"\bon\b"),
+                new() { Timeout = 15_000 });
+            await Assertions.Expect(composer).ToHaveCountAsync(1, new() { Timeout = 15_000 });
+
+            var body = $"E2E yorumu {Guid.NewGuid():N}";
+            await composer.FillAsync(body);
+            await page.GetByRole(AriaRole.Button, new() { Name = "Gönder" }).ClickAsync();
+
+            var comment = page.Locator(".discussion .comment").Filter(new() { HasText = body });
+            await Assertions.Expect(comment).ToHaveCountAsync(1, new() { Timeout = 15_000 });
+
+            // Yorum sunucuda kalmalı, yalnızca ekranda değil.
+            await page.ReloadAsync();
+            await Assertions.Expect(
+                page.Locator(".discussion .comment").Filter(new() { HasText = body }))
+                .ToHaveCountAsync(1, new() { Timeout = 15_000 });
+
+            // İşaret kaldırılınca iplik kapanır ama yorum silinmez — sessiz veri
+            // kaybı olmadığının kanıtı. (Kapanmayı da aynı yerde doğruluyoruz.)
+            var watchAfter = page.Locator(".watch-btn");
+            for (var attempt = 0; attempt < 15; attempt++)
+            {
+                if (await watchAfter.GetAttributeAsync("class") is { } cls && !cls.Contains("on"))
+                    break;
+
+                await watchAfter.ClickAsync();
+                try
+                {
+                    await Assertions.Expect(watchAfter).Not.ToHaveClassAsync(
+                        new Regex(@"\bon\b"), new() { Timeout = 2_000 });
+                    break;
+                }
+                catch (PlaywrightException)
+                {
+                    // Yeniden yükleme devreyi sıfırladı; henüz bağlanmadı.
+                }
+            }
+
+            await Assertions.Expect(page.Locator(".discussion .episode-comments"))
+                .ToContainTextAsync("işaretleyince", new() { Timeout = 15_000 });
+            await Assertions.Expect(page.Locator(".discussion textarea")).ToHaveCountAsync(0);
+        }
+
+        /// <summary>
         /// Engelleme tek yönlü kaydedilir, iki yönlü etki eder ve hangi yönde
         /// olduğu sızmasın diye iki tarafa da 404 döner (Faz 6.1). Bu davranış
         /// gerçek oturumda hiç denenmemişti.
