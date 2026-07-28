@@ -1,4 +1,4 @@
-@page "/lists"
+﻿@page "/lists"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -7,8 +7,9 @@
 
 <div class="discover-page">
     <header class="page-head">
-        <h3>Listeler</h3>
-        <select class="form-select form-select-sm sort-select" value="@((int)sort)"
+        <h1>Listeler</h1>
+        <select class="form-select form-select-sm sort-select" aria-label="Listeleri sırala"
+                value="@((int)sort)"
                 @onchange="OnSortChangedAsync">
             <option value="0">En yeni</option>
             <option value="1">En beğenilen</option>
@@ -56,10 +57,14 @@
 
     protected override async Task OnInitializedAsync() => await ReloadAsync();
 
+    /// <summary>API'den gelen opak imleç; <c>null</c> ise sayfa kalmadı.</summary>
+    private string? cursor;
+
     private async Task ReloadAsync()
     {
         loading = true;
         lists.Clear();
+        cursor = null;
         await LoadPageAsync();
     }
 
@@ -79,12 +84,16 @@
             client.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-        var page = await client.GetFromJsonAsync<List<UserListSummaryDto>>(
-            $"api/lists?skip={lists.Count}&take={PageSize}&sort={(int)sort}") ?? new();
+        var url = $"api/lists?take={PageSize}&sort={(int)sort}";
+        if (cursor != null)
+            url += $"&cursor={Uri.EscapeDataString(cursor)}";
 
-        lists.AddRange(page);
-        // Tam sayfa döndüyse büyük olasılıkla devamı var; boş/eksik sayfa sonu demek.
-        hasMore = page.Count == PageSize;
+        var page = await client.GetFromJsonAsync<PagedResult<UserListSummaryDto>>(url);
+
+        lists.AddRange(page?.Items ?? new());
+        // Sayfanın devamı olup olmadığını sunucu söylüyor; istemci tahmin etmiyor.
+        cursor = page?.NextCursor;
+        hasMore = cursor != null;
         loading = false;
     }
 

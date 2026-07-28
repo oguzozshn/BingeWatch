@@ -35,6 +35,10 @@ namespace BingeWatch.API.Data
         public DbSet<UserListItem> UserListItems { get; set; }
         public DbSet<UserListLike> UserListLikes { get; set; }
 
+        // Moderasyon
+        public DbSet<UserBlock> UserBlocks { get; set; }
+        public DbSet<Report> Reports { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -109,6 +113,9 @@ namespace BingeWatch.API.Data
                 entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
 
                 entity.HasIndex(e => new { e.UserId, e.ShowId }).IsUnique();
+                // "Sırada ne var" ve istatistikler kullanıcının dizilerini duruma
+                // göre süzer; ana sayfa her açılışta bu sorguyu çalıştırıyor.
+                entity.HasIndex(e => new { e.UserId, e.Status });
 
                 entity.HasOne(e => e.User)
                       .WithMany()
@@ -169,6 +176,9 @@ namespace BingeWatch.API.Data
                 // incelemeleri (SeasonNumber = NULL) tekillik dışında bırakırdı.
                 entity.HasIndex(e => new { e.UserId, e.ShowId, e.SeasonNumber }).IsUnique().HasFilter(null);
                 entity.HasIndex(e => new { e.ShowId, e.CreatedAt });
+                // Genel inceleme akışı dizi filtresi olmadan tarihe göre tarar;
+                // imleç (CreatedAt, Id) çiftinden ilerlediği için ikisi birlikte.
+                entity.HasIndex(e => new { e.CreatedAt, e.Id });
 
                 entity.HasOne(e => e.User)
                       .WithMany()
@@ -210,8 +220,9 @@ namespace BingeWatch.API.Data
                 entity.Property(e => e.TargetUserId).HasMaxLength(450);
                 entity.Property(e => e.RatingValue).HasColumnType("decimal(2,1)");
 
-                // Akış, takip edilenlerin olaylarını tarihe göre okur.
-                entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+                // Akış, takip edilenlerin olaylarını tarihe göre okur; imleç
+                // (CreatedAt, Id) çiftinden ilerlediği için Id de indekste.
+                entity.HasIndex(e => new { e.UserId, e.CreatedAt, e.Id });
                 // Puan/inceleme güncellemesinde mevcut olayı bulmak için.
                 entity.HasIndex(e => new { e.UserId, e.Type, e.ShowId });
 
@@ -282,9 +293,10 @@ namespace BingeWatch.API.Data
                 entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
                 entity.Property(e => e.ActorId).IsRequired().HasMaxLength(450);
 
-                // Zil rozeti okunmamışları sayar, liste tarihe göre okur.
+                // Zil rozeti okunmamışları sayar, liste tarihe göre okur
+                // (imleç (CreatedAt, Id) çiftinden ilerliyor).
                 entity.HasIndex(e => new { e.UserId, e.ReadAt });
-                entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+                entity.HasIndex(e => new { e.UserId, e.CreatedAt, e.Id });
 
                 entity.HasOne(e => e.User)
                       .WithMany()
@@ -307,6 +319,9 @@ namespace BingeWatch.API.Data
 
                 // Profildeki liste sekmesi kullanıcının listelerini tarihe göre okur.
                 entity.HasIndex(e => new { e.UserId, e.UpdatedAt });
+                // Keşif akışı kullanıcı filtresi olmadan UpdatedAt'e göre tarar;
+                // imleç (UpdatedAt, Id) çiftinden ilerliyor.
+                entity.HasIndex(e => new { e.UpdatedAt, e.Id });
 
                 entity.HasOne(e => e.User)
                       .WithMany()
@@ -352,6 +367,63 @@ namespace BingeWatch.API.Data
                       .HasForeignKey(e => e.UserId)
                       // UserList zaten AppUser'a cascade veriyor; ikinci yol SQL Server'da yasak.
                       .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<UserBlock>(entity =>
+            {
+                entity.Property(e => e.BlockerId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.BlockedId).IsRequired().HasMaxLength(450);
+
+                // Aynı çift iki kez engellenemez; ikinci istek sessizce yoksayılır.
+                entity.HasIndex(e => new { e.BlockerId, e.BlockedId }).IsUnique();
+                // Engel filtreleri "beni kim engelledi" yönünden de tarar.
+                entity.HasIndex(e => e.BlockedId);
+
+                entity.HasOne(e => e.Blocker)
+                      .WithMany()
+                      .HasForeignKey(e => e.BlockerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Blocked)
+                      .WithMany()
+                      .HasForeignKey(e => e.BlockedId)
+                      // Aynı tabloya ikinci cascade yolu; SQL Server izin vermez (bkz. Follow).
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<Report>(entity =>
+            {
+                entity.Property(e => e.ReporterId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.TargetUserId).IsRequired().HasMaxLength(450);
+                entity.Property(e => e.ResolvedById).HasMaxLength(450);
+                entity.Property(e => e.Note).HasMaxLength(1000);
+                entity.Property(e => e.ResolutionNote).HasMaxLength(1000);
+
+                // Moderasyon kuyruğu açık bildirimleri tarihe göre okur
+                // (imleç (CreatedAt, Id) çiftinden ilerliyor).
+                entity.HasIndex(e => new { e.Status, e.CreatedAt, e.Id });
+                // "Aynı içerik için başka bildirim var mı" ve mükerrer kontrolü.
+                entity.HasIndex(e => new { e.TargetType, e.TargetId });
+                entity.HasIndex(e => new { e.TargetUserId, e.Status });
+
+                entity.HasOne(e => e.Reporter)
+                      .WithMany()
+                      .HasForeignKey(e => e.ReporterId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Aşağıdaki iki ilişki de AppUser cascade'i ile çoklu yol oluşturur.
+                entity.HasOne(e => e.TargetUser)
+                      .WithMany()
+                      .HasForeignKey(e => e.TargetUserId)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(e => e.ResolvedBy)
+                      .WithMany()
+                      .HasForeignKey(e => e.ResolvedById)
+                      .OnDelete(DeleteBehavior.NoAction);
+
+                // TargetId polimorfik olduğu için FK yok; içerik silinince bildirim
+                // kayıtta kalır — moderasyon geçmişi içerikle birlikte silinmemeli.
             });
         }
     }

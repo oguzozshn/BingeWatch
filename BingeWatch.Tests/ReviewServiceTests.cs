@@ -1,4 +1,4 @@
-using BingeWatch.API.Data;
+﻿using BingeWatch.API.Data;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
 using BingeWatch.API.Services;
@@ -166,11 +166,18 @@ namespace BingeWatch.Tests
             await context.SaveChangesAsync();
             await service.UpsertAsync("user1", 1, new UpsertReviewRequest { SeasonNumber = 1, Body = "yeni" });
 
-            var feed = await service.GetFeedAsync(skip: 0, take: 10, ReviewSort.Newest);
-            var second = await service.GetFeedAsync(skip: 1, take: 10, ReviewSort.Newest);
+            var feed = await service.GetFeedAsync(cursor: null, take: 10, ReviewSort.Newest);
+            Assert.Equal("yeni", feed.Items[0].Body);
+            // Sayfa dolmadıysa devamı yok; istemci fazladan istek atmamalı.
+            Assert.Null(feed.NextCursor);
 
-            Assert.Equal("yeni", feed[0].Body);
-            Assert.Equal("eski", Assert.Single(second).Body);
+            // İmleçle ikinci sayfa: ilk sayfada dönen satır tekrar gelmemeli.
+            var firstPage = await service.GetFeedAsync(cursor: null, take: 1, ReviewSort.Newest);
+            Assert.Equal("yeni", Assert.Single(firstPage.Items).Body);
+            Assert.NotNull(firstPage.NextCursor);
+
+            var secondPage = await service.GetFeedAsync(firstPage.NextCursor, 1, ReviewSort.Newest);
+            Assert.Equal("eski", Assert.Single(secondPage.Items).Body);
         }
 
         [Fact]
@@ -190,10 +197,33 @@ namespace BingeWatch.Tests
                 Value = 5m
             });
 
-            var feed = await service.GetFeedAsync(0, 10, ReviewSort.HighestRated);
+            var feed = await service.GetFeedAsync(null, 10, ReviewSort.HighestRated);
 
-            Assert.Equal("puanlı", feed[0].Body);
-            Assert.Null(feed[1].Rating);
+            Assert.Equal("puanlı", feed.Items[0].Body);
+            Assert.Null(feed.Items[1].Rating);
+        }
+
+        [Fact]
+        public async Task GetFeedAsync_HighestRatedOrdersAcrossPages()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var ratingService = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
+
+            // Puansız inceleme en yeni; sayfa içinde sıralasaydık ilk sayfada o çıkardı.
+            await service.UpsertAsync("user1", 1, new UpsertReviewRequest { SeasonNumber = 1, Body = "puanlı" });
+            await ratingService.SetRatingAsync("user1", 1, new SetRatingRequest
+            {
+                TargetType = RatingTargetType.Season,
+                SeasonNumber = 1,
+                Value = 5m
+            });
+            await service.UpsertAsync("user1", 1, new UpsertReviewRequest { Body = "puansız" });
+
+            var page = await service.GetFeedAsync(null, 1, ReviewSort.HighestRated);
+
+            Assert.Equal("puanlı", Assert.Single(page.Items).Body);
         }
     }
 }

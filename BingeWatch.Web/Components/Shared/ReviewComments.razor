@@ -25,6 +25,10 @@
                         <button type="button" class="link-btn danger"
                                 @onclick="() => DeleteAsync(comment)">Sil</button>
                     }
+                    else
+                    {
+                        <ReportButton TargetType="ReportTargetType.ReviewComment" TargetId="comment.Id" />
+                    }
                 </div>
                 <p class="text">@comment.Body</p>
             </div>

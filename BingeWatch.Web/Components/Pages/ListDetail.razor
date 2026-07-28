@@ -1,10 +1,13 @@
-@page "/list/{ListId:int}"
+﻿@page "/list/{ListId:int}"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 
-<PageTitle>@(list?.Title ?? "Liste")</PageTitle>
+@* Liste sayfasi disariya paylasilan bir sayfa; kart onizlemesi olsun. *@
+<PageMeta Title="@(list?.Title ?? "Liste")"
+          Description="@ListDescription"
+          ImageUrl="@ListImageUrl" />
 
 @if (loading)
 {
@@ -25,13 +28,13 @@ else
         {
             <header class="head">
                 <div>
-                    <h3>
+                    <h1>
                         @list.Title
                         @if (!list.IsPublic)
                         {
                             <span class="private-badge" title="Yalnızca sen görebilirsin">gizli</span>
                         }
-                    </h3>
+                    </h1>
                     <p class="owner">
                         <a href="/@@@list.OwnerUsername">@list.OwnerDisplayName</a>
                         · @list.ItemCount dizi
@@ -51,6 +54,12 @@ else
                                 @onclick="() => editing = true">Düzenle</button>
                         <button type="button" class="btn btn-sm btn-outline-danger"
                                 @onclick="() => confirmingDelete = true">Sil</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="owner-actions">
+                        <ReportButton TargetType="ReportTargetType.UserList" TargetId="list.Id" />
                     </div>
                 }
             </header>
@@ -316,4 +325,21 @@ else
 
     private static string PosterUrl(string? path) =>
         string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w185{path}";
+
+    /// <summary>Paylaşım açıklaması: listenin kendi açıklaması, yoksa sahibi + kaç dizi.</summary>
+    private string ListDescription => list == null
+        ? string.Empty
+        : !string.IsNullOrWhiteSpace(list.Description)
+            ? list.Description
+            : $"{list.OwnerDisplayName} tarafından derlenen {list.ItemCount} dizilik liste.";
+
+    /// <summary>Önizleme görseli listenin ilk posteri; boş listede görsel yok.</summary>
+    private string? ListImageUrl
+    {
+        get
+        {
+            var poster = list?.PreviewPosterPaths.FirstOrDefault();
+            return string.IsNullOrEmpty(poster) ? null : $"https://image.tmdb.org/t/p/w500{poster}";
+        }
+    }
 }

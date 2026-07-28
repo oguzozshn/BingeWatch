@@ -15,7 +15,7 @@ namespace BingeWatch.API.Services
             _configuration = configuration;
         }
 
-        public string CreateToken(AppUser user)
+        public string CreateToken(AppUser user, IEnumerable<string> roles)
         {
             var claims = new List<Claim>
             {
@@ -24,6 +24,9 @@ namespace BingeWatch.API.Services
                 new(ClaimTypes.Email, user.Email ?? string.Empty),
                 new("display_name", user.DisplayName)
             };
+
+            // [Authorize(Roles = ...)] varsayılan olarak ClaimTypes.Role'e bakar.
+            claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

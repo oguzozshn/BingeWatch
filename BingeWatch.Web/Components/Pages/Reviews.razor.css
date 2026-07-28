@@ -1,4 +1,4 @@
-.reviews-page {
+﻿.reviews-page {
     padding: 20px;
     max-width: 860px;
     margin: 0 auto;
@@ -12,7 +12,7 @@
     margin-bottom: 16px;
 }
 
-.page-head h3 { margin: 0; }
+.page-head h1 { margin: 0; }
 
 .sort-select { width: auto; }
 

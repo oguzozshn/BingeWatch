@@ -25,7 +25,9 @@ namespace BingeWatch.API.Services
         /// Keşif akışı: gizli olmayan profillerin herkese açık ve boş olmayan
         /// listeleri, istenen sırayla.
         /// </summary>
-        Task<List<UserListSummaryDto>> GetDiscoverAsync(ListSort sort, int skip, int take, string? viewerId);
+        /// <summary>Liste keşif akışı; imleç tabanlı sayfalama.</summary>
+        Task<PagedResult<UserListSummaryDto>> GetDiscoverAsync(ListSort sort, string? cursor, int take,
+            string? viewerId);
 
         /// <summary>Beğeni idempotent; liste görünür değilse <c>null</c>.</summary>
         Task<ListLikeStateDto?> LikeAsync(string userId, int listId);

@@ -1,4 +1,4 @@
-.discover-page {
+﻿.discover-page {
     max-width: 860px;
     margin: 1.5rem auto;
     padding: 0 1rem;
@@ -12,7 +12,7 @@
     margin-bottom: 1rem;
 }
 
-.page-head h3 {
+.page-head h1 {
     margin: 0;
 }
 

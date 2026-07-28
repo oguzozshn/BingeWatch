@@ -1,4 +1,4 @@
-@page "/@{Username}"
+﻿@page "/@{Username}"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -19,13 +19,20 @@ else
     <div class="profile">
         <header class="head">
             <div>
-                <h2>@profile.DisplayName</h2>
+                <h1>@profile.DisplayName</h1>
                 <p class="muted">@@@profile.Username</p>
             </div>
-            <FollowButton Username="@profile.Username"
-                          IsFollowing="profile.IsFollowedByViewer"
-                          IsViewer="profile.IsViewer"
-                          OnChanged="OnFollowChanged" />
+            <div class="head-actions">
+                <FollowButton Username="@profile.Username"
+                              IsFollowing="profile.IsFollowedByViewer"
+                              IsViewer="profile.IsViewer"
+                              OnChanged="OnFollowChanged" />
+                @if (!profile.IsViewer)
+                {
+                    <ReportButton TargetType="ReportTargetType.User" TargetUsername="@profile.Username" />
+                    <BlockButton Username="@profile.Username" IsViewer="profile.IsViewer" />
+                }
+            </div>
         </header>
 
         @if (!string.IsNullOrWhiteSpace(profile.Bio))

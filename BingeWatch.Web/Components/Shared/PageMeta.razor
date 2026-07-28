@@ -1,0 +1,107 @@
+@*
+    Paylaşım ve arama motoru meta etiketleri — tek yerden.
+
+    <HeadOutlet> App.razor'da olduğu için buradan <head>'e yazabiliyoruz.
+    Prerender sırasında da çalışır; asıl mesele bu, çünkü hem tarayıcılar hem
+    de paylaşım botları (WhatsApp, Twitter, Slack) JavaScript çalıştırmadan
+    yalnızca ilk HTML'i okur.
+*@
+
+@inject NavigationManager Navigation
+
+<PageTitle>@FullTitle</PageTitle>
+
+<HeadContent>
+    <meta name="description" content="@Trimmed" />
+    <link rel="canonical" href="@CanonicalUrl" />
+
+    <meta property="og:type" content="@OgType" />
+    <meta property="og:site_name" content="BingeWatch" />
+    <meta property="og:locale" content="tr_TR" />
+    <meta property="og:title" content="@Title" />
+    <meta property="og:description" content="@Trimmed" />
+    <meta property="og:url" content="@CanonicalUrl" />
+    @if (!string.IsNullOrEmpty(ImageUrl))
+    {
+        <meta property="og:image" content="@ImageUrl" />
+        <meta name="twitter:card" content="summary_large_image" />
+    }
+    else
+    {
+        <meta name="twitter:card" content="summary" />
+    }
+    <meta name="twitter:title" content="@Title" />
+    <meta name="twitter:description" content="@Trimmed" />
+
+    @if (NoIndex)
+    {
+        @* Kişisel ve geçici sayfalar dizine girmemeli (ayarlar, bildirimler,
+           moderasyon). robots.txt taramayı engeller, bu da dizine girmeyi. *@
+        <meta name="robots" content="noindex, nofollow" />
+    }
+
+    @if (!string.IsNullOrEmpty(JsonLd))
+    {
+        <script type="application/ld+json">@((MarkupString)JsonLd)</script>
+    }
+</HeadContent>
+
+@code {
+    /// <summary>Sayfanın kendi başlığı; site adı sonuna eklenir.</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>Paylaşım görseli — mutlak URL olmalı, botlar göreli yolu çözemez.</summary>
+    [Parameter] public string? ImageUrl { get; set; }
+
+    /// <summary>og:type; dizi sayfalarında "video.tv_show", diğerlerinde "website".</summary>
+    [Parameter] public string OgType { get; set; } = "website";
+
+    [Parameter] public bool NoIndex { get; set; }
+
+    /// <summary>
+    /// schema.org yapılandırılmış verisi (serileştirilmiş JSON). Buradan
+    /// basılıyor çünkü <b>tek bir sayfada iki <c>&lt;HeadContent&gt;</c>
+    /// olamıyor</b> — ikisi aynı bölüme yazmaya çalışıyor ve sonuncusu
+    /// diğerini eziyor. Dizi sayfasında JSON-LD ayrı bir blokta yazılınca
+    /// prerender çıktısına hiç düşmüyordu.
+    /// </summary>
+    [Parameter] public string? JsonLd { get; set; }
+
+    /// <summary>Açıklamanın üst sınırı; arama sonucunda zaten bu civarda kesiliyor.</summary>
+    private const int MaxDescriptionLength = 160;
+
+    private const string SiteName = "BingeWatch";
+
+    private string FullTitle => Title.Contains(SiteName) ? Title : $"{Title} · {SiteName}";
+
+    /// <summary>
+    /// Sorgu dizesi olmadan mutlak adres. Filtre/sıralama parametreleri farklı
+    /// URL'ler üretiyor ama aynı içeriği gösteriyor; canonical hepsini tek
+    /// adrese toplar, yoksa arama motoru bunları kopya içerik sayar.
+    /// </summary>
+    private string CanonicalUrl
+    {
+        get
+        {
+            var uri = new Uri(Navigation.Uri);
+            return new UriBuilder(uri) { Query = string.Empty, Fragment = string.Empty }.Uri.ToString();
+        }
+    }
+
+    private string Trimmed
+    {
+        get
+        {
+            var text = (Description ?? string.Empty).Replace('\n', ' ').Replace('\r', ' ').Trim();
+            if (text.Length <= MaxDescriptionLength)
+                return text;
+
+            // Kelimenin ortasında kesmeyelim.
+            var cut = text[..MaxDescriptionLength];
+            var lastSpace = cut.LastIndexOf(' ');
+            return (lastSpace > 40 ? cut[..lastSpace] : cut).TrimEnd(',', '.', ';') + "…";
+        }
+    }
+}

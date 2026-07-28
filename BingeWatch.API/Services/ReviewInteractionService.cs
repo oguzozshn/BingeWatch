@@ -18,7 +18,7 @@ namespace BingeWatch.API.Services
 
         public async Task<ReviewLikeStateDto?> LikeAsync(string userId, int reviewId)
         {
-            var review = await _context.Reviews.FirstOrDefaultAsync(r => r.Id == reviewId);
+            var review = await VisibleReviewAsync(reviewId, userId);
             if (review == null)
                 return null;
 
@@ -39,6 +39,7 @@ namespace BingeWatch.API.Services
 
         public async Task<ReviewLikeStateDto?> UnlikeAsync(string userId, int reviewId)
         {
+            // Engel sonrası da beğeniyi geri alabilmelisin; burada görünürlük aranmaz.
             var review = await _context.Reviews.FirstOrDefaultAsync(r => r.Id == reviewId);
             if (review == null)
                 return null;
@@ -60,12 +61,15 @@ namespace BingeWatch.API.Services
 
         public async Task<List<ReviewCommentDto>?> GetCommentsAsync(int reviewId, string? viewerId)
         {
-            var review = await _context.Reviews.FirstOrDefaultAsync(r => r.Id == reviewId);
+            var review = await VisibleReviewAsync(reviewId, viewerId);
             if (review == null)
                 return null;
 
+            // Engellediğin (ya da seni engelleyenin) yorumu iplikte görünmez.
+            var hidden = await _context.HiddenUserIdsAsync(viewerId);
+
             var comments = await _context.ReviewComments
-                .Where(c => c.ReviewId == reviewId)
+                .Where(c => c.ReviewId == reviewId && !hidden.Contains(c.UserId))
                 .OrderBy(c => c.CreatedAt)
                 .Include(c => c.User)
                 .ToListAsync();
@@ -79,7 +83,7 @@ namespace BingeWatch.API.Services
             if (body.Length == 0)
                 return null;
 
-            var review = await _context.Reviews.FirstOrDefaultAsync(r => r.Id == reviewId);
+            var review = await VisibleReviewAsync(reviewId, userId);
             if (review == null)
                 return null;
 
@@ -110,6 +114,19 @@ namespace BingeWatch.API.Services
             _context.ReviewComments.Remove(comment);
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        /// <summary>
+        /// İncelemeyi yalnızca yazarıyla arasında engel bulunmayan kullanıcıya döner;
+        /// engelli taraf ne beğenebilir ne yorum yazabilir ne de ipliği okuyabilir.
+        /// </summary>
+        private async Task<Review?> VisibleReviewAsync(int reviewId, string? viewerId)
+        {
+            var review = await _context.Reviews.FirstOrDefaultAsync(r => r.Id == reviewId);
+            if (review == null)
+                return null;
+
+            return await _context.IsBlockedBetweenAsync(viewerId, review.UserId) ? null : review;
         }
 
         private async Task<ReviewLikeStateDto> BuildStateAsync(int reviewId, string viewerId)

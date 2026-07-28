@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BingeWatch.API.Controllers
 {
@@ -57,6 +59,7 @@ namespace BingeWatch.API.Controllers
 
         [HttpPut]
         [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
         public async Task<IActionResult> SetRating(int tmdbId, [FromBody] SetRatingRequest request)
         {
             var rating = await _ratingService.SetRatingAsync(CurrentUserId, tmdbId, request);

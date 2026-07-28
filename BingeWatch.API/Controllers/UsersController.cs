@@ -1,10 +1,12 @@
 using System.Security.Claims;
+using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
 using BingeWatch.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BingeWatch.API.Controllers
 {
@@ -16,14 +18,16 @@ namespace BingeWatch.API.Controllers
         private readonly IFollowService _followService;
         private readonly IUserStatsService _statsService;
         private readonly IUserListService _listService;
+        private readonly IBlockService _blockService;
 
         public UsersController(UserManager<AppUser> userManager, IFollowService followService,
-            IUserStatsService statsService, IUserListService listService)
+            IUserStatsService statsService, IUserListService listService, IBlockService blockService)
         {
             _userManager = userManager;
             _followService = followService;
             _statsService = statsService;
             _listService = listService;
+            _blockService = blockService;
         }
 
         /// <summary>Anonim istekte <c>null</c>; profil uç noktaları kimliği zorunlu kılmaz.</summary>
@@ -35,6 +39,12 @@ namespace BingeWatch.API.Controllers
             var user = await _userManager.FindByNameAsync(username);
             // Gizli profil yalnızca sahibine görünür.
             if (user == null || (user.IsPrivate && user.Id != ViewerId))
+                return NotFound();
+
+            // Engelli taraflar birbirinin profilini göremez — hangi yönde engellendiği
+            // de sızmasın diye ikisine de 404. Engeli kaldırma /api/users/me/blocks
+            // üzerinden yapılır, karşı tarafın profilinden değil.
+            if (await _blockService.IsBlockedBetweenAsync(ViewerId, user.Id))
                 return NotFound();
 
             return Ok(new UserProfileDto
@@ -91,6 +101,7 @@ namespace BingeWatch.API.Controllers
 
         [HttpPost("{username}/follow")]
         [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
         public async Task<IActionResult> Follow(string username) =>
             ToActionResult(await _followService.FollowAsync(ViewerId!, username));
 
@@ -99,10 +110,34 @@ namespace BingeWatch.API.Controllers
         public async Task<IActionResult> Unfollow(string username) =>
             ToActionResult(await _followService.UnfollowAsync(ViewerId!, username));
 
+        /// <summary>İsteği yapanın engellediği kullanıcılar — ayarlardaki engel listesi.</summary>
+        [HttpGet("me/blocks")]
+        [Authorize]
+        public async Task<IActionResult> GetBlocked() =>
+            Ok(await _blockService.GetBlockedAsync(ViewerId!));
+
+        [HttpPost("{username}/block")]
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
+        public async Task<IActionResult> Block(string username) =>
+            ToActionResult(await _blockService.BlockAsync(ViewerId!, username));
+
+        [HttpDelete("{username}/block")]
+        [Authorize]
+        public async Task<IActionResult> Unblock(string username) =>
+            ToActionResult(await _blockService.UnblockAsync(ViewerId!, username));
+
         private IActionResult ToActionResult(FollowResult result) => result switch
         {
             FollowResult.TargetNotFound => NotFound(),
             FollowResult.Self => BadRequest(new { message = "Kendini takip edemezsin." }),
+            _ => NoContent()
+        };
+
+        private IActionResult ToActionResult(BlockResult result) => result switch
+        {
+            BlockResult.TargetNotFound => NotFound(),
+            BlockResult.Self => BadRequest(new { message = "Kendini engelleyemezsin." }),
             _ => NoContent()
         };
     }

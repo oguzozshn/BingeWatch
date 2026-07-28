@@ -1,4 +1,4 @@
-.profile {
+﻿.profile {
     max-width: 640px;
     margin: 2rem auto;
     padding: 0 1rem;
@@ -11,8 +11,16 @@
     gap: 1rem;
 }
 
-.head h2 {
+.head h1 {
     margin-bottom: 0.15rem;
+}
+
+/* Takip / bildir / engelle üçlüsü; dar ekranda alt alta iner. */
+.head-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.4rem;
 }
 
 .muted {

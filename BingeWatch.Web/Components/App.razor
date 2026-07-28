@@ -1,5 +1,7 @@
 ﻿<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+@* Arayüzün tamamı Türkçe; lang="en" ekran okuyucuya metni İngilizce fonemlerle
+   okutuyordu — "İzleyeceğim" gibi kelimeler anlaşılmaz hale geliyordu. *@
+<html lang="tr" data-bs-theme="dark">
 
 <head>
     <meta charset="utf-8" />
@@ -17,6 +19,8 @@
     <Routes />
     <script src="@Assets["lib/bootstrap/dist/js/bootstrap.bundle.min.js"]"></script>
     <script src="_framework/blazor.web.js"></script>
+    @* blazor.web.js'ten sonra gelmeli: window.Blazor'a abone oluyor. *@
+    <script src="@Assets["js/navigation-focus.js"]"></script>
 </body>
 
 </html>

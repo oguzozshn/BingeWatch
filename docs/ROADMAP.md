@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 27 Temmuz 2026, Faz 5 sonu.*
+*Son güncelleme: 28 Temmuz 2026, Faz 6.6 (E2E) devam ediyor.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -32,10 +32,12 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 - **İnceleme** (dizi + sezon) spoiler bayrağıyla; inceleme akışı — [Reviews.razor](../BingeWatch.Web/Components/Pages/Reviews.razor)
 - Bölüm ısı haritası: TMDb ve kişisel puan katmanları toggle'lı
 - Dizi sayfası sekmeli: Genel Bakış / Bölümler / İncelemeler / Benzer
-
-**Sosyal ürün açısından eksik olanlar**
-
-Takip, aktivite akışı, inceleme beğeni/yorumları, listeler, bildirimler (Faz 4–5).
+- Takip, aktivite akışı, inceleme beğeni/yorumları, bildirimler (Faz 4)
+- Listeler, filtreli keşif, gelişmiş arama, istatistik sayfası (Faz 5)
+- **Moderasyon**: rate limiting, kullanıcı engelleme, içerik bildirimi ve
+  `/admin/reports` paneli (Faz 6.1)
+- **Dizi sayfası anonime açık** — OG/Twitter kartları, schema.org `TVSeries`
+  yapılandırılmış verisi, `robots.txt` ve katalogdan üretilen `sitemap.xml` (Faz 6.4)
 
 ---
 
@@ -160,8 +162,11 @@ AspNetUsers (Identity) ─┬─ ✅ profil alanları AppUser üzerinde (Display
                         ├─ ✅ UserList (Title, Description, IsPublic)
                         │       ├─ ✅ UserListItem (ShowId, Position, Note)
                         │       └─ ✅ UserListLike (UserId, CreatedAt)
-                        └─ ✅ ActivityEvent (Type, ShowId?, SeasonNumber?, EpisodeId?, EpisodeCount?,
-                                             RatingValue?, ReviewId?, TargetUserId?, CreatedAt)
+                        ├─ ✅ ActivityEvent (Type, ShowId?, SeasonNumber?, EpisodeId?, EpisodeCount?,
+                        │                    RatingValue?, ReviewId?, TargetUserId?, CreatedAt)
+                        ├─ ✅ UserBlock (BlockerId, BlockedId, CreatedAt)
+                        └─ ✅ Report (ReporterId, TargetType, TargetId?, TargetUserId, Reason,
+                                      Note?, Status, ResolvedById?, ResolvedAt?, ResolutionNote?)
 
 ✅ Show (TmdbId, ImdbId, Name, Overview, PosterPath, BackdropPath, FirstAirDate,
          TmdbStatus, VoteAverage, VoteCount, LastSyncedAt)
@@ -192,9 +197,16 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
 
 ### Faz 0 — Temizlik & Güvenlik (atlanamaz)
 
-- [x] TMDb + OMDb anahtarlarını User Secrets'a taşı (`appsettings.json` artık boş) — ⚠️ anahtarların
-      sağlayıcı tarafında **iptal edilip yenilendiği repodan doğrulanamaz**; yapılmadıysa git
-      geçmişindeki eski anahtarlar hâlâ geçerli demektir
+- [x] TMDb + OMDb anahtarlarını User Secrets'a taşı (`appsettings.json` artık boş) —
+      ✅ **28.07.2026'da doğrulandı:** git geçmişindeki (`137683d`) eski TMDb token'ı
+      TMDb'ye sorulduğunda **401** dönüyor, yani gerçekten iptal edilmiş. OMDb anahtarı
+      da artık ölü kod: `omdb` geçen tek dosya bu doküman, kodda tek referans yok.
+      ⚠️ Ama "taşı" maddesinin yalnızca **sil** yarısı yapılmıştı: user-secrets deposu
+      (`%APPDATA%\Microsoft\UserSecrets\`) bu makinede hiç oluşturulmamıştı. Anahtar
+      25.07 16:31'de `appsettings.json`'dan silindiğinden beri API **açılamıyordu**
+      (`Jwt:Key is not configured`). 28.07'de `Tmdb:ApiKey`, `Jwt:Key`, `Jwt:Issuer`,
+      `Jwt:Audience` girildi. Depo proje klasörünün dışında olduğu için OneDrive ile
+      senkronlanmıyor — yeni makinede baştan girilmesi gerekiyor
 - [x] `.gitignore` düzelt (`.github/` kuralı kaldırıldı, CI eklenebiliyor)
 - [x] Ölü kodu sil: `weatherforecast`, `Counter.razor`, `Weather.razor`, `Ping`, NavMenu linkleri
 - [ ] `Console.WriteLine` → `ILogger`; debug markup'ını temizle — **kısmen**: API tarafı `ILogger`'a
@@ -311,12 +323,197 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
 
 ### Faz 6 — Sağlamlaştırma & Yayın
 
-- [ ] Rate limiting, moderasyon araçları, engelleme, içerik bildirimi
-- [ ] Cursor-based sayfalama, N+1 denetimi, DB indeksleri
-- [ ] Mobil responsive + erişilebilirlik (klavye, ARIA, kontrast)
-- [ ] OG meta + prerender (SEO — Letterboxd trafiğinin büyük kısmı buradan gelir)
-- [ ] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check
-- [ ] E2E test (Playwright), yük testi
+> Faz 4–5 gibi PR'lara bölündü: **(1)** moderasyon & güvenlik, **(2)** performans,
+> **(3)** mobil & erişilebilirlik, **(4)** SEO, **(5)** altyapı, **(6)** test.
+
+- [x] Rate limiting, moderasyon araçları, engelleme, içerik bildirimi
+  - **Rate limiting** — üç politika: giriş/kayıt IP başına 10/5dk (Identity'nin
+    lockout'u tek hesabı korur, bu politika hesap taramasını yavaşlatır), yazma
+    uçları kullanıcı başına 30/dk, bildirim 10/saat. Üstünde 120/dk'lık genel
+    tavan var. Kimliği olan kullanıcı kendi kotasını harcar, anonim istek IP
+    kotasını. 429 yanıtı `Retry-After` başlığıyla dönüyor — bunsuz arayüz sıkı
+    yeniden deneme döngüsüne giriyor
+  - **Engelleme** (`UserBlock`) — tek yönlü kaydedilir, **iki yönlü** etki eder:
+    profil, istatistik, listeler, incelemeler, yorumlar, akış ve bildirimler her
+    iki yönde de kapanır. Engel anında aradaki takipler, o takiplerin akış
+    olayları ve takip bildirimleri temizlenir; engeli kaldırmak takipleri geri
+    getirmez. **Hangi yönde engellendiği sızmasın diye ikisine de 404 dönüyor**
+    — bu yüzden engeli kaldırmanın tek yeri `/settings/blocks`, karşı profil
+    değil. Beğeniyi geri almak engel sonrası da mümkün (tek yönlü temizlik)
+  - **İçerik bildirimi** (`Report`) — inceleme / yorum / liste / kullanıcı
+    hedefli, sebep kodlu. Bildirim hedefin sahibini kopyalayarak saklar; içerik
+    silindikten sonra da "bu kullanıcı hakkında kaç bildirim var" cevaplanabilsin
+    diye. Aynı kullanıcı aynı hedefi ikinci kez bildiremez (kuyruk şişer)
+  - **Moderasyon paneli** — `/admin/reports`, `Admin` Identity rolü. Rol JWT'ye
+    claim olarak giriyor ve Web tarafında cookie'ye kopyalanıyor. Rol atama
+    yalnızca `Admin:Usernames` yapılandırmasından, açılışta: panelden panel
+    yetkisi dağıtılamıyor. Bir içerik hakkındaki karar (sil / reddet) o içeriğe
+    ait diğer açık bildirimleri de kapatır
+- [x] Cursor-based sayfalama, N+1 denetimi, DB indeksleri
+  - **İmleç** — akış, bildirimler, inceleme akışı, liste keşfi ve moderasyon
+    kuyruğu `skip`/`take` yerine opak imleç alıyor; yanıt `{ items, nextCursor }`
+    zarfına girdi. İmleç `(CreatedAt, Id)` çiftini taşıyor: akışa sürekli yeni
+    satır girdiği için offset'te sayfa sınırındaki satırlar atlanıyor ya da
+    tekrar ediyordu. **Sıralama anahtarı satırda durmayanlar** (inceleme "en
+    yüksek puan", liste "en beğenilen"/"en kapsamlı") offset'te kaldı — imleç
+    aynı zarfın içinde offset kodluyor, istemci farkı görmüyor. Bozuk/eski
+    biçimli imleç 400 değil "listenin başı" demek
+  - **Akış sayfası `<Virtualize>`'dan çıktı** — ItemsProvider satırı indeksle
+    istiyor (`StartIndex`), imleçte indeks diye bir şey yok. "Daha fazla"
+    düğmesine geçildi
+  - **N+1** — `GetNextUpAsync` (ana sayfa "Sırada ne var") aktif dizi başına üç
+    sorgu atıyordu ve kullanıcının **tüm** izleme geçmişini her dizi için baştan
+    çekiyordu; 30 dizilik bir kullanıcıda 91 sorgu. Dizi sayısından bağımsız üç
+    sorguya indi. Liste kartı önizlemesi 4 poster için listenin tüm öğelerini
+    çekiyordu, ilk 12 öğeyle sınırlandı
+  - **"En yüksek puan" sıralaması düzeltildi** — puan bellekte, sayfa çekildikten
+    *sonra* sıralanıyordu; yani ikinci sayfadan itibaren "en yüksek puanlı"
+    listesi değil, rastgele bir dilimin kendi içinde sıralanmışı geliyordu.
+    Sıralama alt sorguyla veritabanına taşındı
+  - **İndeksler** — `Reviews(CreatedAt, Id)`, `UserLists(UpdatedAt, Id)`,
+    `UserShows(UserId, Status)`; `ActivityEvents`, `Notifications` ve `Reports`
+    üzerindeki tarih indeksleri imleçle uyumlu olsun diye `Id` ile genişletildi
+- [x] Mobil responsive + erişilebilirlik (klavye, ARIA, kontrast)
+  - **Dil** — `<html lang="en">` idi; arayüzün tamamı Türkçeyken ekran okuyucu
+    metni İngilizce fonemlerle okuyordu. `lang="tr"` yapıldı
+  - **Klavye** — gezinti amaçlı beş `<div @@onclick>` gerçek `<a>`/`<button>`
+    oldu (ana sayfa kartları ve yaklaşan bölümler, popüler karusel, watchlist
+    kartı ve arama önerileri). Bunlar klavyeyle hiç erişilemiyor, orta tıkla
+    yeni sekmede de açılmıyordu. Watchlist kartı ayrıca *tıklanabilir kartın
+    içinde buton* barındırıyordu; gezinti başlığa, "Kaldır" yanına ayrıldı
+  - **Odak görünürlüğü** — özel butonların (`.link-btn`, `.filter`,
+    `.carousel-card`, `.report-link` …) hiçbirinin odak stili yoktu. Tek bir
+    `:focus-visible` kuralı eklendi (fareyle tıklamada çıkmaz, klavyede çıkar)
+  - **Atlama bağlantısı** — her sayfada tekrarlanan gezintiyi sekmeyle geçmek
+    zorunda kalınmasın diye "İçeriğe atla"; yalnızca odakta görünür
+  - **Başlık yapısı** — hiçbir sayfada `<h1>` yoktu, sayfalar `<h2>`/`<h3>` ile
+    başlıyordu. 19 sayfanın ilk başlığı `<h1>`e çıkarıldı; global `h1` boyutu
+    eski `h3`e sabitlendi ki tasarım bozulmasın
+  - **Form etiketleri** — giriş/kayıt formlarındaki `<label>`ların `for`'u yoktu
+    ve inputlar içlerinde değildi (ilişki hiç kurulmamıştı); yıl aralığındaki
+    ikinci input, arama kutuları ve sıralama seçicileri de adsızdı. Hepsine
+    `for`/`id` ya da `aria-label` verildi, parola alanlarına `autocomplete`
+  - **ARIA** — `<StarRating>` düzenlenebilir halde `role="radio"` +
+    `aria-checked` taşıyor (eskiden "10 buton" diye okunuyor, mevcut puan hiç
+    bildirilmiyordu), salt okunur halde etiket değeri de söylüyor. Dizi
+    sayfasındaki sekmeler tam ARIA desenine geçti: tek odak durağı, ok/Home/End
+    ile gezinme, `aria-controls`/`aria-labelledby` ile panel bağı. Isı haritası
+    hücreleri `role="img"` + `aria-label` aldı (`title` klavye ve ekran
+    okuyucuya ulaşmıyordu). Bildirim zilinin erişilebilir adı okunmamış sayısını
+    içeriyor. Dekoratif ikonlar `aria-hidden`
+  - **Kontrast** — sabit griler (`#888`, `#8a8a8a`, `#9a9a9a`) kart zemininde
+    AA'nın altındaydı, tema değişkenine bağlandı; `#d9534f` ve `#e0607e` metin
+    olarak kullanıldıkları yerlerde açıldı
+  - **Responsive** — filtre paneli, yaklaşan bölümler satırı ve poster ızgaraları
+    dar ekrana uyarlandı. 375px'te poster ızgarası **1 piksel farkla** tek sütuna
+    düşüyordu (295px alana `minmax(140px,…)` iki sütun sığdıramıyor), alt sınır
+    düşürüldü. `pointer: coarse`'ta dokunma hedefleri 44px, `.link-btn` her
+    yerde en az 24px (WCAG 2.5.8). `prefers-reduced-motion` desteği eklendi
+  - Yol üstünde: WatchList'teki 6 `Console.WriteLine` `ILogger`'a taşındı
+    (Faz 0'dan kalan madde) ve §7.1'deki **arama blur yarışı** kapandı —
+    öneri listesine `@@onmousedown:preventDefault` eklendi
+- [x] OG meta + prerender (SEO — Letterboxd trafiğinin büyük kısmı buradan gelir)
+  - **Asıl engel prerender değildi, kimlik duvarıydı.** Blazor'ın `InteractiveServer`
+    modu zaten prerender ediyordu; ama ürünün en çok aranan sayfası olan
+    `/show/{id}` `[Authorize]` arkasındaydı — arama motoru hiçbir dizi sayfasını
+    göremiyordu. Sayfa herkese açıldı, kişisel katman (puanın, ilerlemen,
+    watchlist, favori, arkadaş puanları, inceleme formu, bölüm işaretleme)
+    `<AuthorizeView>` arkasına alındı. İlgili API uçları zaten `[Authorize]`
+    olduğu için anonimde o istekler hiç atılmıyor
+  - **`<PageMeta>`** — başlık, açıklama, canonical, OG ve Twitter kart etiketleri
+    tek komponentten. Canonical sorgu dizesini atıyor: filtre/sıralama
+    parametreleri aynı içeriği farklı URL'lerde gösteriyordu, arama motoru
+    bunları kopya sayardı. Kişisel sayfalar (`/notifications`,
+    `/settings/blocks`, `/admin/reports`) `noindex`
+  - **JSON-LD** — dizi sayfasında schema.org `TVSeries`: sezon/bölüm sayısı,
+    yayın tarihi, poster ve `aggregateRating`. Oy yoksa puan bloğu hiç
+    yazılmıyor (oysuz `aggregateRating` doğrulamada hata veriyor)
+  - **robots.txt + sitemap.xml** — ikisi de statik dosya değil uç nokta; sitemap
+    katalogdan üretiliyor (`/api/sitemap/*`) ve host adı istekten geliyor, aynı
+    dosya yerel/staging/üretimde paylaşılamazdı. Kişisel ve filtre sayfaları
+    taramaya kapalı. API'ye ulaşılamazsa sitemap boş değil **eksik** dönüyor:
+    500 vermek arama motoruna "site bozuk" sinyali olurdu
+  - İki tuzak: **aynı sayfada iki `<HeadContent>` olamıyor** (ikincisi ilkini
+    eziyor — JSON-LD ayrı blokta yazılınca çıktıya hiç düşmedi, `PageMeta`'ya
+    parametre olarak taşındı) ve `XmlWriter` bir `StringBuilder`'a yazarken
+    bildirime `encoding="utf-16"` koyuyor ama yanıt UTF-8 gidiyor
+- [~] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check —
+      **kod tarafı bitti ve yerelde doğrulandı; Docker imajları build edilmedi**
+      (geliştirme makinesinde Docker kurulu değil). Ayrıntı: [DEPLOY.md](DEPLOY.md)
+  - **Sabit adresler kalktı** — Web, API adresini `Program.cs`'e gömülü
+    `http://localhost:5054/` yerine `Api:BaseUrl`'den okuyor. Bu tek satır
+    konteynerde çalışmayı imkânsız kılıyordu: compose ağında API "localhost"
+    değil servis adıyla görünüyor. Bağlantı dizesi de `ConnectionStrings__*`
+    ortam değişkeniyle eziliyor
+  - **Serilog** — her iki uygulamada da stdout'a yapılandırılmış log; istek
+    başına tek satır (`UseSerilogRequestLogging`). Framework'ün üç satırlık
+    kendi logu, EF'in her SQL'i ve `HttpClient`'ın çağrı başına dört satırı
+    `MinimumLevel:Override` ile bastırıldı. ⚠️ **Tuzak:** `Override` altındaki
+    her anahtar logger kaynağı olarak okunuyor; oraya `_comment` koymak
+    uygulamayı açılışta çökertiyor (bir kez düştü, düzeltildi)
+  - **Health check** — `/health` liveness (hiçbir bağımlılığa bakmaz),
+    `/health/ready` SQL Server'a gerçekten ulaşıyor mu. Ayrım bilinçli:
+    veritabanı düşünce konteyneri yeniden başlatmak sorunu çözmez, yeniden
+    başlatma döngüsüne sokar. İkisi de rate limiting'in dışında
+  - **Migration** — açılışta uygulanıyor ama artık `Database:MigrateOnStartup`
+    ile kapatılabiliyor ve bağlantı hatalarında yeniden deneniyor (SQL Server
+    ile API konteynerde aynı anda ayağa kalkıyor). Birden çok kopya
+    çalıştırılacaksa kapatılıp ayrı deploy adımına taşınmalı
+  - **Docker** — API ve Web için çok aşamalı `Dockerfile` (root olmayan
+    kullanıcı, restore ayrı katmanda), SQL Server 2022 ile `docker-compose.yml`,
+    `.dockerignore`, `.env.example`. Sırlar `.env`'de ve git dışında; API ve
+    veritabanı yalnızca `127.0.0.1`'e bağlı, dışarıya yalnızca Web açık
+  - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
+    Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
+    çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
+- [x] E2E test (Playwright), yük testi — 17 test yeşil (anonim yüzey + girişli
+      akışlar), CI'da koşuyor; yük testi elle çalıştırılan teşhis aracı olarak
+      kuruldu ([BingeWatch.LoadTest](../BingeWatch.LoadTest/README.md))
+  - **TMDb'ye bağımlı değil.** `CatalogSeeder` kataloğu doğrudan `BingeWatchDb_E2E`
+    veritabanına yazıyor: `TmdbStatus="Ended"` + taze `LastSyncedAt` olan bir satırı
+    `ShowCatalogService` bayat saymadığı için TMDb'ye hiç gidilmiyor. Böylece süit
+    kişisel API anahtarına, ağa ve dışarıda değişen veriye bağlı olmuyor —
+    "Breaking Bad kaç sezon" sorusunun cevabı testin kontrolünde
+  - **Ayrı veritabanı** — testler kayıt/puanlama satırı yazacak; `BingeOnDb`'ye
+    karışırsa elle bakılan veriyle test verisi ayırt edilemez
+  - `AppFixture` API ve Web süreçlerini 5074/5182'de kaldırıyor (elle çalıştırılan
+    5054/5162 ile çakışmasın), `/health` bekliyor, her test kendi tarayıcı
+    bağlamında koşuyor
+  - **Playwright tarayıcısı ayrıca kurulmalı:** `BingeWatch.E2E/bin/.../playwright.ps1
+    install chromium`. Kurulmadan süitin tamamı düşer
+  - **CI'da koşuyor** — `ci.yml`'e ayrı `e2e` işi eklendi. Süit hiçbir sırra
+    bağlı değil: kataloğu kendi tohumluyor ve JWT ayarlarını kendi veriyor
+    (öncesinde geliştiricinin user-secrets deposuna gizliden bağlıydı, CI'da
+    API hiç açılmazdı). LocalDB Windows'a özgü olduğu için Linux koşucuda SQL
+    Server servis konteyneri kullanılıyor; bağlantı dizesi
+    `BINGEWATCH_E2E_CONNECTION` ile veriliyor. Sunucular `dotnet run` ile
+    kalktığı için CI'da Debug derleniyor — Release derlemek çift iş olurdu
+  - **Girişli akışlar** — `AppFixture` kayıt formunu doldurarak iki hesap açıyor
+    (`PrimaryUser`, `SecondaryUser`) ve oturum çerezini bağlama enjekte ediyor.
+    Her test yeniden giriş yapsaydı giriş uçlarının **IP başına 10/5dk** kotası
+    dolardı. Kullanıcı adları çalıştırma başına benzersiz — veritabanı kalıcı,
+    sabit ad ikinci koşuda "zaten var" derdi
+  - ⚠️ **`InteractiveServer` sayfalarında prerender edilen HTML, SignalR devresi
+    bağlanana kadar ölü** — o aralıktaki tıklama ve tuş vuruşları sessizce
+    kayboluyor. `WaitForInteractiveTabsAsync` devre tepki verene kadar bekliyor.
+    Bu beklemeden yazılan testler "buton çalışmıyor" diye yanlış rapor veriyor
+  - Devre çökerse tarayıcı konsolu yalnızca "unhandled exception on the current
+    circuit" diyor; asıl yığın izi sunucuda. `AppFixture.WebLogTail()` bunu
+    hata mesajına ekliyor — bu olmadan teşhis imkânsıza yakındı
+  - Yol üstünde dört gerçek hata bulundu, hepsi düzeltildi (bkz. §7.2)
+  - **Yük testi** (`BingeWatch.LoadTest`, NBomber) — üç senaryo: dizi detayı
+    API'si, liste keşfi, Blazor'ın anonim dizi sayfasını çizmesi. Bilinçli
+    olarak CI dışında: yük üreticisi ile uygulama aynı makinede olduğu için
+    mutlak sayılar donanıma bağlı, eşik koymak gürültü olur. Okunan şey göreli
+    — ilk ölçümde Blazor'ın sayfayı çizmesi aynı veriyi veren API çağrısının
+    kabaca iki katı (p95 17.9 ms / 9.3 ms)
+  - ⚠️ **Genel istek tavanı yük testini imkânsız kılıyordu** (240 jeton +
+    120/dk, sabit kodlu): birkaç yüz istekten sonra ölçülen şey uygulama değil
+    jeton kovası oluyordu. Yalnızca *genel* tavan yapılandırılabilir yapıldı
+    (`RateLimiting:GlobalTokenLimit`, `RateLimiting:GlobalTokensPerMinute`),
+    varsayılanlar eski değerlerle aynı. Güvenlikle ilgili politikalar (giriş
+    denemesi, bildirim, yazma) bilerek sabit bırakıldı — onları gevşetmenin
+    meşru bir sebebi yok
 
 ---
 
@@ -343,17 +540,83 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 
 ### 7.1 Açık sorunlar
 
-**WatchList arama butonu — blur yarışı.** "Search" butonuna tıklamak input'u blur ediyor;
-`OnSearchBlur`'ün 200 ms'lik gizleme zamanlayıcısı, arama sonuçlarının gelişiyle yarışıyor.
-Yazarak arama (debounce yolu) sorunsuz çalışıyor. Düzeltme: blur yerine `@onfocusout`
-ile ilgili elemanı kontrol et ya da dropdown'a `@onmousedown:preventDefault` ekle.
+**Docker imajları hiç build edilmedi.** Faz 6.5'te yazılan `Dockerfile`'lar ve
+`docker-compose.yml` gerçek bir Docker üzerinde denenmedi — geliştirme
+makinesinde Docker kurulu değil. İlk çalıştırmada bakılacak yerler:
+[DEPLOY.md](DEPLOY.md) §4.
 
-### 7.2 Faz 3'te çözülenler
+⚠️ **Faz 6.5'in "kod tarafı yerelde uçtan uca doğrulandı" notu şüpheli.** 28.07'de
+görüldü ki API 25.07 16:31'den beri bu makinede hiç açılamıyordu (`Jwt:Key`
+eksikti — bkz. Faz 0). Serilog, health check ve migration yeniden denemesi
+gerçek bir çalıştırmayla değil, büyük ihtimalle yalnızca okumayla doğrulanmış.
+Anahtarlar girildikten sonra `/health` ve `/health/ready` çalıştığı görüldü;
+gerisi hâlâ doğrulanmayı bekliyor.
+
+**Yük testi hiç yazılmadı.** `NBomber` paketleri `BingeWatch.E2E.csproj`'da
+referans olarak duruyor ama tek satır senaryo yok. Yazılırsa CI'a değil elle
+çalıştırılan bir teşhis aracı olarak kurulmalı: yük üreticisi ile uygulama aynı
+makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anlamlı.
+
+### 7.2 Faz 6.6'da bulunan ve çözülenler
+
+- ✅ **ARIA durum nitelikleri geçersiz yazılıyordu — Faz 6.3'ün ARIA işi sessizce
+  etkisizdi.** Blazor bir `bool` nitelik değerini HTML boolean niteliği gibi ele
+  alıyor: `true` için niteliği **boş değerle** yazıyor (`aria-selected=""`),
+  `false` için **hiç yazmıyor**. ARIA ise birebir `"true"`/`"false"` metnini
+  bekler; boş değer geçersiz, niteliğin yokluğu "belirtilmemiş" demek. Beş yer
+  etkilenmişti ve hepsi Faz 6.3'ün iddialarının tam merkezindeydi:
+  `StarRating`'in `aria-checked`'i (ekran okuyucu **verilen puanı hiç
+  bildirmiyordu**), dizi sayfası sekmelerinin `aria-selected`'i, sezon
+  akordiyonunun ve WatchList arama kutusunun `aria-expanded`'i. Tek yerden
+  [AriaAttribute.Aria](../BingeWatch.Web/AriaAttribute.cs) ile düzeltildi.
+  Playwright'ın erişilebilirlik anlık görüntüsü yakaladı — koda bakarak
+  görülmesi zor, çünkü kaynak tamamen doğru görünüyor
+- ✅ **Ok tuşu sekmede seçimi değiştiriyor ama odağı taşımıyordu.**
+  `OnTabKeyDown` yalnızca `activeTab`'i güncelliyordu; odak eski sekmede
+  kalıyor, o sekme de aynı anda `tabindex="-1"`e düşüyordu. Sonuç: ekran
+  okuyucu yeni sekmeyi duyurmuyor ve odak şeritten kopuyor — "tek durak"
+  kuralının amacı bozuluyor. Sunucu tarafı DOM odağını değiştiremediği için
+  `bingeWatchFocusElement` JS köprüsü eklendi
+
+- ✅ **Atlama bağlantısına ileri Tab ile ulaşılamıyordu.** `Routes.razor`'daki
+  `<FocusOnNavigate Selector="h1">` odağı **ilk yüklemede de** `h1`'e alıyordu.
+  Odak `h1`'e oturunca DOM'da ondan önce gelen her şey — Faz 6.3'te eklenen
+  "İçeriğe atla" bağlantısı **ve navbar'ın tamamı** — ileri Tab ile erişilemez
+  hale geliyordu; menüye ancak Shift+Tab ile ulaşılabiliyordu. Yani Faz 6.3'ün
+  eklediği atlama bağlantısı hiç çalışmamış. Ölçüm: sayfa yüklenince
+  `document.activeElement` = `h1`, ilk Tab → `select.sort-select` (içerik ortası).
+  `FocusOnNavigate` kaldırıldı, yerine
+  [navigation-focus.js](../BingeWatch.Web/wwwroot/js/navigation-focus.js): Blazor'ın
+  `enhancedload` olayına bağlanıyor, bu olay ilk yüklemede tetiklenmediği için
+  odak belgenin başında kalıyor; gezinmede ise `h1`'e taşınıyor.
+  **Tuzak:** `enhancedload` son DOM yamasından önce tetiklenebiliyor — odaklanan
+  `h1` düğümü sonradan değişince odak `body`'ye düşüyordu; odaklama kısa bir
+  pencerede (0/50/200 ms) tekrarlanıyor
+- ✅ **§7.1'in "rolsüz `[Authorize]` sayfaları yönlendirmiyor" maddesi yanlıştı.**
+  Ölçüldü: `/notifications`, `/feed`, `/watchlist`, `/settings/blocks` ve
+  `/admin/reports` **hepsi 302 ile `/login`'e gidiyor** (cookie auth
+  middleware'i, `ReturnUrl` parametresiyle) ve gövde boş dönüyor. Madde
+  kaldırıldı, yerine yönlendirmeyi doğrulayan `[Theory]` testi kondu
+- ℹ️ **Yan sonuç: `NoIndex` meta etiketi crawler'a hiç ulaşmıyor.** `NoIndex="true"`
+  verilen sayfaların hepsi `[Authorize]` arkasında ve anonim istek 302 alıyor;
+  gövde üretilmediği için `<meta name="robots">` de yazılmıyor. Zararsız ama
+  ölü — asıl koruma yönlendirmenin kendisi. Faz 6.4'ün bu kararı fazlalık
+
+### 7.3 Faz 6.3'te çözülenler
+
+- ✅ **WatchList arama blur yarışı** (eski §7.1): "Ara" butonuna tıklamak input'u
+  blur ediyor, `OnSearchBlur`'ün 200 ms'lik zamanlayıcısı sonuçlarla yarışıyordu.
+  Öneri listesine `@onmousedown:preventDefault` eklendi — tıklama artık odağı
+  input'tan almıyor.
+- ✅ **WatchList'teki `Console.WriteLine` çağrıları** (Faz 0'dan kalan, 6 adet)
+  `ILogger`'a taşındı.
+
+### 7.4 Faz 3'te çözülenler
 
 - ✅ **Sezonlar katlanamıyor**: ShowView'daki sezonlar artık akordiyon; varsayılan kapalı,
   ilk yarım kalmış sezon açık başlar.
 
-### 7.3 Faz 2'de çözülenler
+### 7.5 Faz 2'de çözülenler
 
 - ✅ **Kalp butonu** (eski §7.1): kök neden doğrulandı — Web `SeriesDto.FirstAirDate` `string`,
   API `DateTime?` bekliyordu ve `ShowYear` çıplak yıl (`"2008"`) gönderiyordu. ShowView'ın
@@ -365,13 +628,7 @@ ile ilgili elemanı kontrol et ya da dropdown'a `@onmousedown:preventDefault` ek
   düşürüyordu. `NullableDateTimeConverter` eklendi.
 - ✅ **N+1 `external_ids` çağrıları** (§2.3) ve **`WatchListItem` → `UserShow` migration'ı**.
 
-### 7.4 Tamamlanmamış / ertelenen maddeler
-
-**Faz 0'dan kalan**
-
-- [WatchList.razor](../BingeWatch.Web/Components/Pages/WatchList.razor)'daki `Console.WriteLine`
-  çağrıları `ILogger`'a taşınmadı (6 adet)
-- API anahtarlarının sağlayıcı tarafında iptal/yenileme durumu doğrulanmadı (bkz. Faz 0)
+### 7.6 Tamamlanmamış / ertelenen maddeler
 
 **Faz 1'de bilinçli ertelenen**
 

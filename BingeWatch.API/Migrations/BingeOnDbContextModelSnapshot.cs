@@ -71,7 +71,7 @@ namespace BingeOn.API.Migrations
 
                     b.HasIndex("TargetUserId");
 
-                    b.HasIndex("UserId", "CreatedAt");
+                    b.HasIndex("UserId", "CreatedAt", "Id");
 
                     b.HasIndex("UserId", "Type", "ShowId");
 
@@ -310,9 +310,9 @@ namespace BingeOn.API.Migrations
 
                     b.HasIndex("ActorId");
 
-                    b.HasIndex("UserId", "CreatedAt");
-
                     b.HasIndex("UserId", "ReadAt");
+
+                    b.HasIndex("UserId", "CreatedAt", "Id");
 
                     b.ToTable("Notifications");
                 });
@@ -355,6 +355,69 @@ namespace BingeOn.API.Migrations
                     b.ToTable("Ratings");
                 });
 
+            modelBuilder.Entity("BingeWatch.API.Models.Report", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReporterId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ResolvedById")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TargetId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TargetType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TargetUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReporterId");
+
+                    b.HasIndex("ResolvedById");
+
+                    b.HasIndex("TargetType", "TargetId");
+
+                    b.HasIndex("TargetUserId", "Status");
+
+                    b.HasIndex("Status", "CreatedAt", "Id");
+
+                    b.ToTable("Reports");
+                });
+
             modelBuilder.Entity("BingeWatch.API.Models.Review", b =>
                 {
                     b.Property<int>("Id")
@@ -389,6 +452,8 @@ namespace BingeOn.API.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt", "Id");
 
                     b.HasIndex("ShowId", "CreatedAt");
 
@@ -559,6 +624,37 @@ namespace BingeOn.API.Migrations
                     b.ToTable("Shows");
                 });
 
+            modelBuilder.Entity("BingeWatch.API.Models.UserBlock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BlockedId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("BlockerId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BlockedId");
+
+                    b.HasIndex("BlockerId", "BlockedId")
+                        .IsUnique();
+
+                    b.ToTable("UserBlocks");
+                });
+
             modelBuilder.Entity("BingeWatch.API.Models.UserList", b =>
                 {
                     b.Property<int>("Id")
@@ -591,6 +687,8 @@ namespace BingeOn.API.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UpdatedAt", "Id");
 
                     b.HasIndex("UserId", "UpdatedAt");
 
@@ -699,6 +797,8 @@ namespace BingeOn.API.Migrations
 
                     b.HasIndex("UserId", "ShowId")
                         .IsUnique();
+
+                    b.HasIndex("UserId", "Status");
 
                     b.ToTable("UserShows");
                 });
@@ -990,6 +1090,32 @@ namespace BingeOn.API.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BingeWatch.API.Models.Report", b =>
+                {
+                    b.HasOne("BingeWatch.API.Models.AppUser", "Reporter")
+                        .WithMany()
+                        .HasForeignKey("ReporterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BingeWatch.API.Models.AppUser", "ResolvedBy")
+                        .WithMany()
+                        .HasForeignKey("ResolvedById")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("BingeWatch.API.Models.AppUser", "TargetUser")
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Reporter");
+
+                    b.Navigation("ResolvedBy");
+
+                    b.Navigation("TargetUser");
+                });
+
             modelBuilder.Entity("BingeWatch.API.Models.Review", b =>
                 {
                     b.HasOne("BingeWatch.API.Models.Show", "Show")
@@ -1056,6 +1182,25 @@ namespace BingeOn.API.Migrations
                         .IsRequired();
 
                     b.Navigation("Show");
+                });
+
+            modelBuilder.Entity("BingeWatch.API.Models.UserBlock", b =>
+                {
+                    b.HasOne("BingeWatch.API.Models.AppUser", "Blocked")
+                        .WithMany()
+                        .HasForeignKey("BlockedId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("BingeWatch.API.Models.AppUser", "Blocker")
+                        .WithMany()
+                        .HasForeignKey("BlockerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Blocked");
+
+                    b.Navigation("Blocker");
                 });
 
             modelBuilder.Entity("BingeWatch.API.Models.UserList", b =>

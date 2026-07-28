@@ -1,4 +1,4 @@
-/* ---------------------------------------------------------------------------
+﻿/* ---------------------------------------------------------------------------
    Tema — tek kaynak.
    Bootstrap 5.3'ün koyu teması (`data-bs-theme="dark"`, App.razor'da) devrede;
    burada yalnızca marka renklerine bağlıyoruz. Sayfa/komponentlerde tek tek
@@ -21,6 +21,88 @@
 
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+   Erişilebilirlik temelleri (Faz 6.3)
+--------------------------------------------------------------------------- */
+
+/* Yalnızca ekran okuyucuya: görsel olarak gizli ama ağaçtan silinmemiş metin.
+   display:none ya da visibility:hidden ekran okuyucudan da gizlerdi. */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Gezintiyi atlama bağlantısı: odak alana kadar ekranın dışında durur. */
+.skip-link {
+    position: absolute;
+    left: 0.5rem;
+    top: -3rem;
+    z-index: 2000;
+    padding: 0.5rem 1rem;
+    border-radius: 0 0 6px 6px;
+    background: var(--bw-surface-2, #2a2d35);
+    color: var(--bs-body-color, #e6e8eb);
+    text-decoration: none;
+    transition: top 0.15s;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+/* Ana içeriğe programla odaklanınca (atlama bağlantısı) çerçeve çizilmesin. */
+main:focus {
+    outline: none;
+}
+
+/* Odak görünürlüğü — tek kaynak. Uygulamadaki özel butonların (.link-btn,
+   .filter, .carousel-card, .report-link ...) hiçbirinin kendi odak stili yoktu;
+   tarayıcı varsayılanı da koyu zeminde zor seçiliyor. :focus-visible kullanılıyor
+   ki fareyle tıklamada çerçeve çıkmasın, yalnızca klavyede çıksın. */
+:focus-visible {
+    outline: 2px solid var(--bs-link-color, #4da3ff);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* Dokunma hedefi: WCAG 2.5.8 en az 24x24 CSS pikseli istiyor. Metin içindeki
+   bağlantılar bunun dışında (satır akışını bozar), bağımsız kontroller değil. */
+@media (pointer: coarse) {
+    button,
+    [role="button"],
+    .nav-link,
+    .form-select,
+    .form-control {
+        min-height: 2.75rem;
+    }
+
+    /* Yıldızlar ve ısı haritası hücreleri kendi boyutlarını korumalı;
+       2.75rem'e zorlamak ızgarayı dağıtırdı. */
+    .star-rating button,
+    .heatmap button {
+        min-height: 0;
+    }
+}
+
+/* Hareket azaltma tercihi: kart büyümesi/kaydırma animasyonları kapanır. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* Form alanları zeminden bir ton ayrışsın (Bootstrap varsayılanı body-bg ile aynı) */
@@ -53,6 +135,15 @@ html, body {
 
 h1:focus {
     outline: none;
+}
+
+/* Her sayfa artık tek bir <h1> ile başlıyor (önceden hiçbirinde yoktu; ekran
+   okuyucu kullanıcısı sayfanın ne olduğunu başlık listesinden anlayamıyordu).
+   Bootstrap'in 2.5rem'lik h1'i mevcut tasarımda devasa duruyor; eski h3
+   boyutuna sabitleniyor. Seçici bilerek düşük özgüllükte: .section-title gibi
+   sınıf tabanlı kurallar bunu ezmeye devam etsin. */
+h1 {
+    font-size: 1.75rem;
 }
 
 .valid.modified:not([type=checkbox]) {
@@ -98,7 +189,7 @@ h1:focus {
 }
 
     .blazor-error-boundary::after {
-        content: "An error has occurred."
+        content: "Beklenmeyen bir hata oluştu."
     }
 
 .darker-border-checkbox.form-check-input {
@@ -143,7 +234,7 @@ h1:focus {
     justify-content: space-between;
 }
 .more-link {
-    color: #888;
+    color: var(--bs-secondary-color, #9aa1ab);
     font-size: 0.95em;
     margin-left: 10px;
     cursor: pointer;
@@ -277,7 +368,7 @@ h1:focus {
 }
 
 .search-input::placeholder {
-    color: #888;
+    color: var(--bs-secondary-color, #9aa1ab);
 }
 
 .search-dropdown {
@@ -294,15 +385,26 @@ h1:focus {
     margin-top: 4px;
 }
 
+.search-dropdown {
+    list-style: none;
+    padding: 0;
+}
+
+/* Öneri satırı artık gerçek bir buton; buton varsayılanları sıfırlanıyor. */
 .dropdown-item {
     display: flex;
+    width: 100%;
     padding: 12px;
     cursor: pointer;
     transition: background-color 0.2s;
-    border-bottom: 1px solid #3a3d45;
+    border: none;
+    border-bottom: 1px solid var(--bs-border-color, #3a3d45);
+    background: transparent;
+    color: inherit;
+    text-align: left;
 }
 
-.dropdown-item:last-child {
+.search-dropdown li:last-child .dropdown-item {
     border-bottom: none;
 }
 
@@ -374,6 +476,8 @@ h1:focus {
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 20px;
     margin-bottom: 30px;
+    list-style: none;
+    padding: 0;
 }
 
 .series-card {
@@ -386,6 +490,21 @@ h1:focus {
 
 .series-card:hover {
     transform: translateY(-5px);
+}
+
+/* Kartın gezinti kısmı: poster + başlık tek bağlantı, "Kaldır" butonu dışında. */
+.card-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.card-title {
+    display: block;
+    padding: 15px 15px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--bs-emphasis-color, #fff);
 }
 
 .series-poster {
@@ -458,6 +577,13 @@ h1:focus {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 20px;
+    list-style: none;
+    padding: 0;
+}
+
+.carousel-track {
+    list-style: none;
+    margin: 0;
 }
 
 .watchlist-card {
@@ -474,7 +600,7 @@ h1:focus {
 }
 
 .empty-message {
-    color: #888;
+    color: var(--bs-secondary-color, #9aa1ab);
     text-align: center;
     font-size: 18px;
     padding: 40px;

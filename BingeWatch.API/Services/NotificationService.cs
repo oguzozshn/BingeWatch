@@ -21,6 +21,10 @@ namespace BingeWatch.API.Services
             if (recipientId == actorId)
                 return;
 
+            // Engel, bildirimi de kapatır: engellediğin biri sana bildirim gönderemez.
+            if (await _context.IsBlockedBetweenAsync(recipientId, actorId))
+                return;
+
             var exists = await _context.Notifications.AnyAsync(n =>
                 n.UserId == recipientId && n.ActorId == actorId && n.Type == type
                 && n.ReviewId == reviewId && n.UserListId == userListId);
@@ -77,19 +81,28 @@ namespace BingeWatch.API.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<List<NotificationDto>> GetAsync(string userId, int skip, int take)
+        public async Task<PagedResult<NotificationDto>> GetAsync(string userId, string? cursor, int take)
         {
             take = Math.Clamp(take, 1, 100);
-            skip = Math.Max(skip, 0);
 
-            var rows = await _context.Notifications
-                .Where(n => n.UserId == userId)
+            var query = _context.Notifications.Where(n => n.UserId == userId);
+
+            var after = Cursor.DecodeKeyset(cursor);
+            if (after != null)
+            {
+                query = query.Where(n => n.CreatedAt < after.Value.Timestamp
+                                      || (n.CreatedAt == after.Value.Timestamp && n.Id < after.Value.Id));
+            }
+
+            var rows = await query
                 .OrderByDescending(n => n.CreatedAt)
                 .ThenByDescending(n => n.Id)
-                .Skip(skip)
                 .Take(take)
                 .Include(n => n.Actor)
                 .ToListAsync();
+
+            if (rows.Count == 0)
+                return PagedResult<NotificationDto>.Empty();
 
             var reviewIds = rows.Where(n => n.ReviewId != null).Select(n => n.ReviewId!.Value).Distinct().ToList();
             var reviews = reviewIds.Count == 0
@@ -106,7 +119,7 @@ namespace BingeWatch.API.Services
                     .Where(l => listIds.Contains(l.Id))
                     .ToDictionaryAsync(l => l.Id, l => l.Title);
 
-            return rows.Select(n =>
+            var items = rows.Select(n =>
             {
                 (int TmdbId, string Name, int? SeasonNumber) review = default;
                 if (n.ReviewId != null)
@@ -135,6 +148,14 @@ namespace BingeWatch.API.Services
                     ListTitle = listTitle
                 };
             }).ToList();
+
+            var last = rows[^1];
+
+            return new PagedResult<NotificationDto>
+            {
+                Items = items,
+                NextCursor = rows.Count < take ? null : Cursor.EncodeKeyset(last.CreatedAt, last.Id)
+            };
         }
 
         public Task<int> GetUnreadCountAsync(string userId) =>

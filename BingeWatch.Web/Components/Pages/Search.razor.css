@@ -1,4 +1,4 @@
-.search-page {
+﻿.search-page {
     max-width: 1100px;
     margin: 1.5rem auto;
     padding: 0 1rem;
@@ -116,4 +116,14 @@ section h5 {
 
 .muted {
     opacity: .7;
+}
+
+/* 375px'lik telefonda ızgara 295px kalıyor; 140px'lik alt sınırla iki sütun
+   1 piksel farkla sığmıyor ve tek sütuna düşüyordu (poster ekranı kaplıyordu).
+   Dar ekranda alt sınır düşürülüyor. */
+@media (max-width: 600px) {
+    .poster-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: .6rem;
+    }
 }

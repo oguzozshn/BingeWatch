@@ -1,8 +1,10 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
+using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BingeWatch.API.Controllers
 {
@@ -27,10 +29,10 @@ namespace BingeWatch.API.Controllers
         /// <summary>Keşif akışı — <c>/lists</c> sayfası bunu okur.</summary>
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> Discover([FromQuery] int skip = 0, [FromQuery] int take = 20,
-            [FromQuery] ListSort sort = ListSort.Recent)
+        public async Task<IActionResult> Discover([FromQuery] string? cursor = null,
+            [FromQuery] int take = 20, [FromQuery] ListSort sort = ListSort.Recent)
         {
-            return Ok(await _listService.GetDiscoverAsync(sort, skip, take, ViewerId));
+            return Ok(await _listService.GetDiscoverAsync(sort, cursor, take, ViewerId));
         }
 
         [HttpGet("{listId:int}")]
@@ -51,6 +53,7 @@ namespace BingeWatch.API.Controllers
 
         [HttpPost]
         [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
         public async Task<IActionResult> Create([FromBody] UpsertListRequest request)
         {
             var list = await _listService.CreateAsync(CurrentUserId, request);
@@ -78,6 +81,7 @@ namespace BingeWatch.API.Controllers
 
         [HttpPost("{listId:int}/like")]
         [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
         public async Task<IActionResult> Like(int listId)
         {
             var state = await _listService.LikeAsync(CurrentUserId, listId);
@@ -94,6 +98,7 @@ namespace BingeWatch.API.Controllers
 
         [HttpPost("{listId:int}/items")]
         [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
         public async Task<IActionResult> AddItem(int listId, [FromBody] AddListItemRequest request)
         {
             var item = await _listService.AddItemAsync(CurrentUserId, listId, request);

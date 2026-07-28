@@ -1,0 +1,207 @@
+﻿@page "/admin/reports"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageMeta Title="Moderasyon" NoIndex="true" />
+
+<div class="mod">
+    <header class="mod-head">
+        <h1>Moderasyon kuyruğu</h1>
+        <div class="filters">
+            @foreach (var option in StatusFilters)
+            {
+                <button type="button"
+                        class="@(status == option.Value ? "filter active" : "filter")"
+                        @onclick="() => ChangeStatusAsync(option.Value)">
+                    @option.Label
+                </button>
+            }
+        </div>
+    </header>
+
+    @if (loading)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (reports.Count == 0)
+    {
+        <p class="muted">Bu filtrede bildirim yok.</p>
+    }
+    else
+    {
+        <ul class="report-list">
+            @foreach (var report in reports)
+            {
+                <li class="report">
+                    <header>
+                        <span class="badge">@ReportLabels.Target(report.TargetType)</span>
+                        <strong>@ReportLabels.Reason(report.Reason)</strong>
+                        <time datetime="@report.CreatedAt.ToString("o")">
+                            @report.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")
+                        </time>
+                    </header>
+
+                    <p class="who">
+                        <a href="/@@@report.ReporterUsername">@report.ReporterUsername</a>
+                        →
+                        <a href="/@@@report.TargetUsername">@report.TargetUsername</a>
+                        @if (report.OtherOpenReportsForTarget > 0)
+                        {
+                            <span class="repeat">
+                                bu kullanıcı için @report.OtherOpenReportsForTarget açık bildirim daha var
+                            </span>
+                        }
+                    </p>
+
+                    @if (!string.IsNullOrWhiteSpace(report.Note))
+                    {
+                        <p class="note">“@report.Note”</p>
+                    }
+
+                    @if (report.ContentExcerpt != null)
+                    {
+                        <blockquote>@report.ContentExcerpt</blockquote>
+                    }
+                    else if (report.TargetType != ReportTargetType.User)
+                    {
+                        <p class="muted">İçerik silinmiş.</p>
+                    }
+
+                    @if (report.ContentUrl != null)
+                    {
+                        <p><a href="@report.ContentUrl" target="_blank">İçeriğe git →</a></p>
+                    }
+
+                    @if (report.Status == ReportStatus.Open)
+                    {
+                        <div class="actions">
+                            <input type="text" maxlength="1000" placeholder="Karar notu (isteğe bağlı)"
+                                   value="@NoteFor(report.Id)"
+                                   @oninput="e => notes[report.Id] = e.Value?.ToString() ?? string.Empty" />
+
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    disabled="@(busyId == report.Id)"
+                                    @onclick="() => ResolveAsync(report, ReportAction.Dismiss)">
+                                Reddet
+                            </button>
+
+                            @if (report.TargetType != ReportTargetType.User)
+                            {
+                                <button type="button" class="btn btn-sm btn-danger"
+                                        disabled="@(busyId == report.Id)"
+                                        @onclick="() => ResolveAsync(report, ReportAction.DeleteContent)">
+                                    İçeriği sil
+                                </button>
+                            }
+                        </div>
+                        @if (report.TargetType == ReportTargetType.User)
+                        {
+                            <p class="muted small">
+                                Kullanıcı bildiriminde silinecek tek bir içerik yok; karar
+                                notunu yazıp kapat, gerekiyorsa kullanıcının içeriklerini
+                                ayrı ayrı bildirimlerden sil.
+                            </p>
+                        }
+                    }
+                    else
+                    {
+                        <p class="resolved">
+                            @(report.Status == ReportStatus.Resolved ? "İçerik kaldırıldı" : "Reddedildi")
+                            — @report.ResolvedByUsername,
+                            @report.ResolvedAt?.ToLocalTime().ToString("d MMM yyyy HH:mm")
+                            @if (!string.IsNullOrWhiteSpace(report.ResolutionNote))
+                            {
+                                <span>: @report.ResolutionNote</span>
+                            }
+                        </p>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private static readonly (string Label, ReportStatus? Value)[] StatusFilters =
+    [
+        ("Açık", ReportStatus.Open),
+        ("Kaldırılan", ReportStatus.Resolved),
+        ("Reddedilen", ReportStatus.Dismissed)
+    ];
+
+    private List<ReportDto> reports = new();
+    private readonly Dictionary<int, string> notes = new();
+    private ReportStatus? status = ReportStatus.Open;
+    private bool loading = true;
+    private int? busyId;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task ChangeStatusAsync(ReportStatus? value)
+    {
+        status = value;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        try
+        {
+            var client = await CreateClientAsync();
+            var url = status == null ? "api/admin/reports" : $"api/admin/reports?status={status}";
+            var page = await client.GetFromJsonAsync<PagedResult<ReportDto>>(url);
+            reports = page?.Items ?? new();
+        }
+        catch
+        {
+            reports = new();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task ResolveAsync(ReportDto report, ReportAction action)
+    {
+        busyId = report.Id;
+        try
+        {
+            var client = await CreateClientAsync();
+            var response = await client.PostAsJsonAsync(
+                $"api/admin/reports/{report.Id}/resolve",
+                new ResolveReportRequest { Action = action, Note = NoteFor(report.Id) });
+
+            // Karar bir içeriğe ait diğer bildirimleri de kapatıyor; kuyruğu baştan çek.
+            if (response.IsSuccessStatusCode)
+            {
+                notes.Remove(report.Id);
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            busyId = null;
+        }
+    }
+
+    private string NoteFor(int reportId) => notes.TryGetValue(reportId, out var note) ? note : string.Empty;
+
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        return client;
+    }
+}

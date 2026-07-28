@@ -1,4 +1,4 @@
-@page "/@{Username}/lists"
+﻿@page "/@{Username}/lists"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
@@ -8,7 +8,7 @@
 
 <div class="lists-page">
     <header class="page-head">
-        <h3><a href="/@@@Username">@@@Username</a> listeleri</h3>
+        <h1><a href="/@@@Username">@@@Username</a> listeleri</h1>
         @if (isOwner)
         {
             <button type="button" class="btn btn-sm btn-primary" @onclick="() => creating = true"

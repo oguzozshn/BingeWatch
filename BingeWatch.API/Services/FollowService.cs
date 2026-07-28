@@ -106,7 +106,8 @@ namespace BingeWatch.API.Services
 
         /// <summary>
         /// Kullanıcı adını kullanıcıya çevirir. Gizli profiller yalnızca sahibine görünür;
-        /// başkasına <c>null</c> döner ve çağıran bunu "yok" gibi ele alır.
+        /// aralarında engel olan kullanıcılar da birbirini göremez. İkisinde de
+        /// <c>null</c> döner ve çağıran bunu "yok" gibi ele alır.
         /// </summary>
         private async Task<AppUser?> ResolveVisibleUserAsync(string username, string? viewerId)
         {
@@ -117,12 +118,22 @@ namespace BingeWatch.API.Services
             if (user == null || (user.IsPrivate && user.Id != viewerId))
                 return null;
 
+            if (await _context.IsBlockedBetweenAsync(viewerId, user.Id))
+                return null;
+
             return user;
         }
 
-        /// <summary>Kullanıcı listesini, isteği yapanın takip durumuyla birlikte DTO'ya çevirir.</summary>
+        /// <summary>
+        /// Kullanıcı listesini, isteği yapanın takip durumuyla birlikte DTO'ya çevirir.
+        /// Engelli taraflar listeden düşer — başkasının takipçi listesi engeli delmemeli.
+        /// </summary>
         private async Task<List<UserSummaryDto>> ProjectAsync(List<AppUser> users, string? viewerId)
         {
+            var hidden = await _context.HiddenUserIdsAsync(viewerId);
+            if (hidden.Count > 0)
+                users = users.Where(u => !hidden.Contains(u.Id)).ToList();
+
             var followedByViewer = new HashSet<string>();
             if (viewerId != null && users.Count > 0)
             {

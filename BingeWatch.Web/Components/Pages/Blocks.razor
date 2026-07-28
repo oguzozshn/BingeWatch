@@ -1,0 +1,102 @@
+﻿@page "/settings/blocks"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageMeta Title="Engellenenler" NoIndex="true" />
+
+<div class="blocks">
+    <h1>Engellenenler</h1>
+    <p class="muted">
+        Engellediğin kişiler seni, sen de onları göremezsin: profil, liste, inceleme
+        ve akış her iki yönde de kapalıdır. Engeli buradan kaldırabilirsin —
+        karşı tarafın profili sana da görünmediği için tek yer burası.
+    </p>
+
+    @if (loading)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (blocked.Count == 0)
+    {
+        <p class="muted">Kimseyi engellemedin.</p>
+    }
+    else
+    {
+        <ul class="block-list">
+            @foreach (var user in blocked)
+            {
+                <li>
+                    <div>
+                        <strong>@user.DisplayName</strong>
+                        <span class="muted">@@@user.Username</span>
+                        <span class="muted date">@user.BlockedAt.ToLocalTime().ToString("d MMM yyyy")</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            disabled="@(busyUsername == user.Username)"
+                            @onclick="() => UnblockAsync(user.Username)">
+                        @(busyUsername == user.Username ? "..." : "Engeli kaldır")
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private List<BlockedUserDto> blocked = new();
+    private bool loading = true;
+    private string? busyUsername;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        try
+        {
+            var client = await CreateClientAsync();
+            blocked = await client.GetFromJsonAsync<List<BlockedUserDto>>("api/users/me/blocks") ?? new();
+        }
+        catch
+        {
+            blocked = new();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task UnblockAsync(string username)
+    {
+        busyUsername = username;
+        try
+        {
+            var client = await CreateClientAsync();
+            var response = await client.DeleteAsync($"api/users/{Uri.EscapeDataString(username)}/block");
+            if (response.IsSuccessStatusCode)
+                blocked.RemoveAll(u => u.Username == username);
+        }
+        finally
+        {
+            busyUsername = null;
+        }
+    }
+
+    private async Task<HttpClient> CreateClientAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        return client;
+    }
+}

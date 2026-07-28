@@ -1,4 +1,4 @@
-@page "/watchlist"
+﻿@page "/watchlist"
 @attribute [Authorize]
 @rendermode InteractiveServer
 @implements IDisposable
@@ -8,66 +8,91 @@
 @using BingeWatch.Web.Models
 @using BingeWatch.Web.Dtos
 @using Microsoft.AspNetCore.Components.Web
-@inject NavigationManager Navigation
+@inject ILogger<WatchList> Logger
 
 
-<PageTitle>WatchList</PageTitle>
+<PageTitle>Watchlist</PageTitle>
 
-<h2 class="section-title">MY WATCHLIST</h2>
+<h1 class="section-title">WATCHLIST'İM</h1>
 
 <div class="search-section">
     <div class="search-container">
         <div class="search-input-wrapper">
-            <input 
-                @bind="searchQuery" 
-                @bind:event="oninput"
-                @onkeyup="OnSearchInput"
-                @onfocus="OnSearchFocus"
-                @onblur="OnSearchBlur"
-                placeholder="Search for a series..." 
-                class="search-input" />
-            
+            <label class="visually-hidden" for="series-search">Dizi ara</label>
+            <input id="series-search"
+                   type="search"
+                   @bind="searchQuery"
+                   @bind:event="oninput"
+                   @onkeyup="OnSearchInput"
+                   @onfocus="OnSearchFocus"
+                   @onblur="OnSearchBlur"
+                   placeholder="Dizi ara..."
+                   class="search-input"
+                   role="combobox"
+                   aria-controls="series-search-results"
+                   aria-expanded="@Aria(showDropdown && searchResults.Any())"
+                   aria-autocomplete="list" />
+
             @if (showDropdown && searchResults.Any())
             {
-                <div class="search-dropdown">
+                @* Öneriler eskiden <div @onclick> idi: klavyeyle seçilemiyordu.
+                   @onmousedown:preventDefault, tıklamanın input'u blur etmesini
+                   ve OnSearchBlur'ün listeyi erkenden kapatmasını engelliyor —
+                   ROADMAP §7.1'deki "arama butonu blur yarışı" da bu yüzdendi. *@
+                <ul id="series-search-results" class="search-dropdown"
+                    aria-label="Arama önerileri" @onmousedown:preventDefault>
                     @foreach (var series in searchResults.Take(8))
                     {
-                        <div class="dropdown-item" @onclick="() => SelectSeries(series)">
-                            <img src="@($"https://image.tmdb.org/t/p/w92{series.PosterPath}")" alt="@series.Name" class="dropdown-poster" />
-                            <div class="dropdown-info">
-                                <div class="dropdown-title">@series.Name</div>
-                                <div class="dropdown-overview">@series.Overview</div>
-                            </div>
-                        </div>
+                        <li>
+                            <button type="button" class="dropdown-item"
+                                    @onclick="() => SelectSeries(series)">
+                                <img src="@($"https://image.tmdb.org/t/p/w92{series.PosterPath}")"
+                                     alt="" class="dropdown-poster" />
+                                <span class="dropdown-info">
+                                    <span class="dropdown-title">@series.Name</span>
+                                    <span class="dropdown-overview">@series.Overview</span>
+                                </span>
+                            </button>
+                        </li>
                     }
-                </div>
+                </ul>
             }
         </div>
-        <button @onclick="SearchSeries" class="search-button">Search</button>
+        <button type="button" @onclick="SearchSeries" class="search-button">Ara</button>
     </div>
 </div>
 
 <div class="watchlist-section">
-    <h3>My WatchList (@watchList.Count items)</h3>
+    <h3>Watchlist'im (@watchList.Count dizi)</h3>
     @if (watchList.Any())
     {
-        <div class="watchlist-grid">
+        @* Kart eskiden <div @onclick> içinde ayrı bir butonla geliyordu:
+           tıklanabilir kartın içine buton koymak hem klavyede hem ekran
+           okuyucuda çıkmaza sokuyor. Gezinti başlıktaki bağlantıda,
+           kaldırma ayrı bir buton olarak yanında. *@
+        <ul class="watchlist-grid">
             @foreach (var series in watchList)
             {
-                <div class="carousel-card" @onclick="() => GoToShow(series.Id)">
-                    <img src="@($"https://image.tmdb.org/t/p/w500{series.PosterPath}")" alt="@series.Name" class="series-poster" />
+                <li class="series-card">
+                    <a class="card-link" href="/show/@series.Id">
+                        <img src="@($"https://image.tmdb.org/t/p/w500{series.PosterPath}")"
+                             alt="" class="series-poster" />
+                        <span class="card-title">@series.Name</span>
+                    </a>
                     <div class="series-info">
-                        <h4>@series.Name</h4>
                         <p>@series.Overview</p>
-                        <button @onclick:stopPropagation @onclick="() => RemoveFromWatchList(series)" class="remove-button">Remove</button>
+                        <button type="button" class="remove-button"
+                                @onclick="() => RemoveFromWatchList(series)">
+                            Kaldır<span class="visually-hidden"> — @series.Name</span>
+                        </button>
                     </div>
-                </div>
+                </li>
             }
-        </div>
+        </ul>
     }
     else
     {
-        <p class="empty-message">Your watchlist is empty. Search for series to add them!</p>
+        <p class="empty-message">Watchlist'in boş. Yukarıdan dizi arayıp ekleyebilirsin.</p>
     }
 </div>
 
@@ -105,7 +130,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading watchlist: {ex.Message}");
+            Logger.LogError(ex, "Watchlist okunamadı.");
             watchList = new();
         }
     }
@@ -154,7 +179,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Search error: {ex.Message}");
+            Logger.LogError(ex, "Dizi araması başarısız oldu.");
             searchResults = new();
             showDropdown = false;
         }
@@ -181,12 +206,12 @@
             }
             else
             {
-                Console.WriteLine($"Error adding to watchlist: {response.StatusCode}");
+                Logger.LogWarning("Watchlist'e ekleme başarısız: {StatusCode}", response.StatusCode);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error adding to watchlist: {ex.Message}");
+            Logger.LogError(ex, "Watchlist'e ekleme başarısız oldu.");
         }
     }
 
@@ -203,18 +228,13 @@
             }
             else
             {
-                Console.WriteLine($"Error removing from watchlist: {response.StatusCode}");
+                Logger.LogWarning("Watchlist'ten çıkarma başarısız: {StatusCode}", response.StatusCode);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error removing from watchlist: {ex.Message}");
+            Logger.LogError(ex, "Watchlist'ten çıkarma başarısız oldu.");
         }
-    }
-
-    private void GoToShow(int tmdbId)
-    {
-        Navigation.NavigateTo($"/show/{tmdbId}");
     }
 
     public void Dispose()

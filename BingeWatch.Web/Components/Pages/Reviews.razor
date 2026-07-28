@@ -1,14 +1,16 @@
-@page "/reviews"
+﻿@page "/reviews"
 @rendermode InteractiveServer
 
 @inject IHttpClientFactory HttpClientFactory
 
-<PageTitle>İncelemeler</PageTitle>
+<PageMeta Title="İncelemeler"
+          Description="BingeWatch kullanıcılarının dizi incelemeleri — en yeni, en eski ya da en yüksek puanlı." />
 
 <div class="reviews-page">
     <header class="page-head">
-        <h3>İncelemeler</h3>
-        <select class="form-select form-select-sm sort-select" value="@((int)sort)"
+        <h1>İncelemeler</h1>
+        <select class="form-select form-select-sm sort-select" aria-label="İncelemeleri sırala"
+                value="@((int)sort)"
                 @onchange="OnSortChangedAsync">
             <option value="0">En yeni</option>
             <option value="1">En eski</option>
@@ -49,6 +51,10 @@
     private readonly List<ReviewDto> reviews = new();
     private ReviewSort sort = ReviewSort.Newest;
     private bool loading = true;
+
+    /// <summary>API'den gelen opak imleç; <c>null</c> ise sayfa kalmadı.</summary>
+    private string? cursor;
+
     private bool hasMore;
 
     protected override async Task OnInitializedAsync() => await ReloadAsync();
@@ -59,6 +65,7 @@
     {
         loading = true;
         reviews.Clear();
+        cursor = null;
         await LoadPageAsync();
     }
 
@@ -70,12 +77,16 @@
 
     private async Task LoadPageAsync()
     {
-        var page = await Api.GetFromJsonAsync<List<ReviewDto>>(
-            $"api/reviews?skip={reviews.Count}&take={PageSize}&sort={(int)sort}") ?? new();
+        var url = $"api/reviews?take={PageSize}&sort={(int)sort}";
+        if (cursor != null)
+            url += $"&cursor={Uri.EscapeDataString(cursor)}";
 
-        reviews.AddRange(page);
-        // Tam sayfa döndüyse büyük olasılıkla devamı var; boş/eksik sayfa sonu demek.
-        hasMore = page.Count == PageSize;
+        var page = await Api.GetFromJsonAsync<PagedResult<ReviewDto>>(url);
+
+        reviews.AddRange(page?.Items ?? new());
+        // Sayfanın devamı olup olmadığını sunucu söylüyor; istemci tahmin etmiyor.
+        cursor = page?.NextCursor;
+        hasMore = cursor != null;
         loading = false;
     }
 
