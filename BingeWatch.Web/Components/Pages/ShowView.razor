@@ -187,6 +187,12 @@ else
                                         <Authorized>
                                             <button type="button" class="season-action"
                                                     @onclick="() => MarkSeasonWatched(s)">Sezonu izledim</button>
+                                            @* Temizlenecek bir şey yokken buton ölü arayüz olur. *@
+                                            @if (WatchedInSeason(s) > 0)
+                                            {
+                                                <button type="button" class="season-action season-clear"
+                                                        @onclick="() => ClearSeason(s)">Sezonu temizle</button>
+                                            }
                                         </Authorized>
                                     </AuthorizeView>
                                 </div>
@@ -765,6 +771,39 @@ else
         {
             foreach (var ep in season.Episodes.Where(e => !e.AirDate.HasValue || e.AirDate.Value <= DateTime.UtcNow))
                 ep.Watched = true;
+
+            var result = await response.Content.ReadFromJsonAsync<SeasonWatchedResponse>();
+            progress = result?.Progress;
+        }
+    }
+
+    /// <summary>
+    /// Sezondaki tüm izleme işaretlerini kaldırır.
+    /// </summary>
+    /// <remarks>
+    /// "Sezonu izledim" ve "buraya kadar" tek tıkla onlarca satır yazıyordu ama
+    /// geri almanın yolu yoktu; yanlış tıklayan kullanıcı bölümleri tek tek
+    /// temizlemek zorunda kalıyordu. Toplu işaretlemenin simetriği bu.
+    /// <para>
+    /// Onay adımı bilerek yok: bu düğmenin varlık sebebi yanlış tıklamayı
+    /// telafi etmek, telafi yoluna sürtünme eklemek kendi amacını yer. Ters
+    /// işlem de tek tık uzakta.
+    /// </para>
+    /// </remarks>
+    private async Task ClearSeason(SeasonDetailDto season)
+    {
+        var api = await GetApiAsync();
+        var response = await api.PostAsJsonAsync(
+            $"api/shows/{TmdbId}/seasons/{season.SeasonNumber}/watched",
+            new MarkWatchedRequest { Watched = false });
+
+        if (response.IsSuccessStatusCode)
+        {
+            // İşaretlemenin aksine yayınlanma tarihi filtresi yok: yayınlanmamış
+            // bir bölüm bir şekilde işaretlenmişse onu da temizlemek gerekiyor,
+            // yoksa kullanıcının erişemediği bir artık kalıyor.
+            foreach (var ep in season.Episodes)
+                ep.Watched = false;
 
             var result = await response.Content.ReadFromJsonAsync<SeasonWatchedResponse>();
             progress = result?.Progress;

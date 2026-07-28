@@ -223,6 +223,19 @@
     white-space: nowrap;
 }
 
+/* Yıkıcı olan taraf: yanlışlıkla tıklanmasın diye sönük duruyor, ancak
+   üzerine gelince kırmızıya dönüyor. Renk tek ayırt edici olmasın diye
+   metin de zaten farklı ("Sezonu temizle"). */
+.season-clear {
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.season-clear:hover,
+.season-clear:focus-visible {
+    color: var(--bs-danger-text-emphasis, #ea868f);
+    border-color: currentColor;
+}
+
 .episodes {
     display: flex;
     flex-direction: column;
