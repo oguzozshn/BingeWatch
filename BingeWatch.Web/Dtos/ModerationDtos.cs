@@ -6,7 +6,8 @@ namespace BingeWatch.Web.Dtos
         Review = 1,
         ReviewComment = 2,
         UserList = 3,
-        User = 4
+        User = 4,
+        EpisodeComment = 5
     }
 
     public enum ReportReason
@@ -92,6 +93,7 @@ namespace BingeWatch.Web.Dtos
         {
             ReportTargetType.Review => "İnceleme",
             ReportTargetType.ReviewComment => "Yorum",
+            ReportTargetType.EpisodeComment => "Bölüm yorumu",
             ReportTargetType.UserList => "Liste",
             _ => "Kullanıcı"
         };

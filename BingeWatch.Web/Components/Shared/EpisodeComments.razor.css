@@ -1,0 +1,57 @@
+.episode-comments {
+    padding: 4px 2px 2px;
+}
+
+.comment {
+    padding: 6px 0;
+}
+
+.line {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.author {
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+
+.author:hover { text-decoration: underline; }
+
+.text {
+    margin: 2px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.composer {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-top: 10px;
+}
+
+.composer textarea { flex: 1; }
+
+.muted {
+    color: var(--bs-secondary-color, #9aa1ab);
+    font-size: 0.85rem;
+    margin: 6px 0;
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.78rem;
+    color: var(--bs-link-color, #4da3ff);
+    cursor: pointer;
+    /* WCAG 2.5.8: küçük metin butonu da en az 24px dokunma hedefi olmalı. */
+    min-height: 24px;
+}
+
+.link-btn.danger { color: #ff8080; }

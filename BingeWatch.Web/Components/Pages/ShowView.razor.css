@@ -288,6 +288,36 @@
     white-space: nowrap;
 }
 
+/* Bölüm satırı + altında açılan yorum ipliği tek blok; .episodes'un
+   flex sütunu satırı ile panelini ayırmasın. */
+.episode-block {
+    display: flex;
+    flex-direction: column;
+}
+
+.comments-btn {
+    background: none;
+    border: none;
+    color: var(--bs-secondary-color, #9aa1ab);
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: 24px;
+}
+
+.comments-btn:hover,
+.comments-btn:focus-visible {
+    color: var(--bs-link-color, #4da3ff);
+}
+
+.episode-comments-panel {
+    padding: 2px 10px 10px 22px;
+    background: var(--bw-surface);
+    border-radius: 0 0 6px 6px;
+    /* Satırın kendisi zaten yuvarlak; panel açıkken ikisi tek kart görünsün. */
+    margin-top: -4px;
+}
+
 /* --- İncelemeler --- */
 
 .review-form {

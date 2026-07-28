@@ -7,7 +7,10 @@ namespace BingeWatch.API.Models
         UserList = 3,
 
         /// <summary>Tek bir içerik değil, kullanıcının kendisi bildirilir.</summary>
-        User = 4
+        User = 4,
+
+        /// <summary>Bölüm tartışmasındaki yorum.</summary>
+        EpisodeComment = 5
     }
 
     public enum ReportReason

@@ -179,6 +179,12 @@ namespace BingeWatch.API.Services
                         .Select(c => c.UserId)
                         .FirstOrDefaultAsync();
 
+                case ReportTargetType.EpisodeComment:
+                    return await _context.EpisodeComments
+                        .Where(c => c.Id == request.TargetId)
+                        .Select(c => c.UserId)
+                        .FirstOrDefaultAsync();
+
                 case ReportTargetType.UserList:
                     return await _context.UserLists
                         .Where(l => l.Id == request.TargetId)
@@ -230,6 +236,20 @@ namespace BingeWatch.API.Services
 
                 foreach (var row in rows)
                     result[(ReportTargetType.ReviewComment, row.Id)] = (Excerpt(row.Body), $"/show/{row.TmdbId}");
+            }
+
+            var episodeCommentIds = Ids(reports, ReportTargetType.EpisodeComment);
+            if (episodeCommentIds.Count > 0)
+            {
+                // Moderatör burada spoiler kapısını aşıyor: bildirilen yorumu
+                // okumadan karar veremez. Kaçınılmaz ve bilinçli.
+                var rows = await _context.EpisodeComments
+                    .Where(c => episodeCommentIds.Contains(c.Id))
+                    .Select(c => new { c.Id, c.Body, c.Episode!.Season!.Show!.TmdbId })
+                    .ToListAsync();
+
+                foreach (var row in rows)
+                    result[(ReportTargetType.EpisodeComment, row.Id)] = (Excerpt(row.Body), $"/show/{row.TmdbId}");
             }
 
             var listIds = Ids(reports, ReportTargetType.UserList);
@@ -286,6 +306,16 @@ namespace BingeWatch.API.Services
                         return;
 
                     _context.ReviewComments.Remove(comment);
+                    await _context.SaveChangesAsync();
+                    break;
+                }
+                case ReportTargetType.EpisodeComment:
+                {
+                    var comment = await _context.EpisodeComments.FirstOrDefaultAsync(c => c.Id == targetId);
+                    if (comment == null)
+                        return;
+
+                    _context.EpisodeComments.Remove(comment);
                     await _context.SaveChangesAsync();
                     break;
                 }
