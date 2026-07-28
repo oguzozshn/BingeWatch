@@ -33,6 +33,8 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 - Bölüm ısı haritası: TMDb ve kişisel puan katmanları toggle'lı
 - Dizi sayfası sekmeli: Genel Bakış / Bölümler / İncelemeler / Benzer
 - Takip, aktivite akışı, inceleme beğeni/yorumları, bildirimler (Faz 4)
+- **Bölüm tartışmaları** — bölüm satırının altında açılan iplik; yalnızca o
+  bölümü izlemiş olana açık, hiçbir akışa düşmez (Faz 7)
 - Listeler, filtreli keşif, gelişmiş arama, istatistik sayfası (Faz 5)
 - **Moderasyon**: rate limiting, kullanıcı engelleme, içerik bildirimi ve
   `/admin/reports` paneli (Faz 6.1)
@@ -101,6 +103,11 @@ Puanlama üç seviyede olabilir (dizi / sezon / bölüm).
 *bölüm* seviyesinde. Bölüm bazlı yazılı inceleme, "bugün ne izledim" akışını spoiler
 çöplüğüne çevirir.
 
+> **Faz 7 notu:** Bu karar *inceleme* için hâlâ geçerli. Ama gerekçesi akışın
+> kirlenmesiydi ve bu, akışa hiç düşmeyen bir tartışma biçimini dışlamıyor:
+> Faz 7'de **bölüm tartışmaları** eklendi — yayılmayan, yalnızca bölümü izlemiş
+> olana açılan iplikler. Ayrıntı Faz 7'de.
+
 ### A. Takip / Kişisel Katman (ürünün belkemiği)
 
 | Özellik | Not |
@@ -158,6 +165,8 @@ AspNetUsers (Identity) ─┬─ ✅ profil alanları AppUser üzerinde (Display
                         ├─ ✅ Rating (TargetType: Show|Season|Episode, TargetId, Value 0.5–5)
                         ├─ ✅ Review (ShowId, SeasonNumber?, Body, HasSpoilers)
                         ├─ ✅ ReviewLike / ReviewComment
+                        ├─ ✅ EpisodeComment (EpisodeId, Body, CreatedAt) — okuması
+                        │       WatchedEpisode'a bağlı; FK değil, servis kapısı (Faz 7)
                         ├─ ✅ Notification (ActorId, Type, ReviewId?, UserListId?, ReadAt?)
                         ├─ ✅ UserList (Title, Description, IsPublic)
                         │       ├─ ✅ UserListItem (ShowId, Position, Note)
@@ -584,6 +593,46 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
       yeniden işaretleme bugünün tarihini basar. Küçük ama sessiz bir kayıp
   - Yan etkiler zaten doğru çalışıyordu: dizi durumu "Bitirdim"den geri düşüyor
       ve akış olayı siliniyor (yanlış tıklama takipçilerin akışında kalmıyor)
+
+- [x] **Bölüm tartışmaları** — bölüm satırının altında açılan yorum ipliği;
+      **yalnızca o bölümü izlemiş olana açık.**
+  - **§3'ün kararını çiğnemiyor, kapsamını daraltıyor.** §3 bölüm bazlı *yazılı
+      incelemeyi* reddetmişti; gerekçe "bugün ne izledim" akışının spoiler
+      çöplüğüne dönmesiydi. Buradaki iplik **hiçbir akışa düşmüyor**: ne
+      `ActivityEvent` ne `Notification` yazılıyor, `/reviews` akışında da yok.
+      Kullanıcı yorumları görmeye kendi gidiyor — yayın değil, varış noktası.
+      Bu yüzden özgün itiraz geçerli değil (test: `AddAsync_WritesNoActivityOrNotification`)
+  - **Spoiler koruması bayrağa değil veriye dayanıyor.** İncelemelerdeki
+      `HasSpoilers` kutucuğu burada anlamsız: bir bölümün altındaki yorum zaten
+      tanımı gereği o bölümü konuşur. Onun yerine izleme takibi kapı olarak
+      kullanılıyor — koruma kullanıcının dürüstlüğüne değil kendi ilerlemesine
+      bağlı. Letterboxd ve Reddit'in yapısal olarak yapamadığı şey bu: ikisi de
+      okuyucunun nerede olduğunu bilmiyor
+  - **Kapı bölüm başına, dizi başına değil.** S1E1'i izlemek S1E2'nin ipliğini
+      açmıyor; spoiler tam olarak orada duruyor
+  - **Kapı hem okumada hem yazmada, ve sunucuda.** Kilitli iplik yorumları
+      *göndermiyor*, arayüzde gizlemiyor. Yorum sayısı da verilmiyor: "burada
+      40 yorum var" bilgisi tek başına bölüm hakkında bir şey söyler
+      (tartışılan bir olay olmuş)
+  - **Kilit 401 değil, kilitli iplik.** Anonim ve izlememiş kullanıcı 200 alıp
+      `Locked = true` görüyor; arayüz "neden kapalı" mesajını ancak böyle
+      gösterebilir. Üç ayrı mesaj var: anonim, izlememiş, yayınlanmamış
+  - **Yan fayda:** yorum yazmak için bölümü işaretlemiş olmak gerekiyor. İzleme
+      takibini işaretlemek için gerçek bir sebep doğuyor — ürünün belkemiği olan
+      davranış besleniyor
+  - **İşareti kaldıran kullanıcının yorumu silinmiyor**, yalnızca ipliği
+      kapanıyor. Silmek sessiz veri kaybı olurdu; yerelde de doğrulandı (yorum
+      özgün zaman damgasıyla geri geldi)
+  - **Silme yetkisi yalnızca yazarda.** İnceleme yorumundaki "inceleme sahibi de
+      silebilir" kuralının karşılığı yok: bölümün sahibi diye biri yok.
+      Moderasyon `ReportTargetType.EpisodeComment` ile bağlandı — moderatör
+      kuyrukta spoiler kapısını aşıyor, bildirilen yorumu okumadan karar veremez
+  - Engelleme, yazma kotası (30/dk) ve bildirim altyapısı olduğu gibi devraldı;
+      yeni olan tek şey varlık, servis ve panel
+  - **Yerelde uçtan uca doğrulandı** (28.07): migration gerçek LocalDB'ye
+      uygulandı, anonim → kilitli, girişli+izlememiş → kilitli, işaretleyince
+      açıldı, yorum yazıldı, işaret kaldırılınca kapandı ve yorum korundu,
+      akışta yorum olayı çıkmadı. API ve tarayıcı konsolunda hata yok
 
 ---
 

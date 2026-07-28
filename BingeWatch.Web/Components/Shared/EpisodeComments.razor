@@ -1,0 +1,150 @@
+@*
+    Bir bölümün tartışma ipliği. İnceleme yorumlarından ayrı bir kavram:
+    yayılmaz (akışa düşmez) ve yalnızca bölümü izlemiş olana açıktır.
+
+    Kilit sunucuda: kapalı iplik yorumları hiç göndermiyor, burada gizlenmiyor.
+*@
+
+@inject IHttpClientFactory HttpClientFactory
+
+<div class="episode-comments">
+    @if (thread == null)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (thread.Locked)
+    {
+        <AuthorizeView>
+            <Authorized>
+                @if (thread.Unaired)
+                {
+                    <p class="muted">Bölüm yayınlanınca burada tartışılacak.</p>
+                }
+                else
+                {
+                    <p class="muted">
+                        Bu bölümü izlediğini işaretleyince yorumlar açılır —
+                        spoiler yememen için kapalı.
+                    </p>
+                }
+            </Authorized>
+            <NotAuthorized>
+                <p class="muted">
+                    <a href="/login">Giriş yap</a> ve bölümü izlediğini işaretle,
+                    yorumlar açılsın.
+                </p>
+            </NotAuthorized>
+        </AuthorizeView>
+    }
+    else
+    {
+        @foreach (var comment in thread.Comments)
+        {
+            <div class="comment">
+                <div class="line">
+                    <a class="author" href="@ProfileUrl(comment.Username)">@comment.DisplayName</a>
+                    <time datetime="@comment.CreatedAt.ToString("o")">
+                        @comment.CreatedAt.ToLocalTime().ToString("d MMM yyyy HH:mm")
+                    </time>
+                    @if (comment.CanDelete)
+                    {
+                        <button type="button" class="link-btn danger"
+                                @onclick="() => DeleteAsync(comment)">Sil</button>
+                    }
+                    else
+                    {
+                        <ReportButton TargetType="ReportTargetType.EpisodeComment" TargetId="comment.Id" />
+                    }
+                </div>
+                <p class="text">@comment.Body</p>
+            </div>
+        }
+
+        @if (thread.Comments.Count == 0)
+        {
+            <p class="muted">Bu bölüm hakkında ilk yorumu sen yaz.</p>
+        }
+
+        <div class="composer">
+            <textarea class="form-control form-control-sm" rows="2"
+                      placeholder="Bu bölüm hakkında ne düşündün?"
+                      aria-label="Bölüm yorumun"
+                      @bind="draft" @bind:event="oninput"></textarea>
+            <button type="button" class="btn btn-sm btn-primary"
+                    disabled="@(saving || string.IsNullOrWhiteSpace(draft))"
+                    @onclick="AddAsync">
+                @(saving ? "Gönderiliyor..." : "Gönder")
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int EpisodeId { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private EpisodeCommentThreadDto? thread;
+    private string draft = string.Empty;
+    private bool saving;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    private async Task LoadAsync()
+    {
+        var api = await GetApiAsync();
+        thread = await api.GetFromJsonAsync<EpisodeCommentThreadDto>($"api/episodes/{EpisodeId}/comments")
+                 ?? new EpisodeCommentThreadDto { EpisodeId = EpisodeId, Locked = true };
+    }
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(draft))
+            return;
+
+        saving = true;
+        try
+        {
+            var api = await GetApiAsync();
+            var response = await api.PostAsJsonAsync($"api/episodes/{EpisodeId}/comments",
+                new AddEpisodeCommentRequest { Body = draft });
+            if (!response.IsSuccessStatusCode)
+                return;
+
+            var created = await response.Content.ReadFromJsonAsync<EpisodeCommentDto>();
+            if (created != null && thread != null)
+            {
+                thread.Comments.Add(created);
+                draft = string.Empty;
+            }
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task DeleteAsync(EpisodeCommentDto comment)
+    {
+        var api = await GetApiAsync();
+        var response = await api.DeleteAsync($"api/episodes/comments/{comment.Id}");
+        if (!response.IsSuccessStatusCode)
+            return;
+
+        thread?.Comments.Remove(comment);
+    }
+
+    private static string ProfileUrl(string username) => "/" + '@' + username;
+}
