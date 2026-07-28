@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 28 Temmuz 2026, Faz 6.6 (E2E) devam ediyor.*
+*Son güncelleme: 28 Temmuz 2026. Faz 0–6 tamamlandı; kalan açık maddeler §7.1'de.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -209,9 +209,10 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
       senkronlanmıyor — yeni makinede baştan girilmesi gerekiyor
 - [x] `.gitignore` düzelt (`.github/` kuralı kaldırıldı, CI eklenebiliyor)
 - [x] Ölü kodu sil: `weatherforecast`, `Counter.razor`, `Weather.razor`, `Ping`, NavMenu linkleri
-- [ ] `Console.WriteLine` → `ILogger`; debug markup'ını temizle — **kısmen**: API tarafı `ILogger`'a
-      geçti; `ShowView.razor` Faz 2'de yeniden yazılırken temizlendi. Geriye yalnızca
-      [WatchList.razor](../BingeWatch.Web/Components/Pages/WatchList.razor) kaldı (6 adet)
+- [x] `Console.WriteLine` → `ILogger`; debug markup'ını temizle — API tarafı Faz 0'da,
+      `ShowView.razor` Faz 2'de yeniden yazılırken, son 6 çağrı
+      (`WatchList.razor`) Faz 6.3'te taşındı. Kod tabanında `Console.WriteLine`
+      kalmadı *(kutu Faz 6.3'te işaretlenmemişti; 28.07'de doğrulanıp kapatıldı)*
 - [x] `IDisposable`, `App.razor` CSS yolu, `PosterPath` tutarsızlığını düzelt
 - [x] NuGet paketlerini preview'dan stable'a al (EF Core / OpenAPI → 10.0.10)
 - [x] `BingeWatch.Tests` projesi (xUnit) + `.github/workflows/ci.yml` (build + test)
@@ -482,9 +483,10 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
     Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
     çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
-- [x] E2E test (Playwright), yük testi — 17 test yeşil (anonim yüzey + girişli
-      akışlar), CI'da koşuyor; yük testi elle çalıştırılan teşhis aracı olarak
-      kuruldu ([BingeWatch.LoadTest](../BingeWatch.LoadTest/README.md))
+- [x] E2E test (Playwright), yük testi — 20 test yeşil (anonim yüzey, girişli
+      akışlar, şifre sıfırlama), CI'da koşuyor; yük testi elle çalıştırılan
+      teşhis aracı olarak kuruldu
+      ([BingeWatch.LoadTest](../BingeWatch.LoadTest/README.md))
   - **TMDb'ye bağımlı değil.** `CatalogSeeder` kataloğu doğrudan `BingeWatchDb_E2E`
     veritabanına yazıyor: `TmdbStatus="Ended"` + taze `LastSyncedAt` olan bir satırı
     `ShowCatalogService` bayat saymadığı için TMDb'ye hiç gidilmiyor. Böylece süit
@@ -577,10 +579,10 @@ gerçek bir çalıştırmayla değil, büyük ihtimalle yalnızca okumayla doğr
 Anahtarlar girildikten sonra `/health` ve `/health/ready` çalıştığı görüldü;
 gerisi hâlâ doğrulanmayı bekliyor.
 
-**Yük testi hiç yazılmadı.** `NBomber` paketleri `BingeWatch.E2E.csproj`'da
-referans olarak duruyor ama tek satır senaryo yok. Yazılırsa CI'a değil elle
-çalıştırılan bir teşhis aracı olarak kurulmalı: yük üreticisi ile uygulama aynı
-makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anlamlı.
+**Yük testinin liste keşfi ölçümü güvenilmez.** İlk ölçüm sırasında
+veritabanında hiç liste yoktu; sıralama alt sorgusu ve poster önizleme yolları
+hiç çalışmadı, yani `api_liste_kesfi` sayısı olduğundan iyi görünüyor. Anlamlı
+bir sayı için önce veri üretilmeli. Diğer iki senaryo gerçek veriyle ölçüldü.
 
 **Şifre sıfırlama üretimde kapalı.** Akış tamam ama gerçek bir gönderici yok;
 `DisabledPasswordResetNotifier` kayıtlı ve uç 503 dönüyor. Açmak için
