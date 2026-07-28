@@ -9,7 +9,7 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 28 Temmuz 2026, Faz 6.6 (E2E) devam ediyor.*
+*Son güncelleme: 28 Temmuz 2026. Faz 0–6 tamamlandı; kalan açık maddeler §7.1'de.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -209,9 +209,10 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
       senkronlanmıyor — yeni makinede baştan girilmesi gerekiyor
 - [x] `.gitignore` düzelt (`.github/` kuralı kaldırıldı, CI eklenebiliyor)
 - [x] Ölü kodu sil: `weatherforecast`, `Counter.razor`, `Weather.razor`, `Ping`, NavMenu linkleri
-- [ ] `Console.WriteLine` → `ILogger`; debug markup'ını temizle — **kısmen**: API tarafı `ILogger`'a
-      geçti; `ShowView.razor` Faz 2'de yeniden yazılırken temizlendi. Geriye yalnızca
-      [WatchList.razor](../BingeWatch.Web/Components/Pages/WatchList.razor) kaldı (6 adet)
+- [x] `Console.WriteLine` → `ILogger`; debug markup'ını temizle — API tarafı Faz 0'da,
+      `ShowView.razor` Faz 2'de yeniden yazılırken, son 6 çağrı
+      (`WatchList.razor`) Faz 6.3'te taşındı. Kod tabanında `Console.WriteLine`
+      kalmadı *(kutu Faz 6.3'te işaretlenmemişti; 28.07'de doğrulanıp kapatıldı)*
 - [x] `IDisposable`, `App.razor` CSS yolu, `PosterPath` tutarsızlığını düzelt
 - [x] NuGet paketlerini preview'dan stable'a al (EF Core / OpenAPI → 10.0.10)
 - [x] `BingeWatch.Tests` projesi (xUnit) + `.github/workflows/ci.yml` (build + test)
@@ -482,9 +483,10 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
     Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
     çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
-- [x] E2E test (Playwright), yük testi — 17 test yeşil (anonim yüzey + girişli
-      akışlar), CI'da koşuyor; yük testi elle çalıştırılan teşhis aracı olarak
-      kuruldu ([BingeWatch.LoadTest](../BingeWatch.LoadTest/README.md))
+- [x] E2E test (Playwright), yük testi — 20 test yeşil (anonim yüzey, girişli
+      akışlar, şifre sıfırlama), CI'da koşuyor; yük testi elle çalıştırılan
+      teşhis aracı olarak kuruldu
+      ([BingeWatch.LoadTest](../BingeWatch.LoadTest/README.md))
   - **TMDb'ye bağımlı değil.** `CatalogSeeder` kataloğu doğrudan `BingeWatchDb_E2E`
     veritabanına yazıyor: `TmdbStatus="Ended"` + taze `LastSyncedAt` olan bir satırı
     `ShowCatalogService` bayat saymadığı için TMDb'ye hiç gidilmiyor. Böylece süit
@@ -559,6 +561,28 @@ host altında birleştirme (aynı process, `/api` prefix) ciddi olarak değerlen
 katmanın besleyeceği veriyi üretir; sosyalliği (Faz 4) ondan önce yapmak boş bir akışla
 sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 
+### Faz 7 — Kullanım kolaylığı (planlanan)
+
+- [ ] **"Sezonu temizle" butonu** — sezon başlığında, o sezondaki tüm izleme
+      işaretlerini kaldırır.
+  - **Sorun:** "buraya kadar izledim" tek tıkla onlarca bölüm işaretliyor ama
+      geri alma yolu yok; yanlış tıklayan kullanıcı hepsini tek tek temizlemek
+      zorunda kalıyor. Toplu işaretleme var, toplu geri alma yok — asimetri
+  - **Maliyet düşük: arka uç zaten hazır.** `POST /api/shows/{id}/seasons/{n}/watched`
+      gövdesinde `{ watched: false }` kabul ediyor, `SetSeasonWatchedAsync` bunu
+      uyguluyor ve birim testi var. Web bu ucu yalnızca `true` ile çağırıyor;
+      eksik olan tek şey buton
+  - **Yalnızca işaretli bölüm varsa gösterilmeli** — hiç işaret yokken buton
+      ölü arayüz olur
+  - **Onay adımı önerilmiyor.** Bu düğmenin varlık sebebi yanlış tıklamayı
+      telafi etmek; telafi yoluna sürtünme eklemek kendi amacını yer. Ters
+      işlem ("Sezonu izledim") zaten tek tık uzakta
+  - ⚠️ **Kaybolan tek şey `WatchedAt` damgaları.** Arayüzde görünmüyor ama
+      istatistik sayfasındaki yıllara göre dağılım grafiği bunları kullanıyor;
+      yeniden işaretleme bugünün tarihini basar. Küçük ama sessiz bir kayıp
+  - Yan etkiler zaten doğru çalışıyor: dizi durumu "Bitirdim"den geri düşüyor
+      ve akış olayı siliniyor (yanlış tıklama takipçilerin akışında kalmıyor)
+
 ---
 
 ## 7. Bilinen Sorunlar / Doğrulanacaklar
@@ -577,10 +601,10 @@ gerçek bir çalıştırmayla değil, büyük ihtimalle yalnızca okumayla doğr
 Anahtarlar girildikten sonra `/health` ve `/health/ready` çalıştığı görüldü;
 gerisi hâlâ doğrulanmayı bekliyor.
 
-**Yük testi hiç yazılmadı.** `NBomber` paketleri `BingeWatch.E2E.csproj`'da
-referans olarak duruyor ama tek satır senaryo yok. Yazılırsa CI'a değil elle
-çalıştırılan bir teşhis aracı olarak kurulmalı: yük üreticisi ile uygulama aynı
-makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anlamlı.
+**Yük testinin liste keşfi ölçümü güvenilmez.** İlk ölçüm sırasında
+veritabanında hiç liste yoktu; sıralama alt sorgusu ve poster önizleme yolları
+hiç çalışmadı, yani `api_liste_kesfi` sayısı olduğundan iyi görünüyor. Anlamlı
+bir sayı için önce veri üretilmeli. Diğer iki senaryo gerçek veriyle ölçüldü.
 
 **Şifre sıfırlama üretimde kapalı.** Akış tamam ama gerçek bir gönderici yok;
 `DisabledPasswordResetNotifier` kayıtlı ve uç 503 dönüyor. Açmak için
@@ -668,6 +692,22 @@ kaydedilmeli — başka hiçbir yer değişmiyor.
 
 - ✅ Şifre sıfırlama akışı — 28.07.2026'da eklendi. Teslimat üretimde hâlâ
   kapalı; ayrıntı §7.1'de
+
+**§3'teki hedef özellik setinde olup hiçbir faza girmemiş maddeler**
+
+*28.07.2026'da fark edildi: fazların tamamı bitti ama §3'ün özellik
+tablolarındaki iki satır hiçbir faz maddesine dönüşmemiş. Yani "fazlar bitti"
+ile "hedef özellik seti bitti" aynı şey değil.*
+
+- **Etiketleme** (§3.B — kendi tag'leri: `comfort-show`, `bırakılan`) —
+  **hiç yapılmadı.** Ne varlık, ne servis, ne arayüz; §4'teki veri modelinde de
+  yok. Tek izi §3'teki tablo satırı
+- **Yeniden izleme / rewatch** (§3.A — aynı bölümü birden çok kez, tarihli) —
+  **yalnızca şema var, özellik yok.** `WatchedEpisode.RewatchNo` kolonu ve
+  `(UserId, EpisodeId, RewatchNo)` tekil indeksi duruyor ama yazan tek yer
+  `RewatchNo = 0` sabitini kullanıyor ve tüm okumalar `RewatchNo == 0` filtresi
+  atıyor. Yani kolon bir yer tutucu; hiçbir zaman ikinci bir izleme kaydı
+  oluşmuyor
 
 ---
 
