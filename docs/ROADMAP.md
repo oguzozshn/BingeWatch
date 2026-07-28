@@ -221,11 +221,10 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
 
 - [x] ASP.NET Core Identity — API'de `AppUser : IdentityUser`; Web tarayıcıya **cookie auth** sunuyor, Web→API arası JWT (cookie claim'i içinde taşınıyor, BFF benzeri)
 - [x] Kayıt / giriş / çıkış
-- [~] Şifre sıfırlama — **akış tamam, üretim teslimatı yok.** `/forgot-password`
-      ve `/reset-password` sayfaları, Identity token üretimi ve sıfırlama uçları
-      çalışıyor; uçtan uca test altında. Teslimat `IPasswordResetNotifier`
-      arkasında: Development'ta bağlantı loga yazılıyor, üretimde gerçek bir
-      gönderici (SMTP) kaydedilene kadar özellik **kapalı** — uç 503 dönüyor
+- [~] Şifre sıfırlama — **kod tamam, yapılandırma bekliyor.** `/forgot-password`
+      ve `/reset-password` sayfaları, Identity token üretimi, sıfırlama uçları ve
+      SMTP göndericisi (MailKit) yazıldı; uçtan uca test altında. Geriye
+      yalnızca hesap açıp beş değeri girmek kaldı — adımlar §7.1'de
   - **Hesap sayımına kapalı:** e-posta kayıtlı olsun olmasın `/forgot-password`
     her zaman aynı 200 ve aynı ekranı veriyor. "Böyle bir kullanıcı yok" demek,
     adresleri tek tek deneyerek üyeleri saymaya izin verirdi. Aynı sebeple
@@ -582,10 +581,37 @@ referans olarak duruyor ama tek satır senaryo yok. Yazılırsa CI'a değil elle
 çalıştırılan bir teşhis aracı olarak kurulmalı: yük üreticisi ile uygulama aynı
 makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anlamlı.
 
-**Şifre sıfırlama üretimde kapalı.** Akış tamam ama gerçek bir gönderici yok;
-`DisabledPasswordResetNotifier` kayıtlı ve uç 503 dönüyor. Açmak için
-`IPasswordResetNotifier`'ın SMTP uygulaması yazılıp `Program.cs`'te
-kaydedilmeli — başka hiçbir yer değişmiyor.
+**Şifre sıfırlama kapalı — SMTP yapılandırılmayı bekliyor.** Kod tarafı bitti:
+`SmtpPasswordResetNotifier` (MailKit) yazıldı ve yerelde sahte bir SMTP
+sunucusuna karşı gerçekten mail gönderdiği doğrulandı. Ama hiçbir yerde SMTP
+tanımlı olmadığı için özellik kapalı: `Smtp:Host` ya da `Smtp:FromAddress` boşsa
+Development bağlantıyı loga yazıyor, Production'da uç **503** dönüyor.
+
+Seçim ortama değil yapılandırmaya bakıyor, yani kurulum üretime çıkmadan
+yerelde denenebilir. Ayrıntılı anlatım: [DEPLOY.md](DEPLOY.md) §6.
+
+**Yapılacaklar (sadece hesap açma ve yapılandırma; kod değişmiyor):**
+
+- [ ] **Sağlayıcı seç.** Domain yoksa Gmail (ücretsiz, ~500 mail/gün, kurulum
+      ~5 dk). Domain alınırsa Resend (3.000 mail/ay ücretsiz) ya da Brevo
+      (300 mail/gün) — teslim edilebilirlik belirgin biçimde daha iyi
+- [ ] **Gmail yolu:** Google hesabında iki adımlı doğrulamayı aç → Güvenlik →
+      *Uygulama şifreleri*'nden 16 haneli şifre üret. Bu **hesap parolası
+      değil**; hesap parolası SMTP'de çalışmıyor
+- [ ] **Beş değeri gir** (user-secrets ya da Docker'da `.env`):
+      `Smtp:Host`, `Smtp:Port`, `Smtp:User`, `Smtp:Password`, `Smtp:FromAddress`
+- [ ] **Doğrula:** `/forgot-password`'dan kayıtlı bir adrese istek at. Ekran her
+      durumda aynı şeyi der (hesap sayımına kapalı) — gerçek sonuç **API
+      logunda**: `Sifre sifirlama e-postasi gonderildi` ya da `gonderilemedi`
+- [ ] **Spam klasörünü kontrol et.** Gmail'den giden, içinde bağlantı olan
+      "şifreni sıfırla" mailleri spam'e düşebiliyor. Düşüyorsa çözüm sağlayıcı
+      değiştirmek; kod aynı kalır, yalnızca bu beş değer değişir
+
+⚠️ **Gmail'de `Smtp:FromAddress`, `Smtp:User` ile aynı olmalı.** Farklı bir
+gönderen adres verilirse Gmail gönderimi reddediyor.
+
+⚠️ Bu iş bitene kadar `/forgot-password` üretimde 503 dönmeye devam eder;
+uygulamanın geri kalanı etkilenmez.
 
 ### 7.2 Faz 6.6'da bulunan ve çözülenler
 
@@ -666,8 +692,9 @@ kaydedilmeli — başka hiçbir yer değişmiyor.
 
 **Faz 1'de ertelenip sonradan yapılanlar**
 
-- ✅ Şifre sıfırlama akışı — 28.07.2026'da eklendi. Teslimat üretimde hâlâ
-  kapalı; ayrıntı §7.1'de
+- ✅ Şifre sıfırlama akışı — 28.07.2026'da eklendi, SMTP göndericisi dahil.
+  Kodda eksik bir şey yok; yalnızca sağlayıcı hesabı açılıp beş değer
+  girilmeyi bekliyor. Adımlar §7.1'de
 
 ---
 
