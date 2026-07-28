@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text;
 using BingeWatch.API.Configurations;
 using BingeWatch.API.Dtos;
 using BingeWatch.API.Models;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace BingeWatch.API.Controllers
 {
@@ -19,12 +21,15 @@ namespace BingeWatch.API.Controllers
         private readonly UserManager<AppUser> _userManager;
         private readonly SignInManager<AppUser> _signInManager;
         private readonly ITokenService _tokenService;
+        private readonly IPasswordResetNotifier _notifier;
 
-        public AuthController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, ITokenService tokenService)
+        public AuthController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager,
+            ITokenService tokenService, IPasswordResetNotifier notifier)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _tokenService = tokenService;
+            _notifier = notifier;
         }
 
         [HttpPost("register")]
@@ -63,6 +68,102 @@ namespace BingeWatch.API.Controllers
                 return Unauthorized(new { message = "Invalid credentials" });
 
             return Ok(await BuildAuthResponseAsync(user));
+        }
+
+        /// <summary>
+        /// Sıfırlama bağlantısı ister.
+        /// </summary>
+        /// <remarks>
+        /// E-posta kayıtlı olsun ya da olmasın <b>her zaman 200</b> döner.
+        /// "Böyle bir kullanıcı yok" demek, kimin üye olduğunu tek tek sorarak
+        /// öğrenmeye izin verirdi (hesap sayımı). Aynı sebeple yanıt gövdesi de
+        /// sabit.
+        /// </remarks>
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            if (!_notifier.IsEnabled)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new { message = "Şifre sıfırlama şu an kullanılamıyor." });
+            }
+
+            var user = string.IsNullOrWhiteSpace(request.Email)
+                ? null
+                : await _userManager.FindByEmailAsync(request.Email);
+
+            if (user?.Email != null)
+            {
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+
+                // Token base64 değil ham metin ve '+' gibi karakterler taşıyor;
+                // sorgu dizesinde kodlanmadan gönderilirse bozuluyor.
+                var encoded = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+
+                var resetUrl = QueryHelpers.AddQueryString(
+                    request.ResetUrlBase,
+                    new Dictionary<string, string?>
+                    {
+                        ["email"] = user.Email,
+                        ["token"] = encoded
+                    });
+
+                await _notifier.SendAsync(user.Email, resetUrl);
+            }
+
+            return Ok(new { message = "Kayıtlı bir hesap varsa sıfırlama bağlantısı gönderildi." });
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Email)
+                || string.IsNullOrWhiteSpace(request.Token)
+                || string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                return BadRequest(new { message = "Eksik bilgi." });
+            }
+
+            var user = await _userManager.FindByEmailAsync(request.Email);
+            if (user == null)
+            {
+                // Burada da hesabın varlığı sızmamalı: geçersiz token ile aynı yanıt.
+                return BadRequest(new { message = "Bağlantı geçersiz ya da süresi dolmuş." });
+            }
+
+            string token;
+            try
+            {
+                token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(request.Token));
+            }
+            catch (FormatException)
+            {
+                // Elle kurcalanmış bağlantı; çözülemeyen token da geçersiz token.
+                return BadRequest(new { message = "Bağlantı geçersiz ya da süresi dolmuş." });
+            }
+
+            var result = await _userManager.ResetPasswordAsync(user, token, request.NewPassword);
+            if (!result.Succeeded)
+            {
+                // Parola kuralı hataları kullanıcıya lazım; token hatası değil.
+                var passwordErrors = result.Errors
+                    .Where(e => !e.Code.Contains("Token", StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.Description)
+                    .ToList();
+
+                return BadRequest(new
+                {
+                    message = passwordErrors.Count > 0
+                        ? string.Join("; ", passwordErrors)
+                        : "Bağlantı geçersiz ya da süresi dolmuş."
+                });
+            }
+
+            // Sıfırlama sonrası kilit kalkmalı; aksi halde doğru parolayla bile
+            // giremiyor ve neden olduğunu anlamıyor.
+            await _userManager.ResetAccessFailedCountAsync(user);
+
+            return Ok(new { message = "Parolan güncellendi." });
         }
 
         /// <summary>

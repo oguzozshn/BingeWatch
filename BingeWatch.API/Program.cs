@@ -66,6 +66,19 @@ namespace BingeWatch.API
             builder.Services.AddScoped<IBlockService, BlockService>();
             builder.Services.AddScoped<IReportService, ReportService>();
             builder.Services.AddScoped<ITokenService, TokenService>();
+
+            // Şifre sıfırlama teslimatı. Henüz gerçek bir gönderici yok.
+            // Development'ta bağlantı loga yazılıyor; üretimde bu kabul edilemez
+            // (log, hesap ele geçirmeye yeten sırlarla dolar) o yüzden orada
+            // özellik kapalı sayılıyor ve uç 503 dönüyor.
+            //
+            // Açılışta patlatmak yanlış olurdu: eksik olan tek bir özelliğin
+            // teslimatı, uygulamanın tamamı değil.
+            if (builder.Environment.IsDevelopment())
+                builder.Services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
+            else
+                builder.Services.AddScoped<IPasswordResetNotifier, DisabledPasswordResetNotifier>();
+
             builder.Services.AddHostedService<TmdbSyncService>();
 
             // ASP.NET Core Identity

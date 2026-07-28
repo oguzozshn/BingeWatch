@@ -128,6 +128,53 @@ app.MapPost("/account/register", async (HttpContext http, IHttpClientFactory fac
     return Results.Redirect("/");
 });
 
+// Şifre sıfırlama. Token API'de üretiliyor; Web yalnızca formu taşıyor.
+app.MapPost("/account/forgot-password", async (HttpContext http, IHttpClientFactory factory) =>
+{
+    var form = await http.Request.ReadFormAsync();
+    var email = form["email"].ToString();
+
+    // Kullanıcının tıklayacağı sayfa Web'de; adresi isteğin kendisinden
+    // üretiyoruz ki yerel/staging/üretim aynı yapılandırmayı paylaşabilsin.
+    var resetUrlBase = $"{http.Request.Scheme}://{http.Request.Host}/reset-password";
+
+    var client = factory.CreateClient("ApiClient");
+    var response = await client.PostAsJsonAsync("api/auth/forgot-password",
+        new { email, resetUrlBase });
+
+    if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+        return Results.Redirect("/forgot-password?unavailable=1");
+
+    // Hesap var mı yok mu ayrımı yapılmıyor: her durumda aynı ekran.
+    return Results.Redirect("/forgot-password?sent=1");
+});
+
+app.MapPost("/account/reset-password", async (HttpContext http, IHttpClientFactory factory) =>
+{
+    var form = await http.Request.ReadFormAsync();
+    var email = form["email"].ToString();
+    var token = form["token"].ToString();
+    var password = form["password"].ToString();
+
+    var client = factory.CreateClient("ApiClient");
+    var response = await client.PostAsJsonAsync("api/auth/reset-password",
+        new { email, token, newPassword = password });
+
+    if (response.IsSuccessStatusCode)
+        return Results.Redirect("/login?reset=1");
+
+    var problem = await response.Content.ReadFromJsonAsync<ApiMessage>();
+    var message = string.IsNullOrWhiteSpace(problem?.Message)
+        ? "Şifre güncellenemedi."
+        : problem.Message;
+
+    // Token ve e-posta geri konuyor ki kullanıcı formu baştan doldurmasın.
+    return Results.Redirect(
+        $"/reset-password?email={Uri.EscapeDataString(email)}" +
+        $"&token={Uri.EscapeDataString(token)}" +
+        $"&error={Uri.EscapeDataString(message)}");
+});
+
 app.MapPost("/account/logout", async (HttpContext http) =>
 {
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -158,4 +205,10 @@ static async Task SignInAsync(HttpContext http, AuthResponse auth)
 
     var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+}
+
+/// <summary>API'nin hata gövdelerindeki tek alanlı mesaj zarfı.</summary>
+internal sealed class ApiMessage
+{
+    public string? Message { get; set; }
 }
