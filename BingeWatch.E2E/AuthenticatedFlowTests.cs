@@ -172,7 +172,7 @@ namespace BingeWatch.E2E
 
             await ExpandFirstSeasonAsync(page);
 
-            var firstCheckbox = page.Locator(".episode-checkbox input[type=checkbox]").First;
+            var firstCheckbox = page.Locator(".episode-row input.episode-check").First;
             await Assertions.Expect(firstCheckbox).ToBeVisibleAsync();
 
             var wasChecked = await firstCheckbox.IsCheckedAsync();
@@ -195,7 +195,7 @@ namespace BingeWatch.E2E
 
             await ExpandFirstSeasonAsync(page);
 
-            var afterReload = page.Locator(".episode-checkbox input[type=checkbox]").First;
+            var afterReload = page.Locator(".episode-row input.episode-check").First;
             await Assertions.Expect(afterReload).ToBeVisibleAsync();
             Assert.Equal(!wasChecked, await afterReload.IsCheckedAsync());
         }
