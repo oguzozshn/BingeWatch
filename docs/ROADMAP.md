@@ -491,9 +491,9 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
     Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
     çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
-- [x] E2E test (Playwright), yük testi — 20 test yeşil (anonim yüzey, girişli
-      akışlar, şifre sıfırlama), CI'da koşuyor; yük testi elle çalıştırılan
-      teşhis aracı olarak kuruldu
+- [x] E2E test (Playwright), yük testi — 23 test yeşil (anonim yüzey, girişli
+      akışlar, şifre sıfırlama, bölüm tartışmaları), CI'da koşuyor; yük testi
+      elle çalıştırılan teşhis aracı olarak kuruldu
       ([BingeWatch.LoadTest](../BingeWatch.LoadTest/README.md))
   - **TMDb'ye bağımlı değil.** `CatalogSeeder` kataloğu doğrudan `BingeWatchDb_E2E`
     veritabanına yazıyor: `TmdbStatus="Ended"` + taze `LastSyncedAt` olan bir satırı
@@ -654,6 +654,21 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
   - **İki hesapla da doğrulandı:** ikinci kullanıcı bölümü izlemeden ipliği
       göremiyor, işaretleyince birincinin yorumunu görüyor ve kendi yorumu
       olmadığı için "Sil" yerine "Bildir" çıkıyor
+  - **E2E kapsaması eklendi** (2 test): başlık bağlantısı bölüm sayfasına
+      götürüyor; iplik izlemeden kilitli, işaretleyince açılıyor, yorum
+      yenilemeden sonra da duruyor, işaret kaldırılınca kapanıyor ama yorum
+      silinmiyor
+    - Bölüm sayfasına dizi sayfasından **bağlantıyla** geliniyor: Blazor'ın
+      gelişmiş gezinmesi devreyi koruduğu için sayfa açılırken zaten
+      etkileşimli. Doğrudan `GotoAsync` ile gelinseydi yeni devre kurulana
+      kadar tıklamalar yutulurdu (§7.2'deki tuzak)
+    - "Başkasının yorumunu görme" bilerek E2E'ye alınmadı: engelleme testi iki
+      test hesabını kalıcı olarak engelliyor ve xUnit sırayı garanti etmiyor,
+      test kararsız olurdu. O senaryo birim testinde ve elle doğrulandı
+  - ⚠️ **Bölüm satırının yapısı değişince E2E kırıldı** — `MarkingEpisode_
+      PersistsAcrossReload` kalkan `.episode-checkbox` sınıfını arıyordu. PR
+      #19'un E2E'si geçmişti çünkü o koşu satır içi panel sürümündeydi; hata
+      ancak sayfa taşındıktan sonraki koşuda çıktı
 
 ---
 
