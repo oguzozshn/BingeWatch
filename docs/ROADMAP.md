@@ -671,6 +671,22 @@ kaydedilmeli — başka hiçbir yer değişmiyor.
 - ✅ Şifre sıfırlama akışı — 28.07.2026'da eklendi. Teslimat üretimde hâlâ
   kapalı; ayrıntı §7.1'de
 
+**§3'teki hedef özellik setinde olup hiçbir faza girmemiş maddeler**
+
+*28.07.2026'da fark edildi: fazların tamamı bitti ama §3'ün özellik
+tablolarındaki iki satır hiçbir faz maddesine dönüşmemiş. Yani "fazlar bitti"
+ile "hedef özellik seti bitti" aynı şey değil.*
+
+- **Etiketleme** (§3.B — kendi tag'leri: `comfort-show`, `bırakılan`) —
+  **hiç yapılmadı.** Ne varlık, ne servis, ne arayüz; §4'teki veri modelinde de
+  yok. Tek izi §3'teki tablo satırı
+- **Yeniden izleme / rewatch** (§3.A — aynı bölümü birden çok kez, tarihli) —
+  **yalnızca şema var, özellik yok.** `WatchedEpisode.RewatchNo` kolonu ve
+  `(UserId, EpisodeId, RewatchNo)` tekil indeksi duruyor ama yazan tek yer
+  `RewatchNo = 0` sabitini kullanıyor ve tüm okumalar `RewatchNo == 0` filtresi
+  atıyor. Yani kolon bir yer tutucu; hiçbir zaman ikinci bir izleme kaydı
+  oluşmuyor
+
 ---
 
 ## 8. Riskler
