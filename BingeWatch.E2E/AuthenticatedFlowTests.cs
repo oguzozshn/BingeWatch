@@ -147,9 +147,16 @@ namespace BingeWatch.E2E
             await Assertions.Expect(tabs.Nth(0)).ToBeFocusedAsync();
 
             // Panel, seçili sekmeye bağlı olmalı.
-            var panelLabelledBy = await page.Locator("[role=tabpanel]").GetAttributeAsync("aria-labelledby");
-            var selectedId = await page.Locator("[role=tab][aria-selected=true]").GetAttributeAsync("id");
-            Assert.Equal(selectedId, panelLabelledBy);
+            //
+            // Yoklayan assertion şart: sekmenin durumu ile panelin yeniden
+            // çizimi arasında bir Blazor Server turu var. İki değeri iki ayrı
+            // çağrıyla okumak yarışa giriyordu — sekme çoktan "Genel Bakış"a
+            // geçmişken panel hâlâ önceki sekmeyi işaret ediyor olabiliyor.
+            // Beklenen id sabit, o yüzden onu okumak yarışmıyor.
+            var expectedId = await tabs.Nth(0).GetAttributeAsync("id");
+
+            await Assertions.Expect(page.Locator("[role=tabpanel]"))
+                .ToHaveAttributeAsync("aria-labelledby", expectedId!);
         }
 
         /// <summary>
