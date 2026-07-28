@@ -101,7 +101,7 @@ namespace BingeWatch.API
             builder.Services.AddAuthorization();
 
             // İstek kotaları — politikalar Configurations/RateLimitPolicies.cs'te
-            builder.Services.AddBingeWatchRateLimiting();
+            builder.Services.AddBingeWatchRateLimiting(builder.Configuration);
 
             // Hataları RFC 7807 (ProblemDetails) formatında döndür
             builder.Services.AddProblemDetails();

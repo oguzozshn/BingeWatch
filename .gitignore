@@ -89,6 +89,9 @@ appsettings.Development.json
 !.env.example
 
 
+# NBomber cikti raporlari - her kosuda yeniden uretiliyor
+load-reports/
+
 # Local-only docs — ROADMAP ve DEPLOY dışındakiler kişisel not sayılır
 docs/*
 !docs/ROADMAP.md

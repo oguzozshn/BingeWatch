@@ -28,8 +28,24 @@ namespace BingeWatch.API.Configurations
         /// kullanıcıların birbirinin kotasını yemesi ancak anonim isteklerde mümkün
         /// olsun diye kimlik önce geliyor.
         /// </summary>
-        public static IServiceCollection AddBingeWatchRateLimiting(this IServiceCollection services)
+        /// <param name="configuration">
+        /// Yalnızca genel tavan yapılandırmadan okunuyor
+        /// (<c>RateLimiting:GlobalTokenLimit</c> ve
+        /// <c>RateLimiting:GlobalTokensPerMinute</c>). Sebebi somut: yük testi bu
+        /// tavanın içinden anlamlı ölçüm yapamıyor — birkaç yüz istekten sonra
+        /// ölçülen şey uygulama değil, jeton kovası oluyor. Varsayılanlar eski
+        /// sabit değerlerle aynı, yani üretim davranışı değişmiyor.
+        /// <para>
+        /// Güvenlikle ilgili politikalar (giriş denemesi, bildirim, yazma)
+        /// bilerek sabit bırakıldı: onları gevşetmenin meşru bir sebebi yok.
+        /// </para>
+        /// </param>
+        public static IServiceCollection AddBingeWatchRateLimiting(
+            this IServiceCollection services, IConfiguration? configuration = null)
         {
+            var tokenLimit = configuration?.GetValue("RateLimiting:GlobalTokenLimit", 240) ?? 240;
+            var tokensPerPeriod = configuration?.GetValue("RateLimiting:GlobalTokensPerMinute", 120) ?? 120;
+
             services.AddRateLimiter(options =>
             {
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -60,8 +76,8 @@ namespace BingeWatch.API.Configurations
                 options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
                     RateLimitPartition.GetTokenBucketLimiter(PartitionKey(context), _ => new TokenBucketRateLimiterOptions
                     {
-                        TokenLimit = 240,
-                        TokensPerPeriod = 120,
+                        TokenLimit = tokenLimit,
+                        TokensPerPeriod = tokensPerPeriod,
                         ReplenishmentPeriod = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                         AutoReplenishment = true

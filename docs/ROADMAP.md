@@ -466,8 +466,9 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
     Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
     çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
-- [~] E2E test (Playwright), yük testi — **17 test yeşil (anonim yüzey + girişli
-      akışlar); yük testi duruyor**
+- [x] E2E test (Playwright), yük testi — 17 test yeşil (anonim yüzey + girişli
+      akışlar), CI'da koşuyor; yük testi elle çalıştırılan teşhis aracı olarak
+      kuruldu ([BingeWatch.LoadTest](../BingeWatch.LoadTest/README.md))
   - **TMDb'ye bağımlı değil.** `CatalogSeeder` kataloğu doğrudan `BingeWatchDb_E2E`
     veritabanına yazıyor: `TmdbStatus="Ended"` + taze `LastSyncedAt` olan bir satırı
     `ShowCatalogService` bayat saymadığı için TMDb'ye hiç gidilmiyor. Böylece süit
@@ -500,6 +501,19 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     circuit" diyor; asıl yığın izi sunucuda. `AppFixture.WebLogTail()` bunu
     hata mesajına ekliyor — bu olmadan teşhis imkânsıza yakındı
   - Yol üstünde dört gerçek hata bulundu, hepsi düzeltildi (bkz. §7.2)
+  - **Yük testi** (`BingeWatch.LoadTest`, NBomber) — üç senaryo: dizi detayı
+    API'si, liste keşfi, Blazor'ın anonim dizi sayfasını çizmesi. Bilinçli
+    olarak CI dışında: yük üreticisi ile uygulama aynı makinede olduğu için
+    mutlak sayılar donanıma bağlı, eşik koymak gürültü olur. Okunan şey göreli
+    — ilk ölçümde Blazor'ın sayfayı çizmesi aynı veriyi veren API çağrısının
+    kabaca iki katı (p95 17.9 ms / 9.3 ms)
+  - ⚠️ **Genel istek tavanı yük testini imkânsız kılıyordu** (240 jeton +
+    120/dk, sabit kodlu): birkaç yüz istekten sonra ölçülen şey uygulama değil
+    jeton kovası oluyordu. Yalnızca *genel* tavan yapılandırılabilir yapıldı
+    (`RateLimiting:GlobalTokenLimit`, `RateLimiting:GlobalTokensPerMinute`),
+    varsayılanlar eski değerlerle aynı. Güvenlikle ilgili politikalar (giriş
+    denemesi, bildirim, yazma) bilerek sabit bırakıldı — onları gevşetmenin
+    meşru bir sebebi yok
 
 ---
 
