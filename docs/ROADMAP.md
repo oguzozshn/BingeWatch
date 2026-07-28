@@ -466,8 +466,8 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
     Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
     çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
-- [~] E2E test (Playwright), yük testi — **anonim yüzey kapsandı (13 test yeşil);
-      girişli akışlar ve yük testi duruyor**
+- [~] E2E test (Playwright), yük testi — **17 test yeşil (anonim yüzey + girişli
+      akışlar); yük testi duruyor**
   - **TMDb'ye bağımlı değil.** `CatalogSeeder` kataloğu doğrudan `BingeWatchDb_E2E`
     veritabanına yazıyor: `TmdbStatus="Ended"` + taze `LastSyncedAt` olan bir satırı
     `ShowCatalogService` bayat saymadığı için TMDb'ye hiç gidilmiyor. Böylece süit
@@ -480,7 +480,19 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     bağlamında koşuyor
   - **Playwright tarayıcısı ayrıca kurulmalı:** `BingeWatch.E2E/bin/.../playwright.ps1
     install chromium`. Kurulmadan süitin tamamı düşer
-  - Yol üstünde iki gerçek hata bulundu, ikisi de düzeltildi (bkz. §7.2)
+  - **Girişli akışlar** — `AppFixture` kayıt formunu doldurarak iki hesap açıyor
+    (`PrimaryUser`, `SecondaryUser`) ve oturum çerezini bağlama enjekte ediyor.
+    Her test yeniden giriş yapsaydı giriş uçlarının **IP başına 10/5dk** kotası
+    dolardı. Kullanıcı adları çalıştırma başına benzersiz — veritabanı kalıcı,
+    sabit ad ikinci koşuda "zaten var" derdi
+  - ⚠️ **`InteractiveServer` sayfalarında prerender edilen HTML, SignalR devresi
+    bağlanana kadar ölü** — o aralıktaki tıklama ve tuş vuruşları sessizce
+    kayboluyor. `WaitForInteractiveTabsAsync` devre tepki verene kadar bekliyor.
+    Bu beklemeden yazılan testler "buton çalışmıyor" diye yanlış rapor veriyor
+  - Devre çökerse tarayıcı konsolu yalnızca "unhandled exception on the current
+    circuit" diyor; asıl yığın izi sunucuda. `AppFixture.WebLogTail()` bunu
+    hata mesajına ekliyor — bu olmadan teşhis imkânsıza yakındı
+  - Yol üstünde dört gerçek hata bulundu, hepsi düzeltildi (bkz. §7.2)
 
 ---
 
@@ -519,16 +531,31 @@ gerçek bir çalıştırmayla değil, büyük ihtimalle yalnızca okumayla doğr
 Anahtarlar girildikten sonra `/health` ve `/health/ready` çalıştığı görüldü;
 gerisi hâlâ doğrulanmayı bekliyor.
 
-**Girişli akışlar E2E'de kapsanmadı.** Faz 6.6'daki süit yalnızca anonim yüzeyi
-tutuyor. Dizi sayfasının sekme deseni, bölüm işaretleme, puanlama ve engelleme
-akışı gerçek oturumda hâlâ test edilmedi.
-
 **Yük testi hiç yazılmadı.** `NBomber` paketleri `BingeWatch.E2E.csproj`'da
 referans olarak duruyor ama tek satır senaryo yok. Yazılırsa CI'a değil elle
 çalıştırılan bir teşhis aracı olarak kurulmalı: yük üreticisi ile uygulama aynı
 makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anlamlı.
 
 ### 7.2 Faz 6.6'da bulunan ve çözülenler
+
+- ✅ **ARIA durum nitelikleri geçersiz yazılıyordu — Faz 6.3'ün ARIA işi sessizce
+  etkisizdi.** Blazor bir `bool` nitelik değerini HTML boolean niteliği gibi ele
+  alıyor: `true` için niteliği **boş değerle** yazıyor (`aria-selected=""`),
+  `false` için **hiç yazmıyor**. ARIA ise birebir `"true"`/`"false"` metnini
+  bekler; boş değer geçersiz, niteliğin yokluğu "belirtilmemiş" demek. Beş yer
+  etkilenmişti ve hepsi Faz 6.3'ün iddialarının tam merkezindeydi:
+  `StarRating`'in `aria-checked`'i (ekran okuyucu **verilen puanı hiç
+  bildirmiyordu**), dizi sayfası sekmelerinin `aria-selected`'i, sezon
+  akordiyonunun ve WatchList arama kutusunun `aria-expanded`'i. Tek yerden
+  [AriaAttribute.Aria](../BingeWatch.Web/AriaAttribute.cs) ile düzeltildi.
+  Playwright'ın erişilebilirlik anlık görüntüsü yakaladı — koda bakarak
+  görülmesi zor, çünkü kaynak tamamen doğru görünüyor
+- ✅ **Ok tuşu sekmede seçimi değiştiriyor ama odağı taşımıyordu.**
+  `OnTabKeyDown` yalnızca `activeTab`'i güncelliyordu; odak eski sekmede
+  kalıyor, o sekme de aynı anda `tabindex="-1"`e düşüyordu. Sonuç: ekran
+  okuyucu yeni sekmeyi duyurmuyor ve odak şeritten kopuyor — "tek durak"
+  kuralının amacı bozuluyor. Sunucu tarafı DOM odağını değiştiremediği için
+  `bingeWatchFocusElement` JS köprüsü eklendi
 
 - ✅ **Atlama bağlantısına ileri Tab ile ulaşılamıyordu.** `Routes.razor`'daki
   `<FocusOnNavigate Selector="h1">` odağı **ilk yüklemede de** `h1`'e alıyordu.

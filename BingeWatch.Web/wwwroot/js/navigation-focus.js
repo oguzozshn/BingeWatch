@@ -49,4 +49,14 @@
     if (window.Blazor && typeof window.Blazor.addEventListener === 'function') {
         window.Blazor.addEventListener('enhancedload', focusHeading);
     }
+
+    // Blazor'dan id ile odaklama. ARIA sekme deseninde ok tuşu seçimi
+    // değiştirdiğinde odağın da yeni sekmeye geçmesi gerekiyor; sunucu tarafı
+    // DOM odağını doğrudan değiştiremediği için bu köprü gerekli.
+    window.bingeWatchFocusElement = function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.focus();
+        }
+    };
 })();

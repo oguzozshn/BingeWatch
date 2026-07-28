@@ -58,6 +58,10 @@ namespace BingeWatch.E2E
             {
                 Headless = true
             });
+
+            // Tarayıcıdan sonra: kayıt formu üzerinden açılıyorlar.
+            PrimaryUser = await RegisterAsync("gezgin");
+            SecondaryUser = await RegisterAsync("komsu");
         }
 
         public async Task DisposeAsync()
@@ -71,16 +75,82 @@ namespace BingeWatch.E2E
             Stop(_web);
         }
 
+        /// <summary>
+        /// Web sunucusunun son log satırları. Tarayıcı tarafı "unhandled
+        /// exception on the current circuit" dediğinde asıl yığın izi burada;
+        /// onsuz hata mesajı teşhis için işe yaramıyor.
+        /// </summary>
+        public string WebLogTail(int lines = 40)
+        {
+            lock (_webOutput)
+                return string.Join(Environment.NewLine, _webOutput.TakeLast(lines));
+        }
+
         /// <summary>Her test kendi tarayıcı bağlamında koşar; çerezler sızmasın.</summary>
-        public async Task<IPage> NewPageAsync()
+        public async Task<IPage> NewPageAsync(TestUser? user = null)
         {
             var context = await Browser.NewContextAsync(new BrowserNewContextOptions
             {
                 Locale = "tr-TR",
-                ViewportSize = new ViewportSize { Width = 1280, Height = 900 }
+                ViewportSize = new ViewportSize { Width = 1280, Height = 900 },
+                // Oturum çerezi bağlama enjekte ediliyor; her test yeniden giriş
+                // yapsaydı giriş uçlarının IP başına 10/5dk kotası dolardı.
+                StorageState = user?.StorageState
             });
 
             return await context.NewPageAsync();
+        }
+
+        /// <summary>Girişli testler için hesap; koleksiyon başına bir kez açılır.</summary>
+        public TestUser PrimaryUser { get; private set; } = null!;
+
+        /// <summary>Engelleme gibi iki taraflı akışlar için ikinci hesap.</summary>
+        public TestUser SecondaryUser { get; private set; } = null!;
+
+        /// <summary>
+        /// Identity varsayılanları büyük/küçük harf, rakam ve sembol istiyor;
+        /// yalnızca uzunluk (6) gevşetilmiş.
+        /// </summary>
+        private const string Password = "Test!1234";
+
+        /// <summary>
+        /// Kayıt formunu gerçekten doldurarak hesap açar — API'ye doğrudan POST
+        /// atmak daha hızlı olurdu ama kayıt akışının kendisi de test edilen
+        /// yüzeyin parçası.
+        /// </summary>
+        private async Task<TestUser> RegisterAsync(string prefix)
+        {
+            // Veritabanı çalıştırmalar arasında kalıcı; sabit kullanıcı adı
+            // ikinci koşuda "zaten var" hatası verirdi.
+            var username = prefix + Guid.NewGuid().ToString("N")[..8];
+
+            var context = await Browser.NewContextAsync(new BrowserNewContextOptions
+            {
+                Locale = "tr-TR"
+            });
+
+            try
+            {
+                var page = await context.NewPageAsync();
+                await page.GotoAsync($"{WebUrl}/register");
+
+                await page.FillAsync("#register-username", username);
+                await page.FillAsync("#register-displayname", $"Test {prefix}");
+                await page.FillAsync("#register-email", $"{username}@ornek.test");
+                await page.FillAsync("#register-password", Password);
+                await page.ClickAsync("form[action='/account/register'] button[type=submit]");
+
+                // Başarılı kayıt ana sayfaya döner; hata /register'a geri atar.
+                await page.WaitForURLAsync(url => !url.Contains("/register"),
+                    new PageWaitForURLOptions { Timeout = 20_000 });
+
+                var state = await context.StorageStateAsync();
+                return new TestUser(username, state);
+            }
+            finally
+            {
+                await context.CloseAsync();
+            }
         }
 
         private static Process StartServer(string root, string project, List<string> output,
@@ -201,4 +271,10 @@ namespace BingeWatch.E2E
     {
         public const string Name = "app";
     }
+
+    /// <summary>
+    /// Test hesabı. <paramref name="StorageState"/> Playwright'ın çerez
+    /// anlık görüntüsü — yeni bağlama verildiğinde oturum hazır gelir.
+    /// </summary>
+    public record TestUser(string Username, string StorageState);
 }

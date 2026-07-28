@@ -3,6 +3,7 @@
 
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 @*
     Dizi sayfası bilerek herkese açık: ürünün en çok aranan ve dışarıdan
@@ -102,7 +103,7 @@ else
                     var tab = t;
                     <button type="button" role="tab" class="tab @(activeTab == tab ? "active" : "")"
                             id="@TabId(tab)"
-                            aria-selected="@(activeTab == tab)"
+                            aria-selected="@Aria(activeTab == tab)"
                             aria-controls="show-tabpanel"
                             tabindex="@(activeTab == tab ? 0 : -1)"
                             @onclick="() => SwitchTabAsync(tab)">@TabLabel(tab)</button>
@@ -176,7 +177,7 @@ else
                             var expanded = expandedSeasons.Contains(s.SeasonNumber);
                             <div class="season">
                                 <div class="season-header">
-                                    <button type="button" class="season-toggle" aria-expanded="@expanded"
+                                    <button type="button" class="season-toggle" aria-expanded="@Aria(expanded)"
                                             @onclick="() => ToggleSeason(s.SeasonNumber)">
                                         <span class="chevron">@(expanded ? "▾" : "▸")</span>
                                         <h4>@SeasonLabel(s)</h4>
@@ -379,6 +380,11 @@ else
             return;
 
         await SwitchTabAsync(AllTabs[next]);
+
+        // Odak da yeni sekmeye geçmeli. Seçim değişip odak eski sekmede kalırsa
+        // ekran okuyucu yeni sekmeyi hiç duyurmaz ve odak, tabindex="-1"e düşen
+        // bir düğmede mahsur kalır — şeritteki "tek durak" kuralı bozulur.
+        await JS.InvokeVoidAsync("bingeWatchFocusElement", TabId(AllTabs[next]));
     }
 
     private ShowDetailDto? show;

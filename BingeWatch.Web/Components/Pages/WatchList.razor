@@ -30,7 +30,7 @@
                    class="search-input"
                    role="combobox"
                    aria-controls="series-search-results"
-                   aria-expanded="@(showDropdown && searchResults.Any())"
+                   aria-expanded="@Aria(showDropdown && searchResults.Any())"
                    aria-autocomplete="list" />
 
             @if (showDropdown && searchResults.Any())

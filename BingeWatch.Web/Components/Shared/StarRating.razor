@@ -27,16 +27,19 @@
             <span class="star-bg" aria-hidden="true">★</span>
             <span class="star-fill" style="width:@FillPercent(index)%" aria-hidden="true">★</span>
 
+            @* Aria(...) şart: Blazor bool'u HTML boolean attribute gibi yazıyor
+               (true → aria-checked="", false → etiket yok). ARIA ise birebir
+               "true"/"false" metni bekler. *@
             @if (!ReadOnly)
             {
                 <button type="button" class="half half-left"
-                        role="radio" aria-checked="@(Value == Half(index))"
+                        role="radio" aria-checked="@Aria(Value == Half(index))"
                         title="@Half(index) yıldız"
                         aria-label="@Half(index) yıldız ver"
                         @onclick="() => SetAsync(Half(index))"
                         @onmouseover="() => Preview(Half(index))"></button>
                 <button type="button" class="half half-right"
-                        role="radio" aria-checked="@(Value == index)"
+                        role="radio" aria-checked="@Aria(Value == index)"
                         title="@index yıldız"
                         aria-label="@index yıldız ver"
                         @onclick="() => SetAsync(index)"
