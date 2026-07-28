@@ -519,6 +519,12 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
   - Devre çökerse tarayıcı konsolu yalnızca "unhandled exception on the current
     circuit" diyor; asıl yığın izi sunucuda. `AppFixture.WebLogTail()` bunu
     hata mesajına ekliyor — bu olmadan teşhis imkânsıza yakındı
+  - ⚠️ **Bu bekleme her `InteractiveServer` sayfası için gerekli, yalnızca dizi
+    sayfası için değil.** Engelleme testi profil sayfasında aynı tuzağa düştü ve
+    ilk yazımında şansla geçti; `main`'e merge edilince kırmızıya döndü. Ayrıca
+    Playwright'ın **strict mode**'u: `GetByText` birden çok öğeye takılırsa hata
+    veriyor, ama sayfa yarım render edildiği anda tek öğe bulup geçebiliyor —
+    yani kararsız. Liste öğesi sayan seçiciye geçildi
   - Yol üstünde dört gerçek hata bulundu, hepsi düzeltildi (bkz. §7.2)
   - **Yük testi** (`BingeWatch.LoadTest`, NBomber) — üç senaryo: dizi detayı
     API'si, liste keşfi, Blazor'ın anonim dizi sayfasını çizmesi. Bilinçli

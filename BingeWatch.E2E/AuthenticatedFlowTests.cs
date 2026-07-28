@@ -211,16 +211,41 @@ namespace BingeWatch.E2E
 
             // Engelleme tek tıkla değil onay adımıyla: sert ve yarı kalıcı bir
             // eylem (engeli kaldırmak takipleri geri getirmiyor).
-            await blocker.GetByRole(AriaRole.Button, new() { Name = "Engelle", Exact = true })
-                .ClickAsync();
-            await Assertions.Expect(blocker.Locator(".block-confirm")).ToBeVisibleAsync();
+            //
+            // Profil sayfası da InteractiveServer; devre bağlanana kadar tıklama
+            // yutuluyor. Onay kutusu çıkana kadar yineliyoruz — tek tıkla yazılan
+            // hali şansa bağlıydı.
+            var blockButton = blocker.GetByRole(AriaRole.Button, new() { Name = "Engelle", Exact = true });
+            var confirm = blocker.Locator(".block-confirm");
+
+            for (var attempt = 0; attempt < 15; attempt++)
+            {
+                await blockButton.ClickAsync();
+                try
+                {
+                    await Assertions.Expect(confirm).ToBeVisibleAsync(new() { Timeout = 1_000 });
+                    break;
+                }
+                catch (PlaywrightException)
+                {
+                    // Devre henüz bağlanmadı.
+                }
+            }
+
+            await Assertions.Expect(confirm).ToBeVisibleAsync();
             await blocker.Locator(".block-confirm button.btn-danger").ClickAsync();
 
             // Onaydan sonra engel listesine yönlendiriyor — karşı profil artık
             // 404 döndüğü için kullanıcı ne olduğunu görebilsin diye.
             await blocker.WaitForURLAsync("**/settings/blocks", new() { Timeout = 15_000 });
-            await Assertions.Expect(blocker.GetByText(blocked.Username)).ToBeVisibleAsync(
-                new() { Timeout = 10_000 });
+
+            // Liste öğesine göre sayıyoruz: kullanıcı adı satırda hem görünen ad
+            // hem "@kullanici" olarak geçtiği için GetByText birden çok öğeye
+            // takılıyor ve strict mode ihlali veriyordu. Üstelik bu kararsızdı —
+            // sayfa yarım render edildiği anda tek öğe bulup geçebiliyordu.
+            await Assertions.Expect(
+                blocker.Locator(".block-list li").Filter(new() { HasText = blocked.Username }))
+                .ToHaveCountAsync(1, new() { Timeout = 10_000 });
 
             // Engelleyen taraf artık profili görememeli.
             await blocker.GotoAsync($"{AppFixture.WebUrl}/@{blocked.Username}");
