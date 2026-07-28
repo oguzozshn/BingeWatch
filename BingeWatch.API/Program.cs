@@ -123,7 +123,7 @@ namespace BingeWatch.API
             {
                 c.SwaggerDoc("v1", new OpenApiInfo
                 {
-                    Title = "BingeOn API",
+                    Title = "BingeWatch API",
                     Version = "v1"
                 });
             });
@@ -149,7 +149,7 @@ namespace BingeWatch.API
                 app.UseSwagger();
                 app.UseSwaggerUI(c =>
                 {
-                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "BingeOn API v1");
+                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "BingeWatch API v1");
                 });
             }
 

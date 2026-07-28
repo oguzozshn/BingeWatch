@@ -481,7 +481,10 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     bağlamında koşuyor
   - **Playwright tarayıcısı ayrıca kurulmalı:** `BingeWatch.E2E/bin/.../playwright.ps1
     install chromium`. Kurulmadan süitin tamamı düşer
-  - **CI'da koşuyor** — `ci.yml`'e ayrı `e2e` işi eklendi. Süit hiçbir sırra
+  - **CI'da koşuyor ve gerçek koşuda doğrulandı** — PR
+    [#12](https://github.com/oguzozshn/BingeWatch/pull/12): `e2e` işi Linux
+    koşucusunda `Passed: 17`, `build-and-test` 148 birim testi. `ci.yml`'e ayrı
+    `e2e` işi eklendi. Süit hiçbir sırra
     bağlı değil: kataloğu kendi tohumluyor ve JWT ayarlarını kendi veriyor
     (öncesinde geliştiricinin user-secrets deposuna gizliden bağlıydı, CI'da
     API hiç açılmazdı). LocalDB Windows'a özgü olduğu için Linux koşucuda SQL
@@ -597,6 +600,10 @@ makinede olduğu için mutlak sayılar anlamsız, göreli karşılaştırma anla
   `/admin/reports` **hepsi 302 ile `/login`'e gidiyor** (cookie auth
   middleware'i, `ReturnUrl` parametresiyle) ve gövde boş dönüyor. Madde
   kaldırıldı, yerine yönlendirmeyi doğrulayan `[Theory]` testi kondu
+- ✅ **Eski proje adı kullanıcıya görünen yerlerde kalmıştı** — navbar markası
+  `BingeOn.Web`, Swagger başlığı `BingeOn API`. Kod tanımlayıcıları
+  (`BingeOnDbContext`, `BingeOnDb` veritabanı adı) bilerek değiştirilmedi:
+  migration ve bağlantı dizesi zinciri açılıyor, kazancı yok
 - ℹ️ **Yan sonuç: `NoIndex` meta etiketi crawler'a hiç ulaşmıyor.** `NoIndex="true"`
   verilen sayfaların hepsi `[Authorize]` arkasında ve anonim istek 302 alıyor;
   gövde üretilmediği için `<meta name="robots">` de yazılmıyor. Zararsız ama
