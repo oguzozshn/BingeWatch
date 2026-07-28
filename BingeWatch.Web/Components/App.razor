@@ -18,7 +18,11 @@
 <body>
     <Routes />
     <script src="@Assets["lib/bootstrap/dist/js/bootstrap.bundle.min.js"]"></script>
-    <script src="_framework/blazor.web.js"></script>
+    @* Diğer üç script gibi @Assets üzerinden — sebebi önbellek, kırık yol değil:
+       düz yol da 200 döner ama `no-cache` ile, yani 200 KB'lık dosya her sayfa
+       açılışında yeniden doğrulanır. Parmak izli ad `immutable` ve bir yıllık
+       max-age alıyor; içerik değişince ad da değiştiği için bayatlama riski yok. *@
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
     @* blazor.web.js'ten sonra gelmeli: window.Blazor'a abone oluyor. *@
     <script src="@Assets["js/navigation-focus.js"]"></script>
 </body>
