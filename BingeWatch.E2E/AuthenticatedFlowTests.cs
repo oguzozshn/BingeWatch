@@ -39,9 +39,9 @@ namespace BingeWatch.E2E
         /// açtığı WebSocket'i beklemek testlerin gerçek hatayı mı yoksa yarışı
         /// mı gösterdiğini ayırt etmenin tek yolu.
         /// </summary>
-        private async Task<IPage> OpenShowAsync()
+        private async Task<IPage> OpenShowAsync(TestUser? user = null)
         {
-            var page = await _app.NewPageAsync(_app.PrimaryUser);
+            var page = await _app.NewPageAsync(user ?? _app.PrimaryUser);
 
             // Abone olmak gezinmeden önce olmalı, yoksa soket kaçırılabilir.
             var console = new List<string>();
@@ -198,6 +198,49 @@ namespace BingeWatch.E2E
             var afterReload = page.Locator(".episode-checkbox input[type=checkbox]").First;
             await Assertions.Expect(afterReload).ToBeVisibleAsync();
             Assert.Equal(!wasChecked, await afterReload.IsCheckedAsync());
+        }
+
+        /// <summary>
+        /// Toplu işaretlemenin simetriği: "Sezonu temizle" o sezondaki bütün
+        /// işaretleri kaldırmalı ve kalıcı olmalı. Ayrıca temizlenecek bir şey
+        /// yokken buton hiç görünmemeli — yoksa her sezonun başında ölü bir
+        /// düğme durur.
+        /// </summary>
+        [Fact]
+        public async Task ClearSeason_RemovesAllMarksAndHidesItselfWhenEmpty()
+        {
+            // Kendi kullanıcısı: bu test tüm bir sezonu işaretleyip siliyor,
+            // paylaşılan hesabı kullanan diğer testlerle çakışmasın.
+            var user = await _app.RegisterUserAsync("temizle");
+
+            var page = await OpenShowAsync(user);
+            await page.GetByRole(AriaRole.Tab, new() { Name = "Bölümler" }).ClickAsync();
+            await ExpandFirstSeasonAsync(page);
+
+            var clearButton = page.GetByRole(AriaRole.Button, new() { Name = "Sezonu temizle" }).First;
+            var markButton = page.GetByRole(AriaRole.Button, new() { Name = "Sezonu izledim" }).First;
+            var watchedRows = page.Locator(".episode-row.watched");
+
+            // Yeni kullanıcı: hiç işaret yok, buton da olmamalı.
+            await Assertions.Expect(clearButton).ToHaveCountAsync(0);
+
+            await markButton.ClickAsync();
+            await Assertions.Expect(watchedRows).Not.ToHaveCountAsync(0);
+            await Assertions.Expect(clearButton).ToBeVisibleAsync();
+
+            await clearButton.ClickAsync();
+
+            // Hem işaretler gitmeli hem de buton kendini gizlemeli.
+            await Assertions.Expect(watchedRows).ToHaveCountAsync(0);
+            await Assertions.Expect(clearButton).ToHaveCountAsync(0);
+
+            // Sunucuda da silinmiş olmalı, yalnızca ekranda değil.
+            await page.ReloadAsync();
+            await WaitForInteractiveTabsAsync(page);
+            await page.GetByRole(AriaRole.Tab, new() { Name = "Bölümler" }).ClickAsync();
+            await ExpandFirstSeasonAsync(page);
+
+            await Assertions.Expect(page.Locator(".episode-row.watched")).ToHaveCountAsync(0);
         }
 
         /// <summary>
