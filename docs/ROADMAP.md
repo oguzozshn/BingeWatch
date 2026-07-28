@@ -561,6 +561,28 @@ host altında birleştirme (aynı process, `/api` prefix) ciddi olarak değerlen
 katmanın besleyeceği veriyi üretir; sosyalliği (Faz 4) ondan önce yapmak boş bir akışla
 sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 
+### Faz 7 — Kullanım kolaylığı (planlanan)
+
+- [ ] **"Sezonu temizle" butonu** — sezon başlığında, o sezondaki tüm izleme
+      işaretlerini kaldırır.
+  - **Sorun:** "buraya kadar izledim" tek tıkla onlarca bölüm işaretliyor ama
+      geri alma yolu yok; yanlış tıklayan kullanıcı hepsini tek tek temizlemek
+      zorunda kalıyor. Toplu işaretleme var, toplu geri alma yok — asimetri
+  - **Maliyet düşük: arka uç zaten hazır.** `POST /api/shows/{id}/seasons/{n}/watched`
+      gövdesinde `{ watched: false }` kabul ediyor, `SetSeasonWatchedAsync` bunu
+      uyguluyor ve birim testi var. Web bu ucu yalnızca `true` ile çağırıyor;
+      eksik olan tek şey buton
+  - **Yalnızca işaretli bölüm varsa gösterilmeli** — hiç işaret yokken buton
+      ölü arayüz olur
+  - **Onay adımı önerilmiyor.** Bu düğmenin varlık sebebi yanlış tıklamayı
+      telafi etmek; telafi yoluna sürtünme eklemek kendi amacını yer. Ters
+      işlem ("Sezonu izledim") zaten tek tık uzakta
+  - ⚠️ **Kaybolan tek şey `WatchedAt` damgaları.** Arayüzde görünmüyor ama
+      istatistik sayfasındaki yıllara göre dağılım grafiği bunları kullanıyor;
+      yeniden işaretleme bugünün tarihini basar. Küçük ama sessiz bir kayıp
+  - Yan etkiler zaten doğru çalışıyor: dizi durumu "Bitirdim"den geri düşüyor
+      ve akış olayı siliniyor (yanlış tıklama takipçilerin akışında kalmıyor)
+
 ---
 
 ## 7. Bilinen Sorunlar / Doğrulanacaklar
