@@ -799,15 +799,48 @@ uygulamanın geri kalanı etkilenmez.
 tablolarındaki iki satır hiçbir faz maddesine dönüşmemiş. Yani "fazlar bitti"
 ile "hedef özellik seti bitti" aynı şey değil.*
 
-- **Etiketleme** (§3.B — kendi tag'leri: `comfort-show`, `bırakılan`) —
-  **hiç yapılmadı.** Ne varlık, ne servis, ne arayüz; §4'teki veri modelinde de
-  yok. Tek izi §3'teki tablo satırı
-- **Yeniden izleme / rewatch** (§3.A — aynı bölümü birden çok kez, tarihli) —
-  **yalnızca şema var, özellik yok.** `WatchedEpisode.RewatchNo` kolonu ve
-  `(UserId, EpisodeId, RewatchNo)` tekil indeksi duruyor ama yazan tek yer
-  `RewatchNo = 0` sabitini kullanıyor ve tüm okumalar `RewatchNo == 0` filtresi
-  atıyor. Yani kolon bir yer tutucu; hiçbir zaman ikinci bir izleme kaydı
-  oluşmuyor
+**İkisi de 28.07.2026'da bilinçli olarak ertelendi.** Aşağıdaki değerlendirme o
+gün yapıldı; devam edilirken sıfırdan çıkarmaya gerek yok.
+
+#### Etiketleme (§3.B — `comfort-show`, `bırakılan` gibi kendi tag'leri)
+
+**Hiç yapılmadı.** Ne varlık, ne servis, ne arayüz; §4'teki veri modelinde de yok.
+Tek izi §3'teki tablo satırı.
+
+- **Neden değerli:** Dizileri sınıflandırmanın tek yolu şu an `Status` — sabit ve
+  tek boyutlu. Etiket, kullanıcının kütüphanesini kendi kafasına göre
+  dilimlemesini sağlar
+- **Maliyet: orta.** Yeni varlık (`Tag` + `UserShowTag`), ekleme/silme arayüzü,
+  keşfin "Kütüphanem" moduna etiket filtresi. Mevcut hiçbir modeli bozmuyor —
+  katmanlı bir ekleme
+- **Önce cevaplanacak soru: etiketler gizli mi, herkese açık mı?** Gizliyse
+  kişisel bir düzenleme aracı. Açıksa sosyal keşif katmanı olur ama serbest
+  metin olduğu için moderasyon gerekir. Gizli başlayıp sonra açmak kolay,
+  tersi zor
+
+#### Yeniden izleme / rewatch (§3.A — aynı bölümü birden çok kez, tarihli)
+
+**Yalnızca şema var, özellik yok.** `WatchedEpisode.RewatchNo` kolonu ve
+`(UserId, EpisodeId, RewatchNo)` tekil indeksi duruyor ama yazan tek yer
+`RewatchNo = 0` sabitini kullanıyor, tüm okumalar (`EpisodeProgressService`,
+`UserStatsService`) `RewatchNo == 0` filtresi atıyor. Kolon bir yer tutucu.
+
+⚠️ **Şemanın hazır olması işin kolay olduğu anlamına gelmiyor.** Zor kısım kolon
+değil: ürünün ilerleme modeli **tek yönlü tek geçiş** varsayıyor. "Sırada ne var"
+paneli, durum geçişleri ve ilerleme çubuğu bu varsayıma dayalı; rewatch onu kırar.
+
+Yapmadan önce cevaplanması gereken **ürün** soruları (veri sorusu değil):
+
+- 3. sezonu yeniden izlerken dizinin durumu ne — hâlâ "Bitirdim" mi, "İzliyorum" mu?
+- "Sırada ne var" yeniden izlemeyi gösterecek mi, yalnızca ilk geçişi mi izleyecek?
+- İlerleme çubuğu %100'ken ikinci tur başlarsa ne oluyor?
+- İstatistikte toplam süre yeniden izlemeleri sayacak mı? Saymazsa eksik;
+  sayarsa "en çok izlenen tür" tablosu comfort show'larla dolar
+
+💡 **Daha ucuz üçüncü yol:** Rewatch'u bölüm bazlı ikinci kayıt olarak değil,
+**dizi/sezon seviyesinde bir sayaç** olarak modellemek ("bu sezonu 3 kez
+izledim"). İlerleme modeline hiç dokunmaz, faydanın çoğunu verir. Yapılacaksa
+tercih edilen yol bu.
 
 ---
 
