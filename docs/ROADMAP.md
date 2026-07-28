@@ -480,6 +480,13 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     bağlamında koşuyor
   - **Playwright tarayıcısı ayrıca kurulmalı:** `BingeWatch.E2E/bin/.../playwright.ps1
     install chromium`. Kurulmadan süitin tamamı düşer
+  - **CI'da koşuyor** — `ci.yml`'e ayrı `e2e` işi eklendi. Süit hiçbir sırra
+    bağlı değil: kataloğu kendi tohumluyor ve JWT ayarlarını kendi veriyor
+    (öncesinde geliştiricinin user-secrets deposuna gizliden bağlıydı, CI'da
+    API hiç açılmazdı). LocalDB Windows'a özgü olduğu için Linux koşucuda SQL
+    Server servis konteyneri kullanılıyor; bağlantı dizesi
+    `BINGEWATCH_E2E_CONNECTION` ile veriliyor. Sunucular `dotnet run` ile
+    kalktığı için CI'da Debug derleniyor — Release derlemek çift iş olurdu
   - **Girişli akışlar** — `AppFixture` kayıt formunu doldurarak iki hesap açıyor
     (`PrimaryUser`, `SecondaryUser`) ve oturum çerezini bağlama enjekte ediyor.
     Her test yeniden giriş yapsaydı giriş uçlarının **IP başına 10/5dk** kotası

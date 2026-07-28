@@ -26,3 +26,56 @@ jobs:
 
       - name: Test
         run: dotnet test BingeWatch.Tests/BingeWatch.Tests.csproj --no-build --configuration Release --logger "console;verbosity=normal"
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    services:
+      # LocalDB Windows'a özgü; Linux koşucuda gerçek SQL Server gerekiyor.
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "E2ePassw0rd!"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'E2ePassw0rd!' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore BingeWatch.sln
+
+      # Debug olarak derleniyor çünkü AppFixture sunucuları "dotnet run" ile
+      # kaldırıyor ve o da Debug kullanıyor; Release derlemek çift iş olurdu.
+      - name: Build
+        run: dotnet build BingeWatch.E2E/BingeWatch.E2E.csproj --no-restore
+
+      - name: Install Playwright browser
+        run: pwsh BingeWatch.E2E/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: E2E test
+        env:
+          # Süit kataloğu kendi tohumluyor ve JWT ayarlarını kendi veriyor;
+          # TMDb anahtarı ya da user-secrets gerekmiyor.
+          BINGEWATCH_E2E_CONNECTION: "Server=localhost,1433;Database=BingeWatchDb_E2E;User Id=sa;Password=E2ePassw0rd!;TrustServerCertificate=true;MultipleActiveResultSets=true"
+        run: dotnet test BingeWatch.E2E/BingeWatch.E2E.csproj --no-build --logger "console;verbosity=normal"
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output
+          path: BingeWatch.E2E/bin/Debug/net10.0/TestResults
+          if-no-files-found: ignore

@@ -22,9 +22,21 @@ namespace BingeWatch.E2E
         /// Kayıt/puanlama testleri satır yazıyor; bunlar `BingeOnDb`'ye karışırsa
         /// elle bakılan veriyle test verisi ayırt edilemez hale gelir.
         /// </summary>
-        private const string ConnectionString =
-            "Server=(localdb)\\mssqllocaldb;Database=BingeWatchDb_E2E;" +
-            "Trusted_Connection=true;MultipleActiveResultSets=true";
+        /// <remarks>
+        /// Yerelde LocalDB; CI'da Linux üzerinde LocalDB diye bir şey yok, oradan
+        /// SQL Server servis konteynerinin adresi ortam değişkeniyle geliyor.
+        /// </remarks>
+        private static string ConnectionString =>
+            Environment.GetEnvironmentVariable("BINGEWATCH_E2E_CONNECTION")
+            ?? "Server=(localdb)\\mssqllocaldb;Database=BingeWatchDb_E2E;" +
+               "Trusted_Connection=true;MultipleActiveResultSets=true";
+
+        /// <summary>
+        /// Testlere özel JWT ayarları. Gerçek bir sır değil ve olmamalı: süitin
+        /// geliştiricinin user-secrets deposuna bağlı olmaması gerekiyor, yoksa
+        /// CI'da (deponun olmadığı yerde) API hiç açılmaz.
+        /// </summary>
+        private const string TestJwtKey = "e2e-yalnizca-test-icin-kullanilan-imza-anahtari-32+";
 
         private Process? _api;
         private Process? _web;
@@ -43,7 +55,10 @@ namespace BingeWatch.E2E
 
             // API açılışta migration uyguluyor; veritabanını o oluşturur.
             _api = StartServer(root, "BingeWatch.API", _apiOutput, ApiUrl,
-                ("ConnectionStrings__DefaultConnection", ConnectionString));
+                ("ConnectionStrings__DefaultConnection", ConnectionString),
+                ("Jwt__Key", TestJwtKey),
+                ("Jwt__Issuer", "BingeWatch.E2E"),
+                ("Jwt__Audience", "BingeWatch.E2E"));
             _web = StartServer(root, "BingeWatch.Web", _webOutput, WebUrl, ("Api__BaseUrl", ApiUrl + "/"));
 
             await WaitForHealthAsync(ApiUrl + "/health", "API", _apiOutput);
@@ -203,12 +218,13 @@ namespace BingeWatch.E2E
 
         /// <summary>
         /// Sunucu hazır olana kadar bekler. İlk açılışta derleme + migration
-        /// var, o yüzden pencere geniş tutuldu.
+        /// var, o yüzden pencere geniş tutuldu — soğuk bir CI makinesinde iki
+        /// ASP.NET projesinin derlenmesi dakikalar sürebiliyor.
         /// </summary>
         private static async Task WaitForHealthAsync(string healthUrl, string name, List<string> output)
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-            var deadline = DateTime.UtcNow.AddMinutes(3);
+            var deadline = DateTime.UtcNow.AddMinutes(5);
 
             while (DateTime.UtcNow < deadline)
             {
@@ -235,7 +251,7 @@ namespace BingeWatch.E2E
                 tail = string.Join(Environment.NewLine, output.TakeLast(40));
 
             throw new TimeoutException(
-                $"{name} ({healthUrl}) 3 dakikada hazır olmadı. Son çıktı:{Environment.NewLine}{tail}");
+                $"{name} ({healthUrl}) 5 dakikada hazır olmadı. Son çıktı:{Environment.NewLine}{tail}");
         }
 
         private static void Stop(Process? process)
