@@ -34,6 +34,81 @@ dotnet user-secrets --project BingeWatch.API set "Tmdb:ApiKey" "..."
 
 ---
 
+## 6. Şifre sıfırlama e-postası (SMTP)
+
+Şifre sıfırlama akışı hazır ama **teslimat yapılandırılmadan kapalı**: SMTP
+tanımlı değilse `/api/auth/forgot-password` **503** döner ve Web "şu an
+kullanılamıyor" der. Uygulamanın geri kalanı bundan etkilenmez.
+
+Seçim ortama değil **yapılandırmaya** bakıyor:
+
+| Durum | Devreye giren |
+|---|---|
+| `Smtp:Host` ve `Smtp:FromAddress` dolu | Gerçek gönderim (`SmtpPasswordResetNotifier`) |
+| Boş **ve** Development | Bağlantı loga yazılır (`LoggingPasswordResetNotifier`) |
+| Boş **ve** Production | Özellik kapalı, uç 503 (`DisabledPasswordResetNotifier`) |
+
+Development'ta da SMTP tanımlanabilir; kurulumu üretime çıkmadan denemenin yolu
+budur.
+
+> ⚠️ Loga yazan uygulama **yalnızca Development içindir**. Sıfırlama bağlantısı
+> hesabın parolasını değiştirmeye yeten bir sırdır; üretimde loga düşmesi, logu
+> okuyabilen herkese hesapları açmak demek olurdu.
+
+### Gmail ile kurulum (domain gerekmez)
+
+Kendi domainin yoksa en hızlı yol. Günlük ~500 mail sınırı var.
+
+1. Google hesabında **iki adımlı doğrulamayı aç** — uygulama şifresi ancak bundan
+   sonra üretilebiliyor.
+2. Google Hesabı → Güvenlik → **Uygulama şifreleri**'nden yeni bir şifre üret.
+   16 haneli, boşluklu görünen bir dizi verir.
+3. Bu şifreyi yapılandırmaya yaz. **Hesap parolan değil**, üretilen bu şifre:
+
+```bash
+dotnet user-secrets --project BingeWatch.API set "Smtp:Host" "smtp.gmail.com"
+dotnet user-secrets --project BingeWatch.API set "Smtp:Port" "587"
+dotnet user-secrets --project BingeWatch.API set "Smtp:User" "sen@gmail.com"
+dotnet user-secrets --project BingeWatch.API set "Smtp:Password" "abcdefghijklmnop"
+dotnet user-secrets --project BingeWatch.API set "Smtp:FromAddress" "sen@gmail.com"
+```
+
+Docker'da aynı değerler `.env` üzerinden (`SMTP_HOST`, `SMTP_USER`, …).
+
+⚠️ **Gmail'de gönderen adres, kimlik doğrulanan adresle aynı olmalı.** Farklı bir
+`FromAddress` verirsen Gmail gönderimi reddeder.
+
+⚠️ **Teslim edilebilirlik.** Gmail'den giden "şifreni sıfırla" mailleri — içinde
+bağlantı olduğu için — alıcının spam klasörüne düşebilir. Şifre sıfırlamada bu
+can sıkıcı: kullanıcı maili hiç görmez ve özelliği bozuk sanır. Kendi domainin
+olduğunda Resend/Brevo gibi bir servise geçmek bu riski büyük ölçüde kaldırır;
+**kod değişmez, yalnızca bu beş değer değişir.**
+
+### Yerelde gerçek mail göndermeden denemek
+
+Sahte bir SMTP sunucusu (Papercut, smtp4dev, MailHog) çalıştırıp:
+
+```bash
+dotnet user-secrets --project BingeWatch.API set "Smtp:Host" "localhost"
+dotnet user-secrets --project BingeWatch.API set "Smtp:Port" "1025"
+dotnet user-secrets --project BingeWatch.API set "Smtp:FromAddress" "bingewatch@yerel.test"
+dotnet user-secrets --project BingeWatch.API set "Smtp:UseTls" "false"
+```
+
+Bu sunucuların çoğu TLS konuşmaz; `Smtp:UseTls=false` bunun için var.
+
+### Doğrulama
+
+1. `/forgot-password` sayfasından kayıtlı bir e-posta gönder.
+2. Yanıt her durumda aynıdır ("kayıtlı bir hesap varsa gönderildi") — hesap
+   sayımına kapalı olduğu için başarı/başarısızlık buradan anlaşılmaz.
+3. **Gerçek sonuç API logunda:** başarıda `Sifre sifirlama e-postasi gonderildi`,
+   hatada `gonderilemedi` satırı ve istisna. Gönderim hatası bilinçli olarak
+   kullanıcıya yansıtılmıyor; yansısaydı "500 = hesap var, 200 = yok" gibi bir
+   sızıntı olurdu.
+
+---
+
 ## 2. Docker Compose
 
 > ⚠️ **Bu kurulum henüz gerçek bir Docker üzerinde çalıştırılmadı.** Dosyalar

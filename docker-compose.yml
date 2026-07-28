@@ -48,6 +48,13 @@ services:
       Jwt__Audience: ${JWT_AUDIENCE:-BingeWatch}
       Tmdb__ApiKey: ${TMDB_API_KEY:?TMDB_API_KEY .env dosyasinda tanimlanmali}
       Tmdb__BaseUrl: https://api.themoviedb.org/3
+      # Şifre sıfırlama e-postası. Boş bırakılırsa özellik kapalı kalır ve
+      # /api/auth/forgot-password 503 döner — uygulamanın geri kalanı çalışır.
+      Smtp__Host: ${SMTP_HOST:-}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__User: ${SMTP_USER:-}
+      Smtp__Password: ${SMTP_PASSWORD:-}
+      Smtp__FromAddress: ${SMTP_FROM:-}
       # Moderasyon paneline erişecek kullanıcı adları (virgülle değil, indeksli):
       #   Admin__Usernames__0=oguz
       Admin__Usernames__0: ${ADMIN_USERNAME:-}

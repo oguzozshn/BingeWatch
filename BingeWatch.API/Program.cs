@@ -67,14 +67,21 @@ namespace BingeWatch.API
             builder.Services.AddScoped<IReportService, ReportService>();
             builder.Services.AddScoped<ITokenService, TokenService>();
 
-            // Şifre sıfırlama teslimatı. Henüz gerçek bir gönderici yok.
-            // Development'ta bağlantı loga yazılıyor; üretimde bu kabul edilemez
-            // (log, hesap ele geçirmeye yeten sırlarla dolar) o yüzden orada
-            // özellik kapalı sayılıyor ve uç 503 dönüyor.
+            // Şifre sıfırlama teslimatı. Seçim yapılandırmaya bakıyor, ortama
+            // değil: SMTP tanımlıysa gerçekten gönderiliyor (Development dahil,
+            // böylece kurulum yerelde denenebiliyor). Tanımlı değilse
+            // Development bağlantıyı loga yazıyor, üretimde ise özellik kapalı
+            // sayılıp uç 503 dönüyor — çünkü üretimde loga yazmak, hesap ele
+            // geçirmeye yeten bağlantıları log dosyasına dökmek demek.
             //
             // Açılışta patlatmak yanlış olurdu: eksik olan tek bir özelliğin
             // teslimatı, uygulamanın tamamı değil.
-            if (builder.Environment.IsDevelopment())
+            builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+            var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>();
+
+            if (smtpSettings?.IsConfigured == true)
+                builder.Services.AddScoped<IPasswordResetNotifier, SmtpPasswordResetNotifier>();
+            else if (builder.Environment.IsDevelopment())
                 builder.Services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
             else
                 builder.Services.AddScoped<IPasswordResetNotifier, DisabledPasswordResetNotifier>();

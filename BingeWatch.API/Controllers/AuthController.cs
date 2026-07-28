@@ -22,14 +22,16 @@ namespace BingeWatch.API.Controllers
         private readonly SignInManager<AppUser> _signInManager;
         private readonly ITokenService _tokenService;
         private readonly IPasswordResetNotifier _notifier;
+        private readonly ILogger<AuthController> _logger;
 
         public AuthController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager,
-            ITokenService tokenService, IPasswordResetNotifier notifier)
+            ITokenService tokenService, IPasswordResetNotifier notifier, ILogger<AuthController> logger)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _tokenService = tokenService;
             _notifier = notifier;
+            _logger = logger;
         }
 
         [HttpPost("register")]
@@ -108,7 +110,18 @@ namespace BingeWatch.API.Controllers
                         ["token"] = encoded
                     });
 
-                await _notifier.SendAsync(user.Email, resetUrl);
+                try
+                {
+                    await _notifier.SendAsync(user.Email, resetUrl);
+                }
+                catch (Exception ex)
+                {
+                    // Gönderim hatası yanıta yansıtılmamalı. Kayıtlı olmayan
+                    // adres için gönderim hiç denenmiyor, yani hata 500'e
+                    // dönseydi "500 = hesap var, 200 = yok" gibi bir sızıntı
+                    // olurdu — tam da kaçınmaya çalıştığımız hesap sayımı.
+                    _logger.LogError(ex, "Sifirlama e-postasi gonderilemedi.");
+                }
             }
 
             return Ok(new { message = "Kayıtlı bir hesap varsa sıfırlama bağlantısı gönderildi." });
