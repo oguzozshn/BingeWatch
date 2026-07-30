@@ -1,0 +1,34 @@
+# Raspberry Pi (arm64) override. Kullanım:
+#   docker compose -f docker-compose.yml -f docker-compose.pi.yml up -d --build
+#
+# Ana dosya x86-64 bir sunucu varsayıyor; Pi'de değişmesi gereken tek şey
+# veritabanı imajı ve ona bağlı yoklama. Kurulumun tamamı: docs/DEPLOY.md §7.
+services:
+  db:
+    # SQL Server 2022 imajı amd64-only — Pi'de "no matching manifest" ile
+    # düşer. SQL Edge arm64 destekliyor ve T-SQL yüzeyi migration'lar için
+    # yeterli: kod da migration'lar da değişmiyor.
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_PID: Developer
+    healthcheck:
+      # SQL Edge imajında sqlcmd YOK; ana dosyadaki sqlcmd yoklaması burada
+      # hep başarısız olur. Portun açılmasına bakıyoruz — "hazır" garantisi
+      # değil ama API'nin migration retry'ı (10 × 5 sn) farkı kapatıyor.
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/1433' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+
+  web:
+    # !override şart: Compose port listelerini birleştiriyor, üzerine
+    # yazmıyor. Etiket olmadan ana dosyadaki "8080:8080" ile buradaki
+    # eşleme yan yana durur, ikisi de host'un 8080'ini ister ve konteyner
+    # kendi kendisiyle çakışıp "address already in use" ile düşer.
+    ports: !override
+      # Ters vekil (Cloudflare Tunnel) Pi'nin kendi üstünde çalışıyor;
+      # web'i ev ağına ve routera açmaya gerek yok.
+      - "127.0.0.1:8080:8080"
