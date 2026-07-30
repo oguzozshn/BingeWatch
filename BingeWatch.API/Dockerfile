@@ -14,8 +14,11 @@ COPY BingeWatch.Tests/BingeWatch.Tests.csproj BingeWatch.Tests/
 RUN dotnet restore BingeWatch.API/BingeWatch.API.csproj
 
 COPY . .
+# --no-restore burada da yok: bkz. BingeWatch.Web/Dockerfile. API'de Blazor
+# yok ama aynı tuzak statik varlıkları sessizce düşürebiliyor; iki imajın
+# aynı sırayı izlemesi tutarlı olsun diye.
 RUN dotnet publish BingeWatch.API/BingeWatch.API.csproj \
-    -c Release -o /app/publish --no-restore
+    -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
