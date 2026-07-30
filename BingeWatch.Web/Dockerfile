@@ -12,8 +12,15 @@ COPY BingeWatch.Tests/BingeWatch.Tests.csproj BingeWatch.Tests/
 RUN dotnet restore BingeWatch.Web/BingeWatch.Web.csproj
 
 COPY . .
+# --no-restore KULLANMA. Yalnızca .csproj'lar ortamdayken yapılan restore'un
+# ardından publish'i restore'suz çalıştırmak, Blazor'un framework statik
+# varlıklarını (_framework/blazor.web.js) çıktıdan düşürüyor: dosya yayına
+# hiç girmiyor, endpoint manifesti de onu tanımıyor. Sonuç sessiz — sayfalar
+# sunucuda render edilip geldiği için site çalışıyor görünürken hiçbir
+# etkileşimli bileşen çalışmıyor. Yukarıdaki restore katmanı yine de işe
+# yarıyor: paketler önbellekte olduğu için buradaki restore hızlı geçiyor.
 RUN dotnet publish BingeWatch.Web/BingeWatch.Web.csproj \
-    -c Release -o /app/publish --no-restore
+    -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
