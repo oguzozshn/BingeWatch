@@ -9,8 +9,9 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 30 Temmuz 2026. Faz 0–7 tamamlandı, şifre sıfırlama SMTP
-yapılandırması bitti; kalan açık maddeler §7.1'de.*
+*Son güncelleme: 30 Temmuz 2026. Faz 0–7 tamamlandı; şifre sıfırlama SMTP
+yapılandırması ve rewatch bitti. Kalan açık maddeler §7.1'de, hedef özellik
+setinden geriye yalnızca etiketleme kaldı (§7.6).*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -118,7 +119,7 @@ Puanlama üç seviyede olabilir (dizi / sezon / bölüm).
 | "Sırada ne var" paneli | Ana sayfa merkezi: izlenen son bölümden sonraki bölüm |
 | Takvim / yayın akışı | Takip edilen dizilerin yaklaşan bölümleri |
 | İzleme geçmişi + istatistik | Toplam süre, yıla göre dağılım, tür dağılımı, en çok izlenen |
-| Yeniden izleme (rewatch) | Aynı bölümü birden çok kez, tarihli |
+| Yeniden izleme (rewatch) ✅ | Aynı bölümü birden çok kez, tarihli — Faz 7 |
 
 ### B. Puanlama & İnceleme
 
@@ -163,6 +164,8 @@ AspNetUsers (Identity) ─┬─ ✅ profil alanları AppUser üzerinde (Display
                         ├─ ✅ Follow (FollowerId, FolloweeId, CreatedAt)
                         ├─ ✅ UserShow (ShowId, Status, StartedAt, CompletedAt, IsFavorite)
                         ├─ ✅ WatchedEpisode (EpisodeId, WatchedAt, RewatchNo)
+                        │       RewatchNo 0 = ilk izleme; >0 satırlar yalnızca
+                        │       istatistiğe girer, ilerlemeye değil (Faz 7)
                         ├─ ✅ Rating (TargetType: Show|Season|Episode, TargetId, Value 0.5–5)
                         ├─ ✅ Review (ShowId, SeasonNumber?, Body, HasSpoilers)
                         ├─ ✅ ReviewLike / ReviewComment
@@ -671,6 +674,9 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
       #19'un E2E'si geçmişti çünkü o koşu satır içi panel sürümündeydi; hata
       ancak sayfa taşındıktan sonraki koşuda çıktı
 
+- [x] **Yeniden izleme (rewatch)** — bölüm sayfasında "↻ Yeniden izledim";
+      ilerleme modeline hiç dokunmaz. Gerekçeler ve ürün kararları §7.6'da.
+
 ---
 
 ## 7. Bilinen Sorunlar / Doğrulanacaklar
@@ -798,8 +804,9 @@ Ayrıntılı anlatım: [DEPLOY.md](DEPLOY.md) §6.
 tablolarındaki iki satır hiçbir faz maddesine dönüşmemiş. Yani "fazlar bitti"
 ile "hedef özellik seti bitti" aynı şey değil.*
 
-**İkisi de 28.07.2026'da bilinçli olarak ertelendi.** Aşağıdaki değerlendirme o
-gün yapıldı; devam edilirken sıfırdan çıkarmaya gerek yok.
+**İkisi de 28.07.2026'da bilinçli olarak ertelendi**; rewatch 30.07.2026'da
+yapıldı, etiketleme hâlâ açık. Aşağıdaki değerlendirmeler o gün yapıldı;
+devam edilirken sıfırdan çıkarmaya gerek yok.
 
 #### Etiketleme (§3.B — `comfort-show`, `bırakılan` gibi kendi tag'leri)
 
@@ -817,29 +824,47 @@ Tek izi §3'teki tablo satırı.
   metin olduğu için moderasyon gerekir. Gizli başlayıp sonra açmak kolay,
   tersi zor
 
-#### Yeniden izleme / rewatch (§3.A — aynı bölümü birden çok kez, tarihli)
+#### Yeniden izleme / rewatch (§3.A) — ✅ 30.07.2026'da yapıldı
 
-**Yalnızca şema var, özellik yok.** `WatchedEpisode.RewatchNo` kolonu ve
-`(UserId, EpisodeId, RewatchNo)` tekil indeksi duruyor ama yazan tek yer
-`RewatchNo = 0` sabitini kullanıyor, tüm okumalar (`EpisodeProgressService`,
-`UserStatsService`) `RewatchNo == 0` filtresi atıyor. Kolon bir yer tutucu.
+Bölüm bazlı model seçildi (aşağıdaki "daha ucuz üçüncü yol" değil): `RewatchNo`
+kolonu artık amacına uygun kullanılıyor, her yeniden izleme ayrı satır.
 
-⚠️ **Şemanın hazır olması işin kolay olduğu anlamına gelmiyor.** Zor kısım kolon
-değil: ürünün ilerleme modeli **tek yönlü tek geçiş** varsayıyor. "Sırada ne var"
-paneli, durum geçişleri ve ilerleme çubuğu bu varsayıma dayalı; rewatch onu kırar.
+**Çözüm, ilerleme modelini kırmamak üzerine kuruldu.** Endişe şuydu: ürünün
+ilerleme modeli tek yönlü tek geçiş varsayıyor. Anahtar karar, mevcut
+`RewatchNo == 0` filtrelerinin **tamamını olduğu gibi bırakmak** oldu — böylece
+durum geçişleri, "Sırada ne var" ve ilerleme çubuğu rewatch'ı hiç görmüyor.
+Rewatch yalnızca yeni satır ekliyor; `UpdateShowStatusAsync` bile çağrılmıyor.
 
-Yapmadan önce cevaplanması gereken **ürün** soruları (veri sorusu değil):
+Ürün sorularının cevapları:
 
-- 3. sezonu yeniden izlerken dizinin durumu ne — hâlâ "Bitirdim" mi, "İzliyorum" mu?
-- "Sırada ne var" yeniden izlemeyi gösterecek mi, yalnızca ilk geçişi mi izleyecek?
-- İlerleme çubuğu %100'ken ikinci tur başlarsa ne oluyor?
-- İstatistikte toplam süre yeniden izlemeleri sayacak mı? Saymazsa eksik;
-  sayarsa "en çok izlenen tür" tablosu comfort show'larla dolar
+- **Dizi durumu "Bitirdim"de kalır.** Rewatch durum geçişi tetiklemez
+- **"Sırada ne var" yalnızca ilk geçişi izler** — panelin işi yeni içerik
+  önermek; bitmiş bir dizi rewatch yüzünden oraya geri dönmez
+- **İlerleme çubuğu değişmez** (%100'de kalır) — aynı sebeple
+- **İstatistikte süre rewatch'ları sayar.** Kural tek cümle: *izleme aktivitesi
+  ölçen her şey (süre, yıllık dağılım, en çok izlenenler) rewatch'ı sayar;
+  yalnızca "kaç farklı bölüm izledin" tekildir.* "En çok izlenenler"in comfort
+  show'larla dolması hata değil, doğru yansıma
 
-💡 **Daha ucuz üçüncü yol:** Rewatch'u bölüm bazlı ikinci kayıt olarak değil,
-**dizi/sezon seviyesinde bir sayaç** olarak modellemek ("bu sezonu 3 kez
-izledim"). İlerleme modeline hiç dokunmaz, faydanın çoğunu verir. Yapılacaksa
-tercih edilen yol bu.
+⚠️ **Yol üstünde bulunan hata:** bir bölümün işareti kaldırılınca
+`ApplyWatchedAsync` yalnızca `RewatchNo == 0` satırını siliyordu. Rewatch
+satırları yetim kalıp istatistikte süre saymaya devam ederdi — izlenmemiş
+görünen bir bölüm zaman harcatıyor olurdu. Artık işaret kaldırma tüm geçişleri
+siliyor (`UnmarkingEpisode_AlsoRemovesRewatches`).
+
+- **Arayüz bölüm sayfasında**, yalnızca bölüm izlenmişse görünür: "↻ Yeniden
+  izledim" + sayaç + "Son kaydı geri al". İşaretlenmemiş bölümde buton ölü
+  arayüz olurdu (Faz 7'deki "sezonu temizle" ile aynı gerekçe)
+- **Uçlar:** `POST`/`DELETE /api/shows/{id}/episodes/{episodeId}/rewatch`.
+  İlk izleme yoksa `POST` 400 döner — kapı sunucuda
+- **Yerelde uçtan uca doğrulandı:** işaretle → 2 rewatch ekle → istatistikte
+  "1 izlenen bölüm + 2 yeniden izleme", süre 59×3 = 2 sa 57 dk → geri al →
+  1'e düştü → işareti kaldır → rewatch'lar da silindi, istatistik sıfırlandı.
+  Konsol ve API logunda hata yok
+
+💡 *Değerlendirme sırasında düşünülen ucuz alternatif (dizi/sezon seviyesinde
+salt sayaç) uygulanmadı: bölüm bazlı kayıt tarih bilgisini de koruduğu ve
+ilerleme modeline dokunmadan yapılabildiği görüldüğü için gereksiz kaldı.*
 
 ---
 

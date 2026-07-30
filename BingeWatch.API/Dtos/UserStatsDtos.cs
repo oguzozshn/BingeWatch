@@ -6,6 +6,10 @@ namespace BingeWatch.API.Dtos
         public string Username { get; set; } = string.Empty;
 
         public int WatchedEpisodeCount { get; set; }
+
+        /// <summary>İlk izlemeler hariç, toplam yeniden izleme sayısı.</summary>
+        public int RewatchCount { get; set; }
+
         public int ShowsWatchingCount { get; set; }
         public int ShowsCompletedCount { get; set; }
         public int ReviewCount { get; set; }
@@ -52,9 +56,16 @@ namespace BingeWatch.API.Dtos
         public string Username { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
 
+        /// <summary>Kaç farklı bölüm izlendi — yeniden izlemeler tekrar saymaz.</summary>
         public int WatchedEpisodeCount { get; set; }
 
-        /// <summary>Toplam izlenen dakika — süresi bilinmeyen bölümler sayılmaz.</summary>
+        /// <summary>İlk izlemeler hariç, toplam yeniden izleme sayısı.</summary>
+        public int RewatchCount { get; set; }
+
+        /// <summary>
+        /// Toplam izlenen dakika — süresi bilinmeyen bölümler sayılmaz,
+        /// yeniden izlemeler sayılır.
+        /// </summary>
         public int TotalMinutes { get; set; }
 
         /// <summary>Süresi bilinmeyen bölüm sayısı; toplam sürenin eksik olduğunu dürüstçe göstermek için.</summary>

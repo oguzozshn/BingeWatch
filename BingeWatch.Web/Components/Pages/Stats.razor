@@ -24,6 +24,12 @@ else
             <div class="card">
                 <strong>@stats.WatchedEpisodeCount</strong>
                 <span>izlenen bölüm</span>
+                @if (stats.RewatchCount > 0)
+                {
+                    <small title="Yeniden izlemeler bölüm sayısına girmez, toplam süreye girer">
+                        + @stats.RewatchCount yeniden izleme
+                    </small>
+                }
             </div>
             <div class="card">
                 <strong>@FormatDuration(stats.TotalMinutes)</strong>

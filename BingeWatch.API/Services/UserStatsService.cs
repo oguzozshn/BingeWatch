@@ -20,9 +20,11 @@ namespace BingeWatch.API.Services
             if (user == null)
                 return null;
 
+            // Rewatch'lar da çekiliyor: süre ve yıllık dağılım gerçekten harcanan
+            // zamanı göstermeli. "Kaç bölüm izledin" ise tekil bölüm sayar.
             var watched = await _context.WatchedEpisodes
-                .Where(w => w.UserId == user.Id && w.RewatchNo == 0)
-                .Select(w => new { w.WatchedAt, w.Episode!.Runtime })
+                .Where(w => w.UserId == user.Id)
+                .Select(w => new { w.WatchedAt, w.Episode!.Runtime, w.RewatchNo })
                 .ToListAsync();
 
             var statuses = await _context.UserShows
@@ -49,13 +51,15 @@ namespace BingeWatch.API.Services
             return new UserStatsDto
             {
                 Username = user.UserName ?? string.Empty,
-                WatchedEpisodeCount = watched.Count,
+                WatchedEpisodeCount = watched.Count(w => w.RewatchNo == 0),
+                RewatchCount = watched.Count(w => w.RewatchNo > 0),
                 ShowsWatchingCount = statuses.Count(s => s == WatchStatus.Watching),
                 ShowsCompletedCount = statuses.Count(s => s == WatchStatus.Completed),
                 ReviewCount = await _context.Reviews.CountAsync(r => r.UserId == user.Id),
                 RatingCount = await _context.Ratings.CountAsync(r => r.UserId == user.Id),
                 AverageRating = showRatings.Count == 0 ? null : (double)showRatings.Average(),
                 // Süresi bilinmeyen bölümler toplama girmez; tahmin yürütmüyoruz.
+                // Yeniden izlemeler girer: bir bölümü üç kez izlemek üç kat zaman.
                 TotalMinutes = watched.Sum(w => w.Runtime ?? 0),
                 FavoriteShows = favorites,
                 YearlyCounts = watched
@@ -74,19 +78,23 @@ namespace BingeWatch.API.Services
 
             // İzlenen bölümler, dizisi ve süresiyle birlikte tek sorguda; tüm
             // kırılımlar (yıl, tür, dizi) bu tek küme üzerinden bellekte çıkarılıyor.
-            // Rewatch'lar sayılmıyor: "kaç bölüm izledin" sorusunun cevabı tekil bölüm.
+            // Rewatch satırları da geliyor: süre ve yıllık dağılım harcanan zamanı
+            // gösterir, bölüm sayıları ise RewatchNo == 0 ile tekilleştirilir.
             var watched = await _context.WatchedEpisodes
-                .Where(w => w.UserId == user.Id && w.RewatchNo == 0)
+                .Where(w => w.UserId == user.Id)
                 .Select(w => new
                 {
                     w.WatchedAt,
                     w.Episode!.Runtime,
+                    w.RewatchNo,
                     ShowId = w.Episode.Season!.ShowId,
                     TmdbId = w.Episode.Season.Show!.TmdbId,
                     ShowName = w.Episode.Season.Show.Name,
                     w.Episode.Season.Show.PosterPath
                 })
                 .ToListAsync();
+
+            var firstWatches = watched.Where(w => w.RewatchNo == 0).ToList();
 
             var userShows = await _context.UserShows
                 .Where(us => us.UserId == user.Id)
@@ -135,7 +143,8 @@ namespace BingeWatch.API.Services
                     ? user.UserName ?? string.Empty
                     : user.DisplayName,
 
-                WatchedEpisodeCount = watched.Count,
+                WatchedEpisodeCount = firstWatches.Count,
+                RewatchCount = watched.Count - firstWatches.Count,
                 TotalMinutes = watched.Sum(w => w.Runtime ?? 0),
                 EpisodesWithoutRuntime = watched.Count(w => w.Runtime == null),
 

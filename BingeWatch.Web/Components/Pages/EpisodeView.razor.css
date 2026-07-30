@@ -91,6 +91,37 @@
     color: var(--bs-success-text-emphasis, #75b798);
 }
 
+.rewatch {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.rewatch-btn {
+    background: none;
+    border: 1px dashed var(--bs-border-color, #3a3d45);
+    color: var(--bs-secondary-color, #adb5bd);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    min-height: 34px;
+}
+
+.rewatch-btn:hover,
+.rewatch-btn:focus-visible {
+    border-style: solid;
+    border-color: var(--bs-link-color, #4da3ff);
+    color: var(--bs-link-color, #4da3ff);
+}
+
+.rewatch-count {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color, #adb5bd);
+}
+
 .overview {
     margin: 20px 0 0;
     line-height: 1.6;

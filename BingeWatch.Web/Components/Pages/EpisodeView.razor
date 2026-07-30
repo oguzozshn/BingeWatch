@@ -79,6 +79,27 @@ else
                                             AriaLabel="Bölüme puan ver"
                                             ValueChanged="RateAsync" />
                             </div>
+
+                            @* Yeniden izleme yalnızca izlenmiş bölümde anlamlı;
+                               işaretlenmemişken buton ölü arayüz olurdu. *@
+                            @if (ep.Watched)
+                            {
+                                <div class="rewatch">
+                                    <button type="button" class="rewatch-btn" @onclick="AddRewatchAsync">
+                                        ↻ Yeniden izledim
+                                    </button>
+
+                                    @if (ep.RewatchCount > 0)
+                                    {
+                                        <span class="rewatch-count">
+                                            @ep.RewatchCount kez yeniden izledin
+                                        </span>
+                                        <button type="button" class="link-btn" @onclick="RemoveRewatchAsync">
+                                            Son kaydı geri al
+                                        </button>
+                                    }
+                                </div>
+                            }
                         }
                     </Authorized>
                     <NotAuthorized>
@@ -168,7 +189,40 @@ else
             new MarkWatchedRequest { Watched = !ep.Watched });
 
         if (response.IsSuccessStatusCode)
+        {
             ep.Watched = !ep.Watched;
+
+            // İşaret kaldırılınca sunucu yeniden izlemeleri de siliyor.
+            if (!ep.Watched)
+                ep.RewatchCount = 0;
+        }
+    }
+
+    private async Task AddRewatchAsync()
+    {
+        var api = await GetApiAsync();
+        var response = await api.PostAsync(
+            $"api/shows/{TmdbId}/episodes/{ep!.Id}/rewatch", null);
+
+        if (response.IsSuccessStatusCode)
+            ep.RewatchCount = (await response.Content.ReadFromJsonAsync<RewatchResponse>())?.RewatchCount
+                              ?? ep.RewatchCount + 1;
+    }
+
+    private async Task RemoveRewatchAsync()
+    {
+        var api = await GetApiAsync();
+        var response = await api.DeleteAsync(
+            $"api/shows/{TmdbId}/episodes/{ep!.Id}/rewatch");
+
+        if (response.IsSuccessStatusCode)
+            ep.RewatchCount = (await response.Content.ReadFromJsonAsync<RewatchResponse>())?.RewatchCount
+                              ?? Math.Max(0, ep.RewatchCount - 1);
+    }
+
+    private sealed class RewatchResponse
+    {
+        public int RewatchCount { get; set; }
     }
 
     private async Task RateAsync(decimal? value)
