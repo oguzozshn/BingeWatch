@@ -9,7 +9,8 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 28 Temmuz 2026. Faz 0–6 tamamlandı; kalan açık maddeler §7.1'de.*
+*Son güncelleme: 30 Temmuz 2026. Faz 0–7 tamamlandı, şifre sıfırlama SMTP
+yapılandırması bitti; kalan açık maddeler §7.1'de.*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -231,10 +232,10 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
 
 - [x] ASP.NET Core Identity — API'de `AppUser : IdentityUser`; Web tarayıcıya **cookie auth** sunuyor, Web→API arası JWT (cookie claim'i içinde taşınıyor, BFF benzeri)
 - [x] Kayıt / giriş / çıkış
-- [~] Şifre sıfırlama — **kod tamam, yapılandırma bekliyor.** `/forgot-password`
-      ve `/reset-password` sayfaları, Identity token üretimi, sıfırlama uçları ve
-      SMTP göndericisi (MailKit) yazıldı; uçtan uca test altında. Geriye
-      yalnızca hesap açıp beş değeri girmek kaldı — adımlar §7.1'de
+- [x] Şifre sıfırlama — `/forgot-password` ve `/reset-password` sayfaları,
+      Identity token üretimi, sıfırlama uçları ve SMTP göndericisi (MailKit).
+      30.07.2026'da Gmail SMTP yapılandırıldı ve gerçek bir mailin uçtan uca
+      teslim edildiği doğrulandı — ayrıntı §7.1
   - **Hesap sayımına kapalı:** e-posta kayıtlı olsun olmasın `/forgot-password`
     her zaman aynı 200 ve aynı ekranı veriyor. "Böyle bir kullanıcı yok" demek,
     adresleri tek tek deneyerek üyeleri saymaya izin verirdi. Aynı sebeple
@@ -693,37 +694,20 @@ veritabanında hiç liste yoktu; sıralama alt sorgusu ve poster önizleme yolla
 hiç çalışmadı, yani `api_liste_kesfi` sayısı olduğundan iyi görünüyor. Anlamlı
 bir sayı için önce veri üretilmeli. Diğer iki senaryo gerçek veriyle ölçüldü.
 
-**Şifre sıfırlama kapalı — SMTP yapılandırılmayı bekliyor.** Kod tarafı bitti:
-`SmtpPasswordResetNotifier` (MailKit) yazıldı ve yerelde sahte bir SMTP
-sunucusuna karşı gerçekten mail gönderdiği doğrulandı. Ama hiçbir yerde SMTP
-tanımlı olmadığı için özellik kapalı: `Smtp:Host` ya da `Smtp:FromAddress` boşsa
-Development bağlantıyı loga yazıyor, Production'da uç **503** dönüyor.
+**Şifre sıfırlama artık açık — SMTP yapılandırıldı ve uçtan uca doğrulandı
+(30.07.2026).** Ayrı bir Gmail hesabı (`bingewatch.noreply@gmail.com`) açılıp
+uygulama şifresi üretildi, beş değer (`Smtp:Host/Port/User/Password/FromAddress`)
+bu makinenin user-secrets deposuna girildi. Gerçek bir `/forgot-password`
+isteğiyle test edildi: API logunda `Sifre sifirlama e-postasi gonderildi`
+satırı görüldü ve mail gerçekten gelen kutusuna ulaştı (spam'e düşmedi).
 
-Seçim ortama değil yapılandırmaya bakıyor, yani kurulum üretime çıkmadan
-yerelde denenebilir. Ayrıntılı anlatım: [DEPLOY.md](DEPLOY.md) §6.
+⚠️ **Bu yapılandırma yalnızca bu makinede.** User-secrets deposu proje
+klasörünün dışında (`%APPDATA%\Microsoft\UserSecrets\`) olduğu için OneDrive
+ile senkronlanmıyor — yeni bir makineye taşınırken ya da Docker'a geçerken
+(§7.1 Docker maddesi) aynı beş değer o ortamda yeniden girilmeli (`.env` ya da
+environment variable olarak).
 
-**Yapılacaklar (sadece hesap açma ve yapılandırma; kod değişmiyor):**
-
-- [ ] **Sağlayıcı seç.** Domain yoksa Gmail (ücretsiz, ~500 mail/gün, kurulum
-      ~5 dk). Domain alınırsa Resend (3.000 mail/ay ücretsiz) ya da Brevo
-      (300 mail/gün) — teslim edilebilirlik belirgin biçimde daha iyi
-- [ ] **Gmail yolu:** Google hesabında iki adımlı doğrulamayı aç → Güvenlik →
-      *Uygulama şifreleri*'nden 16 haneli şifre üret. Bu **hesap parolası
-      değil**; hesap parolası SMTP'de çalışmıyor
-- [ ] **Beş değeri gir** (user-secrets ya da Docker'da `.env`):
-      `Smtp:Host`, `Smtp:Port`, `Smtp:User`, `Smtp:Password`, `Smtp:FromAddress`
-- [ ] **Doğrula:** `/forgot-password`'dan kayıtlı bir adrese istek at. Ekran her
-      durumda aynı şeyi der (hesap sayımına kapalı) — gerçek sonuç **API
-      logunda**: `Sifre sifirlama e-postasi gonderildi` ya da `gonderilemedi`
-- [ ] **Spam klasörünü kontrol et.** Gmail'den giden, içinde bağlantı olan
-      "şifreni sıfırla" mailleri spam'e düşebiliyor. Düşüyorsa çözüm sağlayıcı
-      değiştirmek; kod aynı kalır, yalnızca bu beş değer değişir
-
-⚠️ **Gmail'de `Smtp:FromAddress`, `Smtp:User` ile aynı olmalı.** Farklı bir
-gönderen adres verilirse Gmail gönderimi reddediyor.
-
-⚠️ Bu iş bitene kadar `/forgot-password` üretimde 503 dönmeye devam eder;
-uygulamanın geri kalanı etkilenmez.
+Ayrıntılı anlatım: [DEPLOY.md](DEPLOY.md) §6.
 
 ### 7.2 Faz 6.6'da bulunan ve çözülenler
 
