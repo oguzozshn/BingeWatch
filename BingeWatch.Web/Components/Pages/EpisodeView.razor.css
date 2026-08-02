@@ -122,6 +122,34 @@
     color: var(--bs-secondary-color, #adb5bd);
 }
 
+.bookmark {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color, #adb5bd);
+}
+
+.bookmark-input {
+    width: 5.5rem;
+    padding: 4px 8px;
+    min-height: 34px;
+    border-radius: 6px;
+    border: 1px solid var(--bs-border-color, #3a3d45);
+    background: var(--bs-body-bg, #1b1e23);
+    color: inherit;
+}
+
+.bookmark-note {
+    color: var(--bs-warning-text-emphasis, #ffda6a);
+}
+
+.bookmark-error {
+    color: var(--bs-danger-text-emphasis, #ea868f);
+}
+
 .overview {
     margin: 20px 0 0;
     line-height: 1.6;

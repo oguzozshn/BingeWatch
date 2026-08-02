@@ -37,6 +37,8 @@ setinden geriye yalnızca etiketleme kaldı (§7.6).*
 - Takip, aktivite akışı, inceleme beğeni/yorumları, bildirimler (Faz 4)
 - **Bölüm sayfası + bölüm tartışmaları** — `/show/{id}/season/{n}/episode/{m}`;
   iplik yalnızca o bölümü izlemiş olana açık ve hiçbir akışa düşmez (Faz 7)
+- **Yeniden izleme (rewatch)** ve **"nerede kaldım" işareti** — ikisi de
+  ilerleme modeline dokunmadan eklendi; yarıda kalan bölüm panelde öne geçer (Faz 7)
 - Listeler, filtreli keşif, gelişmiş arama, istatistik sayfası (Faz 5)
 - **Moderasyon**: rate limiting, kullanıcı engelleme, içerik bildirimi ve
   `/admin/reports` paneli (Faz 6.1)
@@ -116,7 +118,7 @@ Puanlama üç seviyede olabilir (dizi / sezon / bölüm).
 |---|---|
 | Bölüm bazlı izleme takibi | Bölüm ✓, "sezonu izledim", "buraya kadar izledim" toplu işaretleme |
 | İlerleme durumu | Dizi bazında: İzliyorum / Bitirdim / Bıraktım / İzleyeceğim |
-| "Sırada ne var" paneli | Ana sayfa merkezi: izlenen son bölümden sonraki bölüm |
+| "Sırada ne var" paneli | Ana sayfa merkezi: izlenen son bölümden sonraki bölüm; yarıda kalan bölüm öne geçer |
 | Takvim / yayın akışı | Takip edilen dizilerin yaklaşan bölümleri |
 | İzleme geçmişi + istatistik | Toplam süre, yıla göre dağılım, tür dağılımı, en çok izlenen |
 | Yeniden izleme (rewatch) ✅ | Aynı bölümü birden çok kez, tarihli — Faz 7 |
@@ -166,6 +168,9 @@ AspNetUsers (Identity) ─┬─ ✅ profil alanları AppUser üzerinde (Display
                         ├─ ✅ WatchedEpisode (EpisodeId, WatchedAt, RewatchNo)
                         │       RewatchNo 0 = ilk izleme; >0 satırlar yalnızca
                         │       istatistiğe girer, ilerlemeye değil (Faz 7)
+                        ├─ ✅ EpisodeBookmark (EpisodeId, PositionMinutes, UpdatedAt)
+                        │       "yarıda bıraktım" — bölüm başına tek, izlenince
+                        │       silinir; WatchedEpisode'u dışlar (Faz 7)
                         ├─ ✅ Rating (TargetType: Show|Season|Episode, TargetId, Value 0.5–5)
                         ├─ ✅ Review (ShowId, SeasonNumber?, Body, HasSpoilers)
                         ├─ ✅ ReviewLike / ReviewComment
@@ -676,6 +681,33 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 
 - [x] **Yeniden izleme (rewatch)** — bölüm sayfasında "↻ Yeniden izledim";
       ilerleme modeline hiç dokunmaz. Gerekçeler ve ürün kararları §7.6'da.
+
+- [x] **"Nerede kaldım" işareti** — yarıda bırakılan bölümde kalınan dakika;
+      ana sayfadaki panel "başla" yerine "devam et" der.
+  - **Sorun:** ürün bölümü ikili görüyordu — izlendi ya da izlenmedi. Bir
+      bölümü yarıda bırakan kullanıcının bunu kaydedecek yeri yoktu; ertesi
+      gün "kaçıncı dakikaya kadar izlemiştim" sorusunun cevabı üründe değil
+      kullanıcının hafızasındaydı
+  - **Ayrı varlık** (`EpisodeBookmark`), `WatchedEpisode`'a nullable kolon
+      değil. İkisi birbirini dışlıyor: bölüm izlendiyse yarıda kalmış olamaz.
+      Aynı tabloya konsaydı "izlendi ama 32. dakikada" gibi anlamsız bir satır
+      şema düzeyinde mümkün olurdu. Bölüm başına tek satır (tekil indeks):
+      "kaldığım yer" bir noktadır, geçmişi tutulmaz
+  - **Kapı sunucuda:** izlenmiş bölüme işaret konamıyor, negatif ya da bölüm
+      süresini aşan dakika reddediliyor (400). İstemcideki `max` niteliği
+      klavyeyle aşılabildiği için asıl doğrulama uçta
+  - **İşaretleyince işaret siliniyor** — bölüm bitince "nerede kaldım"
+      anlamını yitirir. Toplu işaretlemede araya giren yarım bölümler de
+      temizleniyor
+  - **Panelde öncelikli:** yarıda kalan bölüm sıradakinin önüne geçiyor ve
+      listenin en üstünde duruyor. "Devam et", "yeni bölüme başla"dan daha
+      güçlü bir sinyal. Panelin sorgu sayısı üçten dörde çıktı ama dizi
+      sayısından bağımsız kaldı (N+1 yok)
+  - **Yerelde uçtan uca doğrulandı:** izlenmiş bölümde kutu hiç çıkmıyor,
+      izlenmemişte 18. dakika kaydedildi → panel "⏸ 18. dakikadan devam et"
+      dedi → bölüm işaretlenince işaret silindi ve panel sıradaki bölüme
+      geçti → 49 dakikalık bölüme 999 girilince "Dakika 0 ile 49 arasında
+      olmalı" hatası döndü. Konsol ve API logunda hata yok
 
 ---
 

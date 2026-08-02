@@ -188,6 +188,69 @@ namespace BingeWatch.API.Services
                 .CountAsync(w => w.UserId == userId && w.EpisodeId == episodeId && w.RewatchNo > 0);
 
         /// <summary>
+        /// Yarıda bırakma işareti. İzlenmiş bölüm reddediliyor: "izledim" ile
+        /// "32. dakikada kaldım" birbirini dışlar, ikisi aynı anda doğru olamaz.
+        /// </summary>
+        public async Task<bool> SetBookmarkAsync(string userId, int episodeId, int positionMinutes)
+        {
+            if (positionMinutes < 0)
+                return false;
+
+            var episode = await _context.Episodes.FirstOrDefaultAsync(e => e.Id == episodeId);
+            if (episode == null)
+                return false;
+
+            // Süresi bilinen bölümde sınırı aşan dakika kabul edilmiyor; süresi
+            // bilinmeyen bölümde doğrulayacak bir üst sınır yok.
+            if (episode.Runtime.HasValue && positionMinutes > episode.Runtime.Value)
+                return false;
+
+            var alreadyWatched = await _context.WatchedEpisodes
+                .AnyAsync(w => w.UserId == userId && w.EpisodeId == episodeId && w.RewatchNo == 0);
+            if (alreadyWatched)
+                return false;
+
+            var bookmark = await _context.EpisodeBookmarks
+                .FirstOrDefaultAsync(b => b.UserId == userId && b.EpisodeId == episodeId);
+
+            if (bookmark == null)
+            {
+                _context.EpisodeBookmarks.Add(new EpisodeBookmark
+                {
+                    UserId = userId,
+                    EpisodeId = episodeId,
+                    PositionMinutes = positionMinutes,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                bookmark.PositionMinutes = positionMinutes;
+                bookmark.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> ClearBookmarkAsync(string userId, int episodeId)
+        {
+            var bookmark = await _context.EpisodeBookmarks
+                .FirstOrDefaultAsync(b => b.UserId == userId && b.EpisodeId == episodeId);
+            if (bookmark == null)
+                return false;
+
+            _context.EpisodeBookmarks.Remove(bookmark);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<int?> GetBookmarkAsync(string userId, int episodeId) =>
+            (await _context.EpisodeBookmarks
+                .FirstOrDefaultAsync(b => b.UserId == userId && b.EpisodeId == episodeId))
+                ?.PositionMinutes;
+
+        /// <summary>
         /// Ana sayfadaki "Sırada ne var" paneli. Dizi sayısından bağımsız olarak
         /// üç sorgu atar: diziler, o dizilerin bölümleri ve kullanıcının izledikleri.
         /// Gruplama bellekte yapılır — aktif dizi başına ayrı sorgu, en çok açılan
@@ -237,6 +300,11 @@ namespace BingeWatch.API.Services
                     .ToListAsync())
                 .ToHashSet();
 
+            // Yarıda bırakılanlar da tek sorguda; dizi sayısından bağımsız kalıyor.
+            var bookmarks = await _context.EpisodeBookmarks
+                .Where(b => b.UserId == userId)
+                .ToDictionaryAsync(b => b.EpisodeId, b => b.PositionMinutes);
+
             var today = DateTime.UtcNow.Date;
             var result = new List<NextEpisodeDto>();
 
@@ -245,7 +313,11 @@ namespace BingeWatch.API.Services
                 if (!episodesByShow.TryGetValue(show.ShowId, out var showEpisodes))
                     continue;
 
-                var next = showEpisodes.FirstOrDefault(e => !watchedIds.Contains(e.Id));
+                // Yarıda bırakılan bölüm sıradakinin önüne geçer: "devam et",
+                // "yeni bölüme başla"dan daha güçlü bir sinyal. Kullanıcı diziyi
+                // ileriden işaretlemişse yarım bölüm sırada olmayabilir.
+                var resuming = showEpisodes.FirstOrDefault(e => bookmarks.ContainsKey(e.Id));
+                var next = resuming ?? showEpisodes.FirstOrDefault(e => !watchedIds.Contains(e.Id));
                 if (next == null)
                     continue; // her şeyi izlemiş
 
@@ -258,12 +330,15 @@ namespace BingeWatch.API.Services
                     EpisodeNumber = next.EpisodeNumber,
                     EpisodeName = next.Name,
                     AirDate = next.AirDate,
-                    IsUnaired = next.AirDate.HasValue && next.AirDate.Value.Date > today
+                    IsUnaired = next.AirDate.HasValue && next.AirDate.Value.Date > today,
+                    ResumeAtMinutes = bookmarks.TryGetValue(next.Id, out var minutes) ? minutes : null
                 });
             }
 
             return result
-                .OrderBy(r => r.IsUnaired)
+                // Yarıda kalanlar en üstte: elindeki iş, başlanmamış işin önünde.
+                .OrderBy(r => r.ResumeAtMinutes == null)
+                .ThenBy(r => r.IsUnaired)
                 .ThenBy(r => r.AirDate ?? DateTime.MaxValue)
                 .ToList();
         }
@@ -321,6 +396,13 @@ namespace BingeWatch.API.Services
                         RewatchNo = 0
                     });
                 }
+
+                // Bölüm bitince "nerede kaldım" işareti anlamını yitirir.
+                // Toplu işaretlemede araya giren yarım bölümler de temizlenir.
+                var staleBookmarks = await _context.EpisodeBookmarks
+                    .Where(b => b.UserId == userId && episodeIds.Contains(b.EpisodeId))
+                    .ToListAsync();
+                _context.EpisodeBookmarks.RemoveRange(staleBookmarks);
 
                 await _context.SaveChangesAsync();
 

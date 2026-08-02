@@ -109,6 +109,7 @@ namespace BingeWatch.API.Controllers
 
             decimal? myRating = null;
             var rewatchCount = 0;
+            int? resumeAt = null;
             if (userId != null)
             {
                 var ratings = await _ratingService.GetUserRatingsForShowAsync(userId, tmdbId);
@@ -116,6 +117,7 @@ namespace BingeWatch.API.Controllers
                     myRating = value;
 
                 rewatchCount = await _progressService.GetRewatchCountAsync(userId, episode.Id);
+                resumeAt = await _progressService.GetBookmarkAsync(userId, episode.Id);
             }
 
             // Komşular sezon sınırını geçmeli: bir sezonun son bölümünden
@@ -150,6 +152,7 @@ namespace BingeWatch.API.Controllers
                 Watched = watchedEpisodeIds.Contains(episode.Id),
                 MyRating = myRating,
                 RewatchCount = rewatchCount,
+                ResumeAtMinutes = resumeAt,
                 Previous = index > 0 ? flat[index - 1] : null,
                 Next = index >= 0 && index < flat.Count - 1 ? flat[index + 1] : null
             });
@@ -198,6 +201,31 @@ namespace BingeWatch.API.Controllers
                 return BadRequest(new { message = "Bölüm henüz izlenmemiş" });
 
             return Ok(new { rewatchCount = count });
+        }
+
+        /// <summary>
+        /// "Bu bölümde şu dakikada kaldım." İzlenmiş bölümde ya da geçersiz
+        /// dakikada 400 döner — kapı sunucuda.
+        /// </summary>
+        [HttpPut("{tmdbId}/episodes/{episodeId}/bookmark")]
+        [Authorize]
+        public async Task<IActionResult> SetBookmark(int tmdbId, int episodeId, [FromBody] SetBookmarkRequest request)
+        {
+            var ok = await _progressService.SetBookmarkAsync(CurrentUserId!, episodeId, request.PositionMinutes);
+            if (!ok)
+                return BadRequest(new { message = "Gecersiz dakika ya da bolum zaten izlenmis" });
+
+            return Ok(new { positionMinutes = request.PositionMinutes });
+        }
+
+        [HttpDelete("{tmdbId}/episodes/{episodeId}/bookmark")]
+        [Authorize]
+        public async Task<IActionResult> ClearBookmark(int tmdbId, int episodeId)
+        {
+            if (!await _progressService.ClearBookmarkAsync(CurrentUserId!, episodeId))
+                return NotFound();
+
+            return NoContent();
         }
 
         [HttpDelete("{tmdbId}/episodes/{episodeId}/rewatch")]

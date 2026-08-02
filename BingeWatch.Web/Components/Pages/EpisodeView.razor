@@ -100,6 +100,40 @@ else
                                     }
                                 </div>
                             }
+
+                            @* "Nerede kaldım" yalnızca izlenmemiş bölümde anlamlı:
+                               bölüm bittiyse yarıda kalınmış olamaz. *@
+                            @if (!ep.Watched)
+                            {
+                                <div class="bookmark">
+                                    @if (ep.ResumeAtMinutes.HasValue)
+                                    {
+                                        <span class="bookmark-note">
+                                            ⏸ @ep.ResumeAtMinutes. dakikada kaldın
+                                        </span>
+                                        <button type="button" class="link-btn" @onclick="ClearBookmarkAsync">
+                                            İşareti kaldır
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <label class="bookmark-label" for="bookmark-minutes">
+                                            Yarıda mı bıraktın? Kaçıncı dakikada kaldın:
+                                        </label>
+                                        <input id="bookmark-minutes" type="number" min="0"
+                                               max="@(ep.Runtime ?? 600)" class="bookmark-input"
+                                               @bind="bookmarkInput" />
+                                        <button type="button" class="link-btn" @onclick="SaveBookmarkAsync">
+                                            Kaydet
+                                        </button>
+                                    }
+
+                                    @if (bookmarkError != null)
+                                    {
+                                        <span class="bookmark-error" role="alert">@bookmarkError</span>
+                                    }
+                                </div>
+                            }
                         }
                     </Authorized>
                     <NotAuthorized>
@@ -151,6 +185,8 @@ else
 
     private EpisodePageDto? ep;
     private bool loading = true;
+    private int? bookmarkInput;
+    private string? bookmarkError;
 
     private bool Unaired => ep!.AirDate.HasValue && ep.AirDate.Value.Date > DateTime.UtcNow.Date;
 
@@ -168,6 +204,8 @@ else
     protected override async Task OnParametersSetAsync()
     {
         loading = true;
+        bookmarkInput = null;
+        bookmarkError = null;
         var api = await GetApiAsync();
 
         // Tek istek: bölüm detayı, işaret, puan, kırıntılar ve komşular bir arada.
@@ -195,6 +233,11 @@ else
             // İşaret kaldırılınca sunucu yeniden izlemeleri de siliyor.
             if (!ep.Watched)
                 ep.RewatchCount = 0;
+            else
+                // İzlendi işaretlenince "nerede kaldım" da sunucuda siliniyor.
+                ep.ResumeAtMinutes = null;
+
+            bookmarkError = null;
         }
     }
 
@@ -218,6 +261,49 @@ else
         if (response.IsSuccessStatusCode)
             ep.RewatchCount = (await response.Content.ReadFromJsonAsync<RewatchResponse>())?.RewatchCount
                               ?? Math.Max(0, ep.RewatchCount - 1);
+    }
+
+    private async Task SaveBookmarkAsync()
+    {
+        bookmarkError = null;
+
+        if (bookmarkInput is null or < 0)
+        {
+            bookmarkError = "Geçerli bir dakika gir.";
+            return;
+        }
+
+        var api = await GetApiAsync();
+        var response = await api.PutAsJsonAsync(
+            $"api/shows/{TmdbId}/episodes/{ep!.Id}/bookmark",
+            new SetBookmarkRequest { PositionMinutes = bookmarkInput.Value });
+
+        if (response.IsSuccessStatusCode)
+        {
+            ep.ResumeAtMinutes = bookmarkInput;
+            bookmarkInput = null;
+        }
+        else
+        {
+            // Sunucu bölüm süresini de doğruluyor; istemcideki max niteliği
+            // klavyeyle aşılabildiği için mesajı buradan gösteriyoruz.
+            bookmarkError = ep.Runtime.HasValue
+                ? $"Dakika 0 ile {ep.Runtime} arasında olmalı."
+                : "Kaydedilemedi.";
+        }
+    }
+
+    private async Task ClearBookmarkAsync()
+    {
+        var api = await GetApiAsync();
+        var response = await api.DeleteAsync(
+            $"api/shows/{TmdbId}/episodes/{ep!.Id}/bookmark");
+
+        if (response.IsSuccessStatusCode)
+        {
+            ep.ResumeAtMinutes = null;
+            bookmarkError = null;
+        }
     }
 
     private sealed class RewatchResponse

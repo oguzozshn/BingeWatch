@@ -20,6 +20,7 @@ namespace BingeWatch.API.Data
         // Kullanıcı katmanı
         public DbSet<UserShow> UserShows { get; set; }
         public DbSet<WatchedEpisode> WatchedEpisodes { get; set; }
+        public DbSet<EpisodeBookmark> EpisodeBookmarks { get; set; }
         public DbSet<Rating> Ratings { get; set; }
         public DbSet<Review> Reviews { get; set; }
 
@@ -146,6 +147,25 @@ namespace BingeWatch.API.Data
                       .HasForeignKey(e => e.EpisodeId)
                       // Episode silinince Cascade, AppUser tarafındaki cascade ile
                       // çoklu yol oluşturur; SQL Server buna izin vermez.
+                      .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            modelBuilder.Entity<EpisodeBookmark>(entity =>
+            {
+                entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+
+                // "Kaldığım yer" bölüm başına tektir; ikinci kayıt güncellemedir.
+                entity.HasIndex(e => new { e.UserId, e.EpisodeId }).IsUnique();
+
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Episode)
+                      .WithMany()
+                      .HasForeignKey(e => e.EpisodeId)
+                      // WatchedEpisode ile aynı sebep: çoklu cascade yolu.
                       .OnDelete(DeleteBehavior.NoAction);
             });
 

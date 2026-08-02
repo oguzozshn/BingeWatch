@@ -72,6 +72,9 @@ namespace BingeWatch.API.Dtos
         /// <summary>İlk izleme hariç, kaç kez yeniden izlendi.</summary>
         public int RewatchCount { get; set; }
 
+        /// <summary>Bölüm yarıda bırakılmışsa kalınan dakika.</summary>
+        public int? ResumeAtMinutes { get; set; }
+
         /// <summary>Sezon sınırını da geçen komşular; uçlarda <c>null</c>.</summary>
         public EpisodeRefDto? Previous { get; set; }
         public EpisodeRefDto? Next { get; set; }
@@ -88,6 +91,12 @@ namespace BingeWatch.API.Dtos
     public class MarkWatchedRequest
     {
         public bool Watched { get; set; } = true;
+    }
+
+    public class SetBookmarkRequest
+    {
+        /// <summary>Bölümün başından itibaren kaçıncı dakikada kalındığı.</summary>
+        public int PositionMinutes { get; set; }
     }
 
     public class ShowProgressDto
@@ -111,6 +120,12 @@ namespace BingeWatch.API.Dtos
 
         /// <summary>Bölüm henüz yayınlanmadıysa true — "sırada ne var" panelinde ayrı gösterilir.</summary>
         public bool IsUnaired { get; set; }
+
+        /// <summary>
+        /// Bölüm yarıda bırakılmışsa kalınan dakika; değilse <c>null</c>.
+        /// Dolu olduğunda panel "başla" değil "devam et" der.
+        /// </summary>
+        public int? ResumeAtMinutes { get; set; }
     }
 
     public class UpcomingEpisodeDto
