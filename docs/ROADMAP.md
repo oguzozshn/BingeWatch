@@ -346,6 +346,20 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
       döner, `/person/{id}` kişinin dizilerini karakter/görev ve bölüm sayısıyla
       listeler. "Bilinen dizileri" ipucu kişi başına ek istek demek; yalnızca ilk
       üç kişi için çekiliyor
+- [x] **Kullanıcı arama** (02.08.2026'da eklendi) — aynı `/search` sayfasında,
+      sonuçların en üstünde. **Faz 4'ün eksik kalan yarısıydı:** takip özelliği
+      vardı ama birini bulmanın tek yolu `/@kullaniciadi` adresini elle yazmaktı,
+      yani takip pratikte kullanılamıyordu
+  - Kullanıcı araması yerelden, dizi/kişi TMDb'den geldiği için iki istek
+    paralel atılıyor; birbirini beklemelerinin sebebi yok
+  - **Gizli profiller hiç dönmüyor — sahibine bile.** Profil zaten başkasına
+    açılmıyor; arama sonucunda görünmesi var olduğunu duyurmaktan başka işe
+    yaramaz. Engelli taraflar `ProjectAsync`'in mevcut süzgecinden eleniyor
+  - En az iki karakter isteniyor: tek harf tüm kullanıcıları dökerdi
+  - Baştan eşleşenler önce sıralanıyor ("al" araması "alper"i "kemalist"in
+    üstünde göstermeli)
+  - Sonuç yoksa "Kullanıcılar" başlığı hiç çizilmiyor — dizi arayan birine
+    "eşleşen kullanıcı yok" demek gürültü
 - [x] İstatistik sayfası — izlenen süre, tür dağılımı, yıllık grafik: `/@kullanici/stats`
       (`/stats/detail` ucu profil bloğundan ayrı; tür dağılımı ve "en çok izlenenler"
       gibi ağır sorgular yalnızca bu sayfa açıldığında çalışsın). Süresi bilinmeyen

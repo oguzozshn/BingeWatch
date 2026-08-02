@@ -33,6 +33,20 @@ namespace BingeWatch.API.Controllers
         /// <summary>Anonim istekte <c>null</c>; profil uç noktaları kimliği zorunlu kılmaz.</summary>
         private string? ViewerId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+        /// <summary>
+        /// Kullanıcı arama. Rota <c>{username}</c>'den önce tanımlı olmak
+        /// zorunda değil — ASP.NET Core literal segmenti parametreliye tercih
+        /// ediyor — ama okuyanın kafası karışmasın diye yine de yukarıda.
+        /// </summary>
+        [HttpGet("search")]
+        public async Task<IActionResult> Search([FromQuery] string q, [FromQuery] int limit = 20)
+        {
+            if (string.IsNullOrWhiteSpace(q))
+                return Ok(new List<UserSummaryDto>());
+
+            return Ok(await _followService.SearchAsync(q, ViewerId, Math.Clamp(limit, 1, 50)));
+        }
+
         [HttpGet("{username}")]
         public async Task<IActionResult> GetByUsername(string username)
         {

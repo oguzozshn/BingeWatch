@@ -105,6 +105,37 @@ namespace BingeWatch.API.Services
             _context.Follows.AnyAsync(f => f.FollowerId == followerId && f.FolloweeId == followeeId);
 
         /// <summary>
+        /// Kullanıcı arama. Uygulamada birini takip etmenin tek yolu adresini
+        /// elle yazmaktı; bu, takip özelliğini pratikte kullanılamaz kılıyordu.
+        ///
+        /// <b>Gizli profiller hiç dönmüyor</b> — sahibine bile. Profil zaten
+        /// başkasına açılmıyor; arama sonucunda görünmesi, var olduğunu
+        /// duyurmaktan başka işe yaramaz ve gizliliğin amacını zedelerdi.
+        /// Engelli taraflar <see cref="ProjectAsync"/> içinde eleniyor.
+        /// </summary>
+        public async Task<List<UserSummaryDto>> SearchAsync(string query, string? viewerId, int limit = 20)
+        {
+            query = query?.Trim() ?? string.Empty;
+            if (query.Length < 2)
+                return new List<UserSummaryDto>(); // tek harf tüm kullanıcıları döker
+
+            var normalized = query.ToUpperInvariant();
+
+            var users = await _context.Users
+                .Where(u => !u.IsPrivate)
+                .Where(u => u.NormalizedUserName!.Contains(normalized)
+                            || (u.DisplayName != null && u.DisplayName.ToUpper().Contains(normalized)))
+                // Baştan eşleşenler önce: "ali" araması "ali"yi "kemalist"in
+                // üstünde göstermeli.
+                .OrderBy(u => u.NormalizedUserName!.StartsWith(normalized) ? 0 : 1)
+                .ThenBy(u => u.UserName)
+                .Take(limit)
+                .ToListAsync();
+
+            return await ProjectAsync(users, viewerId);
+        }
+
+        /// <summary>
         /// Kullanıcı adını kullanıcıya çevirir. Gizli profiller yalnızca sahibine görünür;
         /// aralarında engel olan kullanıcılar da birbirini göremez. İkisinde de
         /// <c>null</c> döner ve çağıran bunu "yok" gibi ele alır.

@@ -173,5 +173,110 @@ namespace BingeWatch.Tests
             Assert.Null(await service.GetFollowersAsync("gizli", "ali"));
             Assert.NotNull(await service.GetFollowersAsync("gizli", "gizli"));
         }
+
+        private static FollowService NewService(BingeOnDbContext context) =>
+            new(context, new ActivityService(context), new NotificationService(context));
+
+        [Fact]
+        public async Task SearchAsync_MatchesUsernameAndDisplayName()
+        {
+            using var context = CreateContext();
+            await SeedUsersAsync(context, "ali", "veli");
+            var veli = await context.Users.FirstAsync(u => u.Id == "veli");
+            veli.DisplayName = "Veli Kaya";
+            await context.SaveChangesAsync();
+            var service = NewService(context);
+
+            var byUsername = await service.SearchAsync("vel", "ali");
+            Assert.Equal("veli", Assert.Single(byUsername).Username);
+
+            var byDisplayName = await service.SearchAsync("kaya", "ali");
+            Assert.Equal("veli", Assert.Single(byDisplayName).Username);
+        }
+
+        [Fact]
+        public async Task SearchAsync_IsCaseInsensitive()
+        {
+            using var context = CreateContext();
+            await SeedUsersAsync(context, "ali", "VeLi");
+            var service = NewService(context);
+
+            Assert.Single(await service.SearchAsync("veli", "ali"));
+            Assert.Single(await service.SearchAsync("VELI", "ali"));
+        }
+
+        /// <summary>
+        /// Gizli profil aramada hiç görünmez — sahibine bile. Görünmesi, profilin
+        /// var olduğunu duyurmaktan başka işe yaramaz.
+        /// </summary>
+        [Fact]
+        public async Task SearchAsync_ExcludesPrivateProfiles()
+        {
+            using var context = CreateContext();
+            await SeedUsersAsync(context, "ali", "gizli");
+            var target = await context.Users.FirstAsync(u => u.Id == "gizli");
+            target.IsPrivate = true;
+            await context.SaveChangesAsync();
+            var service = NewService(context);
+
+            Assert.Empty(await service.SearchAsync("gizli", "ali"));
+            Assert.Empty(await service.SearchAsync("gizli", "gizli"));
+        }
+
+        [Fact]
+        public async Task SearchAsync_ExcludesBlockedUsersInBothDirections()
+        {
+            using var context = CreateContext();
+            await SeedUsersAsync(context, "ali", "veli");
+            context.UserBlocks.Add(new UserBlock { BlockerId = "ali", BlockedId = "veli" });
+            await context.SaveChangesAsync();
+            var service = NewService(context);
+
+            Assert.Empty(await service.SearchAsync("veli", "ali"));
+            Assert.Empty(await service.SearchAsync("ali", "veli"));
+        }
+
+        [Fact]
+        public async Task SearchAsync_ReportsFollowStateAndSelf()
+        {
+            using var context = CreateContext();
+            await SeedUsersAsync(context, "ali", "veli");
+            var service = NewService(context);
+            await service.FollowAsync("ali", "veli");
+
+            var results = await service.SearchAsync("li", "ali");
+
+            var veli = results.Single(u => u.Username == "veli");
+            Assert.True(veli.IsFollowedByViewer);
+            Assert.False(veli.IsViewer);
+
+            var self = results.Single(u => u.Username == "ali");
+            Assert.True(self.IsViewer);
+        }
+
+        /// <summary>Tek harf tüm kullanıcıları dökerdi; alt sınır bilerek iki.</summary>
+        [Fact]
+        public async Task SearchAsync_IgnoresTooShortQuery()
+        {
+            using var context = CreateContext();
+            await SeedUsersAsync(context, "ali", "veli");
+            var service = NewService(context);
+
+            Assert.Empty(await service.SearchAsync("a", "ali"));
+            Assert.Empty(await service.SearchAsync(" ", "ali"));
+        }
+
+        [Fact]
+        public async Task SearchAsync_PrefersPrefixMatches()
+        {
+            using var context = CreateContext();
+            await SeedUsersAsync(context, "ali", "kemalist", "alper");
+            var service = NewService(context);
+
+            var results = await service.SearchAsync("al", "ali");
+
+            // "ali" ve "alper" baştan eşleşiyor, "kemalist" içeriyor.
+            Assert.Equal("kemalist", results.Last().Username);
+        }
     }
 }
