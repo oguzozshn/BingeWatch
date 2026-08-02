@@ -99,6 +99,36 @@ namespace BingeWatch.Tests
             Assert.Equal(1, stats.EpisodesWithoutRuntime);
         }
 
+        /// <summary>
+        /// Yeniden izleme harcanan zamana girer ama "kaç farklı bölüm izledin"
+        /// sayısını şişirmez.
+        /// </summary>
+        [Fact]
+        public async Task GetDetailedStatsAsync_RewatchAddsMinutesButNotEpisodeCount()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+
+            var first = await context.WatchedEpisodes
+                .Include(w => w.Episode)
+                .FirstAsync(w => w.Episode!.Runtime == 50);
+
+            context.WatchedEpisodes.Add(new WatchedEpisode
+            {
+                UserId = "ali",
+                EpisodeId = first.EpisodeId,
+                WatchedAt = new DateTime(2026, 5, 1),
+                RewatchNo = 1
+            });
+            await context.SaveChangesAsync();
+
+            var stats = await new UserStatsService(context).GetDetailedStatsAsync("ali", "ali");
+
+            Assert.Equal(4, stats!.WatchedEpisodeCount);
+            Assert.Equal(1, stats.RewatchCount);
+            Assert.Equal(180, stats.TotalMinutes);
+        }
+
         [Fact]
         public async Task GetDetailedStatsAsync_BreaksDownStatuses()
         {

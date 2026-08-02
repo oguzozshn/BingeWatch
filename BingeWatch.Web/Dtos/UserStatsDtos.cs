@@ -5,6 +5,7 @@ namespace BingeWatch.Web.Dtos
         public string Username { get; set; } = string.Empty;
 
         public int WatchedEpisodeCount { get; set; }
+        public int RewatchCount { get; set; }
         public int ShowsWatchingCount { get; set; }
         public int ShowsCompletedCount { get; set; }
         public int ReviewCount { get; set; }
@@ -40,6 +41,7 @@ namespace BingeWatch.Web.Dtos
         public string DisplayName { get; set; } = string.Empty;
 
         public int WatchedEpisodeCount { get; set; }
+        public int RewatchCount { get; set; }
         public int TotalMinutes { get; set; }
         public int EpisodesWithoutRuntime { get; set; }
 

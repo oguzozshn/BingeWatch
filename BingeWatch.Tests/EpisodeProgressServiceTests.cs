@@ -204,5 +204,99 @@ namespace BingeWatch.Tests
             Assert.Single(upcoming);
             Assert.Equal("Soon", upcoming[0].EpisodeName);
         }
+
+        [Fact]
+        public async Task AddRewatchAsync_RequiresFirstWatch()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+
+            var result = await service.AddRewatchAsync("user1", episodes[0].Id);
+
+            Assert.Null(result);
+            Assert.Empty(context.WatchedEpisodes);
+        }
+
+        [Fact]
+        public async Task AddRewatchAsync_IncrementsRewatchNo()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
+
+            Assert.Equal(1, await service.AddRewatchAsync("user1", episodes[0].Id));
+            Assert.Equal(2, await service.AddRewatchAsync("user1", episodes[0].Id));
+
+            Assert.Equal(2, await service.GetRewatchCountAsync("user1", episodes[0].Id));
+            Assert.Equal(3, await context.WatchedEpisodes.CountAsync());
+        }
+
+        /// <summary>
+        /// Rewatch'in asıl sözleşmesi: ilerleme modeline dokunmaz. Bitmiş bir dizi
+        /// yeniden izlenince "Bitirdim"de kalmalı ve "Sırada ne var"a düşmemeli.
+        /// </summary>
+        [Fact]
+        public async Task AddRewatchAsync_DoesNotAffectStatusOrProgress()
+        {
+            using var context = CreateContext();
+            var (show, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+
+            foreach (var episode in episodes)
+                await service.SetEpisodeWatchedAsync("user1", episode.Id, watched: true);
+
+            var completed = await context.UserShows.SingleAsync();
+            Assert.Equal(WatchStatus.Completed, completed.Status);
+
+            await service.AddRewatchAsync("user1", episodes[0].Id);
+
+            var afterRewatch = await context.UserShows.SingleAsync();
+            Assert.Equal(WatchStatus.Completed, afterRewatch.Status);
+
+            var progress = await service.GetShowProgressAsync("user1", show.TmdbId);
+            Assert.Equal(4, progress!.WatchedEpisodes);
+            Assert.Equal(4, progress.TotalEpisodes);
+            Assert.Null(progress.NextEpisode);
+
+            Assert.Empty(await service.GetNextUpAsync("user1"));
+        }
+
+        [Fact]
+        public async Task RemoveLastRewatchAsync_RemovesOnlyLatestAndKeepsFirstWatch()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
+            await service.AddRewatchAsync("user1", episodes[0].Id);
+            await service.AddRewatchAsync("user1", episodes[0].Id);
+
+            Assert.Equal(1, await service.RemoveLastRewatchAsync("user1", episodes[0].Id));
+            Assert.Equal(0, await service.RemoveLastRewatchAsync("user1", episodes[0].Id));
+            Assert.Null(await service.RemoveLastRewatchAsync("user1", episodes[0].Id));
+
+            var remaining = await context.WatchedEpisodes.SingleAsync();
+            Assert.Equal(0, remaining.RewatchNo);
+        }
+
+        /// <summary>
+        /// "İzlemedim" demek tüm geçişleri kapsar; rewatch satırları kalsaydı
+        /// izlenmemiş görünen bir bölüm istatistikte süre saymaya devam ederdi.
+        /// </summary>
+        [Fact]
+        public async Task UnmarkingEpisode_AlsoRemovesRewatches()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
+            await service.AddRewatchAsync("user1", episodes[0].Id);
+
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: false);
+
+            Assert.Empty(context.WatchedEpisodes);
+        }
     }
 }

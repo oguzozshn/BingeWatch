@@ -108,11 +108,14 @@ namespace BingeWatch.API.Controllers
                 : new HashSet<int>();
 
             decimal? myRating = null;
+            var rewatchCount = 0;
             if (userId != null)
             {
                 var ratings = await _ratingService.GetUserRatingsForShowAsync(userId, tmdbId);
                 if (ratings != null && ratings.EpisodeRatings.TryGetValue(episode.Id, out var value))
                     myRating = value;
+
+                rewatchCount = await _progressService.GetRewatchCountAsync(userId, episode.Id);
             }
 
             // Komşular sezon sınırını geçmeli: bir sezonun son bölümünden
@@ -146,6 +149,7 @@ namespace BingeWatch.API.Controllers
                 TmdbVoteAverage = episode.TmdbVoteAverage,
                 Watched = watchedEpisodeIds.Contains(episode.Id),
                 MyRating = myRating,
+                RewatchCount = rewatchCount,
                 Previous = index > 0 ? flat[index - 1] : null,
                 Next = index >= 0 && index < flat.Count - 1 ? flat[index + 1] : null
             });
@@ -179,6 +183,32 @@ namespace BingeWatch.API.Controllers
                 return NotFound();
 
             return Ok(await _progressService.GetShowProgressAsync(CurrentUserId!, tmdbId));
+        }
+
+        /// <summary>
+        /// Yeniden izleme ekler. İlerlemeyi ve dizi durumunu değiştirmez —
+        /// yalnızca istatistikteki toplam süreye ve rewatch sayacına yansır.
+        /// </summary>
+        [HttpPost("{tmdbId}/episodes/{episodeId}/rewatch")]
+        [Authorize]
+        public async Task<IActionResult> AddRewatch(int tmdbId, int episodeId)
+        {
+            var count = await _progressService.AddRewatchAsync(CurrentUserId!, episodeId);
+            if (count == null)
+                return BadRequest(new { message = "Bölüm henüz izlenmemiş" });
+
+            return Ok(new { rewatchCount = count });
+        }
+
+        [HttpDelete("{tmdbId}/episodes/{episodeId}/rewatch")]
+        [Authorize]
+        public async Task<IActionResult> RemoveRewatch(int tmdbId, int episodeId)
+        {
+            var count = await _progressService.RemoveLastRewatchAsync(CurrentUserId!, episodeId);
+            if (count == null)
+                return NotFound();
+
+            return Ok(new { rewatchCount = count });
         }
 
         [HttpPost("{tmdbId}/seasons/{seasonNumber}/watched")]

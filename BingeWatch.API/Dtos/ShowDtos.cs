@@ -69,6 +69,9 @@ namespace BingeWatch.API.Dtos
         public bool Watched { get; set; }
         public decimal? MyRating { get; set; }
 
+        /// <summary>İlk izleme hariç, kaç kez yeniden izlendi.</summary>
+        public int RewatchCount { get; set; }
+
         /// <summary>Sezon sınırını da geçen komşular; uçlarda <c>null</c>.</summary>
         public EpisodeRefDto? Previous { get; set; }
         public EpisodeRefDto? Next { get; set; }

@@ -138,6 +138,56 @@ namespace BingeWatch.API.Services
         }
 
         /// <summary>
+        /// Yeniden izleme kaydı. İlerleme modeline bilerek dokunmuyor: durum
+        /// geçişi tetiklenmiyor, "Sırada ne var" ve ilerleme çubuğu yalnızca
+        /// <c>RewatchNo == 0</c> satırlarını okuduğu için etkilenmiyor. Yani
+        /// bitmiş bir diziyi yeniden izlemek onu "İzliyorum"a geri düşürmez.
+        /// </summary>
+        public async Task<int?> AddRewatchAsync(string userId, int episodeId)
+        {
+            var records = await _context.WatchedEpisodes
+                .Where(w => w.UserId == userId && w.EpisodeId == episodeId)
+                .ToListAsync();
+
+            // İlk izleme olmadan yeniden izleme olamaz; kapı burada.
+            if (!records.Any(w => w.RewatchNo == 0))
+                return null;
+
+            var nextNo = records.Max(w => w.RewatchNo) + 1;
+
+            _context.WatchedEpisodes.Add(new WatchedEpisode
+            {
+                UserId = userId,
+                EpisodeId = episodeId,
+                WatchedAt = DateTime.UtcNow,
+                RewatchNo = nextNo
+            });
+
+            await _context.SaveChangesAsync();
+            return nextNo;
+        }
+
+        public async Task<int?> RemoveLastRewatchAsync(string userId, int episodeId)
+        {
+            var last = await _context.WatchedEpisodes
+                .Where(w => w.UserId == userId && w.EpisodeId == episodeId && w.RewatchNo > 0)
+                .OrderByDescending(w => w.RewatchNo)
+                .FirstOrDefaultAsync();
+
+            if (last == null)
+                return null;
+
+            _context.WatchedEpisodes.Remove(last);
+            await _context.SaveChangesAsync();
+
+            return last.RewatchNo - 1;
+        }
+
+        public Task<int> GetRewatchCountAsync(string userId, int episodeId) =>
+            _context.WatchedEpisodes
+                .CountAsync(w => w.UserId == userId && w.EpisodeId == episodeId && w.RewatchNo > 0);
+
+        /// <summary>
         /// Ana sayfadaki "Sırada ne var" paneli. Dizi sayısından bağımsız olarak
         /// üç sorgu atar: diziler, o dizilerin bölümleri ve kullanıcının izledikleri.
         /// Gruplama bellekte yapılır — aktif dizi başına ayrı sorgu, en çok açılan
@@ -287,7 +337,15 @@ namespace BingeWatch.API.Services
                 return;
             }
 
+            // İşaret kaldırılırken yeniden izlemeler de gider: "bu bölümü
+            // izlemedim" demek yalnızca ilk geçişi değil tümünü kapsar. Kalsalardı
+            // izlenmemiş görünen bir bölüm istatistikte süre saymaya devam ederdi.
+            var rewatches = await _context.WatchedEpisodes
+                .Where(w => w.UserId == userId && w.RewatchNo > 0 && episodeIds.Contains(w.EpisodeId))
+                .ToListAsync();
+
             _context.WatchedEpisodes.RemoveRange(existing);
+            _context.WatchedEpisodes.RemoveRange(rewatches);
             await _context.SaveChangesAsync();
 
             await _activityService.RemoveWatchedAsync(userId, episodeIds);

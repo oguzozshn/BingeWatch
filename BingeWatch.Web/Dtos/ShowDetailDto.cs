@@ -56,6 +56,7 @@ namespace BingeWatch.Web.Dtos
 
         public bool Watched { get; set; }
         public decimal? MyRating { get; set; }
+        public int RewatchCount { get; set; }
 
         public EpisodeRefDto? Previous { get; set; }
         public EpisodeRefDto? Next { get; set; }
