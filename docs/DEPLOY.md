@@ -111,10 +111,10 @@ Bu sunucuların çoğu TLS konuşmaz; `Smtp:UseTls=false` bunun için var.
 
 ## 2. Docker Compose
 
-> Bu kurulum gerçek bir Docker üzerinde (Raspberry Pi 5, arm64) baştan sona
-> çalıştırıldı: imajlar derlendi, migration'lar uygulandı, uygulama tünel
-> arkasından kullanıldı. arm64'e özgü farklar ve o sırada çıkan sorunlar
-> §7'de. Aşağıdaki "Bilinen riskler" listesi x86-64 için hâlâ sınanmadı.
+> Bu kurulum iki mimaride de baştan sona çalıştırıldı: **arm64** (Raspberry Pi 5)
+> ve **x86-64** (Windows 11 + Docker Desktop, 02.08.2026). İmajlar derlendi,
+> migration'lar uygulandı, uygulama uçtan uca kullanıldı. arm64'e özgü farklar
+> §7'de, x86-64 koşusunun sonucu §4'te.
 
 ### Hazırlık
 
@@ -180,6 +180,16 @@ dotnet ef database update --project BingeWatch.API
 ---
 
 ## 4. Bilinen riskler (ilk çalıştırmada bakılacak yerler)
+
+> **x86-64'te ilk kez 2 Ağustos 2026'da çalıştırıldı** (Windows 11 + Docker
+> Desktop 29.6.2 / Compose v5.3.1). Aşağıdaki dört maddenin hiçbiri sorun
+> çıkarmadı: `curl` yoklamaları çalıştı, `sqlcmd` yolu doğruydu, üç servis de
+> `healthy` oldu, migration'lar ilk denemede uygulandı ve `wwwroot/_framework`
+> yerindeydi (§8'deki sessiz kırılma yok). Kayıt, giriş, TMDb'den veri çekme,
+> bölüm işaretleme ve etkileşimli bileşenler (SignalR devresi) doğrulandı;
+> konteyner yeniden başlatıldıktan sonra veri korundu (`mssql-data` volume).
+>
+> ⚠️ Çıkan tek gerçek sorun **kültür** oldu, bkz. §9.
 
 - **`curl` kurulumu.** Health check'ler `curl`'e bağlı ve .NET runtime imajında
   hazır gelmiyor; Dockerfile'larda `apt-get install curl` var. Taban imaj
@@ -330,3 +340,35 @@ docker compose exec web ls wwwroot/_framework
 ```
 
 Dizin yoksa yayın çıktısı eksik demektir.
+
+---
+
+## 9. Kültür: Linux'ta tarih ve sayılar İngilizce geliyordu
+
+Arayüzün tamamı Türkçe (`<html lang="tr">`, Faz 6.3) ama uygulama hiçbir yerde
+kültür ayarlamıyordu; formatlama makinenin varsayılanına bırakılmıştı.
+
+Windows'ta geliştirirken bu görünmüyor: işletim sistemi zaten `tr-TR` olduğu
+için tarihler "20 Ocak 2008", puanlar "8,5" çıkıyor. **Linux konteynerde
+varsayılan invariant kültüre düşüyor** ve aynı sayfa "20 January 2008" / "8.5"
+yazıyordu. Ekran okuyucu etiketleri de etkileniyordu ("0.5 yıldız ver").
+
+Bu, Docker'a özgü bir hata değil — **Pi kurulumunda da vardı**, sadece fark
+edilmemişti. Yani hata Linux'ta çalıştırmanın kendisinden geliyor, Docker
+yalnızca görünür kıldı.
+
+Çözüm `BingeWatch.Web/Program.cs`'in ilk satırlarında, `WebApplication
+.CreateBuilder`'dan **önce**:
+
+```csharp
+var trCulture = new CultureInfo("tr-TR");
+CultureInfo.DefaultThreadCurrentCulture = trCulture;
+CultureInfo.DefaultThreadCurrentUICulture = trCulture;
+```
+
+Builder'dan önce olması önemli: sonrasında kurulan thread'ler ve Blazor
+devreleri bu varsayılanı devralıyor.
+
+⚠️ Alpine tabanlı bir runtime imajına geçilirse ICU gelmez ve
+`new CultureInfo("tr-TR")` patlar; o durumda imaja `icu-libs` eklenmeli.
+Şu anki taban (`mcr.microsoft.com/dotnet/aspnet:10.0`) ICU içeriyor.
