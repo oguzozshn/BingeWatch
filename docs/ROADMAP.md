@@ -471,9 +471,9 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     eziyor — JSON-LD ayrı blokta yazılınca çıktıya hiç düşmedi, `PageMeta`'ya
     parametre olarak taşındı) ve `XmlWriter` bir `StringBuilder`'a yazarken
     bildirime `encoding="utf-16"` koyuyor ama yanıt UTF-8 gidiyor
-- [~] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check —
-      **kod tarafı bitti ve yerelde doğrulandı; Docker imajları build edilmedi**
-      (geliştirme makinesinde Docker kurulu değil). Ayrıntı: [DEPLOY.md](DEPLOY.md)
+- [x] Docker + gerçek SQL Server (LocalDB'den çıkış), Serilog + health check —
+      arm64 (Pi 5) ve x86-64 (02.08.2026) mimarilerinin ikisinde de uçtan uca
+      çalıştırıldı. Ayrıntı: [DEPLOY.md](DEPLOY.md)
   - **Sabit adresler kalktı** — Web, API adresini `Program.cs`'e gömülü
     `http://localhost:5054/` yerine `Api:BaseUrl`'den okuyor. Bu tek satır
     konteynerde çalışmayı imkânsız kılıyordu: compose ağında API "localhost"
@@ -497,7 +497,11 @@ gerçekten o diziye ait olduğunu `RatingService.ResolveTargetAsync` doğruluyor
     kullanıcı, restore ayrı katmanda), SQL Server 2022 ile `docker-compose.yml`,
     `.dockerignore`, `.env.example`. Sırlar `.env`'de ve git dışında; API ve
     veritabanı yalnızca `127.0.0.1`'e bağlı, dışarıya yalnızca Web açık
-  - **Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.
+  - ~~**Doğrulanmadı:** `docker build` ve `docker compose up` hiç çalıştırılmadı.~~
+    **02.08.2026'da çalıştırıldı ve doğrulandı** — aşağıdaki "ilk denemede
+    kırılması en olası yerler" listesinin hiçbiri kırılmadı. Çıkan tek sorun
+    listede olmayan bir şeydi: Linux'ta kültür (§7.1).
+  - *(tarihsel)* `docker build` ve `docker compose up` hiç çalıştırılmamıştı.
     Compose şeması ayrıştırılarak doğrulandı, kod tarafı yerelde uçtan uca
     çalıştı. İlk denemede kırılması en olası yerler DEPLOY.md §4'te
 - [x] E2E test (Playwright), yük testi — 23 test yeşil (anonim yüzey, girişli
@@ -715,10 +719,21 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 
 ### 7.1 Açık sorunlar
 
-**Docker imajları hiç build edilmedi.** Faz 6.5'te yazılan `Dockerfile`'lar ve
-`docker-compose.yml` gerçek bir Docker üzerinde denenmedi — geliştirme
-makinesinde Docker kurulu değil. İlk çalıştırmada bakılacak yerler:
-[DEPLOY.md](DEPLOY.md) §4.
+✅ **Docker imajları x86-64'te build edildi ve çalıştırıldı (02.08.2026).**
+Geliştirme makinesine Docker Desktop kuruldu (WSL2'nin "Sanal Makine Platformu"
+özelliği kapalıydı, `wsl --install --no-distribution` ile açıldı). İki imaj da
+derlendi, üç servis de `healthy` oldu, migration'lar ilk denemede uygulandı ve
+[DEPLOY.md](DEPLOY.md) §4'teki dört riskin hiçbiri gerçekleşmedi. Kayıt, giriş,
+TMDb'den veri çekme, bölüm işaretleme ve etkileşimli bileşenler doğrulandı;
+konteyner yeniden başlatıldıktan sonra veri korundu.
+
+⚠️ **Yol üstünde gerçek bir hata bulundu: Linux'ta tarih ve sayılar İngilizce
+geliyordu.** Arayüzün tamamı Türkçe ama uygulama hiçbir yerde kültür
+ayarlamıyordu; Windows'ta OS zaten `tr-TR` olduğu için görünmüyordu, Linux
+konteynerde invariant kültüre düşüp "20 January 2008" / "8.5" yazıyordu (ekran
+okuyucu etiketleri dahil). **Bu hata Pi kurulumunda da vardı, fark edilmemişti**
+— Docker'a özgü değil, Linux'ta çalıştırmanın kendisinden geliyor. `Program.cs`
+başında kültür sabitlenerek düzeltildi; ayrıntı [DEPLOY.md](DEPLOY.md) §9.
 
 ⚠️ **Faz 6.5'in "kod tarafı yerelde uçtan uca doğrulandı" notu şüpheli.** 28.07'de
 görüldü ki API 25.07 16:31'den beri bu makinede hiç açılamıyordu (`Jwt:Key`

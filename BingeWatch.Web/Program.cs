@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Json;
+﻿using System.Globalization;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -7,6 +8,14 @@ using BingeWatch.Web.Models;
 using Serilog;
 using Microsoft.AspNetCore.HttpOverrides;
 using BingeWatch.Web.Seo;
+
+// Arayüzün tamamı Türkçe (<html lang="tr">), bu yüzden tarih ve sayı biçimi de
+// makinenin kültürüne bırakılamaz. Windows'ta geliştirirken işletim sistemi
+// zaten tr-TR olduğu için sorun görünmüyordu; Linux konteynerde varsayılan
+// invariant kültüre düşüp "20 January 2008" ve "8.5" yazıyordu.
+var trCulture = new CultureInfo("tr-TR");
+CultureInfo.DefaultThreadCurrentCulture = trCulture;
+CultureInfo.DefaultThreadCurrentUICulture = trCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 
