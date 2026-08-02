@@ -57,6 +57,7 @@ namespace BingeWatch.Web.Dtos
         public bool Watched { get; set; }
         public decimal? MyRating { get; set; }
         public int RewatchCount { get; set; }
+        public int? ResumeAtMinutes { get; set; }
 
         public EpisodeRefDto? Previous { get; set; }
         public EpisodeRefDto? Next { get; set; }
@@ -72,6 +73,11 @@ namespace BingeWatch.Web.Dtos
     public class MarkWatchedRequest
     {
         public bool Watched { get; set; } = true;
+    }
+
+    public class SetBookmarkRequest
+    {
+        public int PositionMinutes { get; set; }
     }
 
     public class ShowProgressDto
@@ -93,6 +99,9 @@ namespace BingeWatch.Web.Dtos
         public string EpisodeName { get; set; } = string.Empty;
         public DateTime? AirDate { get; set; }
         public bool IsUnaired { get; set; }
+
+        /// <summary>Dolu ise panel "başla" değil "devam et" der.</summary>
+        public int? ResumeAtMinutes { get; set; }
     }
 
     public class UpcomingEpisodeDto

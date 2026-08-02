@@ -286,6 +286,139 @@ namespace BingeWatch.Tests
         /// izlenmemiş görünen bir bölüm istatistikte süre saymaya devam ederdi.
         /// </summary>
         [Fact]
+        public async Task SetBookmarkAsync_StoresAndUpdatesPosition()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+
+            Assert.True(await service.SetBookmarkAsync("user1", episodes[0].Id, 12));
+            Assert.Equal(12, await service.GetBookmarkAsync("user1", episodes[0].Id));
+
+            // İkinci kayıt yeni satır değil güncelleme.
+            Assert.True(await service.SetBookmarkAsync("user1", episodes[0].Id, 30));
+            Assert.Equal(30, await service.GetBookmarkAsync("user1", episodes[0].Id));
+            Assert.Single(context.EpisodeBookmarks);
+        }
+
+        /// <summary>
+        /// "İzledim" ile "32. dakikada kaldım" birbirini dışlar; ikisi aynı anda
+        /// doğru olamaz. Kapı sunucuda.
+        /// </summary>
+        [Fact]
+        public async Task SetBookmarkAsync_RejectsWatchedEpisode()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
+
+            Assert.False(await service.SetBookmarkAsync("user1", episodes[0].Id, 12));
+            Assert.Empty(context.EpisodeBookmarks);
+        }
+
+        [Fact]
+        public async Task SetBookmarkAsync_RejectsPositionBeyondRuntime()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            episodes[0].Runtime = 45;
+            await context.SaveChangesAsync();
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+
+            Assert.False(await service.SetBookmarkAsync("user1", episodes[0].Id, 46));
+            Assert.False(await service.SetBookmarkAsync("user1", episodes[0].Id, -1));
+            Assert.True(await service.SetBookmarkAsync("user1", episodes[0].Id, 45));
+        }
+
+        [Fact]
+        public async Task MarkingEpisodeWatched_ClearsBookmark()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+            await service.SetBookmarkAsync("user1", episodes[0].Id, 20);
+
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
+
+            Assert.Empty(context.EpisodeBookmarks);
+        }
+
+        /// <summary>
+        /// Panelin sözleşmesi: yarıda kalan bölüm sıradakinin önüne geçer ve
+        /// kalınan dakikayı taşır.
+        /// </summary>
+        [Fact]
+        public async Task GetNextUpAsync_PrefersBookmarkedEpisode()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1", WatchStatus.Watching);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+
+            // İlk bölüm izlendi, ikincisi yarıda bırakıldı.
+            await service.SetEpisodeWatchedAsync("user1", episodes[0].Id, watched: true);
+            await service.SetBookmarkAsync("user1", episodes[1].Id, 18);
+
+            var nextUp = await service.GetNextUpAsync("user1");
+
+            var item = Assert.Single(nextUp);
+            Assert.Equal("S1E2", item.EpisodeName);
+            Assert.Equal(18, item.ResumeAtMinutes);
+        }
+
+        [Fact]
+        public async Task GetNextUpAsync_BookmarkedShowsSortBeforeOthers()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1", WatchStatus.Watching);
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+
+            // İkinci dizi: hiç izlenmemiş, işaretsiz.
+            var other = new Show { TmdbId = 99, Name = "Other", LastSyncedAt = DateTime.UtcNow };
+            context.Shows.Add(other);
+            await context.SaveChangesAsync();
+            var otherSeason = new Season { ShowId = other.Id, SeasonNumber = 1, EpisodeCount = 1 };
+            context.Seasons.Add(otherSeason);
+            await context.SaveChangesAsync();
+            context.Episodes.Add(new Episode
+            {
+                SeasonId = otherSeason.Id,
+                EpisodeNumber = 1,
+                Name = "O1",
+                AirDate = DateTime.UtcNow.AddDays(-60)
+            });
+            context.UserShows.Add(new UserShow
+            {
+                UserId = "user1",
+                ShowId = other.Id,
+                Status = WatchStatus.Watching
+            });
+            await context.SaveChangesAsync();
+
+            await service.SetBookmarkAsync("user1", episodes[0].Id, 5);
+
+            var nextUp = await service.GetNextUpAsync("user1");
+
+            Assert.Equal(2, nextUp.Count);
+            Assert.Equal("S1E1", nextUp[0].EpisodeName);
+            Assert.Equal(5, nextUp[0].ResumeAtMinutes);
+            Assert.Null(nextUp[1].ResumeAtMinutes);
+        }
+
+        [Fact]
+        public async Task ClearBookmarkAsync_RemovesRecord()
+        {
+            using var context = CreateContext();
+            var (_, episodes) = await SeedShowAsync(context, "user1");
+            var service = new EpisodeProgressService(context, new ActivityService(context));
+            await service.SetBookmarkAsync("user1", episodes[0].Id, 10);
+
+            Assert.True(await service.ClearBookmarkAsync("user1", episodes[0].Id));
+            Assert.False(await service.ClearBookmarkAsync("user1", episodes[0].Id));
+            Assert.Null(await service.GetBookmarkAsync("user1", episodes[0].Id));
+        }
+
+        [Fact]
         public async Task UnmarkingEpisode_AlsoRemovesRewatches()
         {
             using var context = CreateContext();

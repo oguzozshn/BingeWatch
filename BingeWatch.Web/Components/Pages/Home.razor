@@ -33,7 +33,11 @@ else
                     <h4>@item.ShowName</h4>
                     <p>
                         S@(item.SeasonNumber)E@(item.EpisodeNumber) · @item.EpisodeName
-                        @if (item.IsUnaired && item.AirDate.HasValue)
+                        @if (item.ResumeAtMinutes.HasValue)
+                        {
+                            <br /><span class="next-up-resume">⏸ @item.ResumeAtMinutes. dakikadan devam et</span>
+                        }
+                        else if (item.IsUnaired && item.AirDate.HasValue)
                         {
                             <br /><span class="next-up-air-date">@item.AirDate.Value.ToString("d MMM yyyy")'de yayınlanacak</span>
                         }
@@ -70,6 +74,7 @@ else if (!loading)
 
 <style>
     .next-up-air-date { color: #9aa1ab; font-size: 0.85em; }
+    .next-up-resume { color: var(--bs-warning-text-emphasis, #ffda6a); font-size: 0.85em; }
 
     .upcoming-list {
         display: flex;
