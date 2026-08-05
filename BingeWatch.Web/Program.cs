@@ -62,10 +62,23 @@ var app = builder.Build();
 // Ters vekil arkasında şema ve istemci IP'si başlıklardan gelir. Bunlar
 // okunmazsa üretilen mutlak bağlantılar http:// olur ve cookie'nin Secure
 // bayrağı yanlış değerlendirilir. Zincirde tek vekil varsayılıyor.
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+var forwardedOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+};
+
+// Varsayılan olarak yalnızca loopback'ten gelen vekile güveniliyor. Konteynerde
+// istek docker-proxy üzerinden köprü ağının geçidinden (172.x) geliyor, yani
+// listede yok — başlıklar sessizce atılıyor ve yukarıdaki ayar hiç işlemiyordu.
+// Belirti: TLS sonlandıran bir vekil arkasında bile Location: http://... dönüyor,
+// HTTPS-only bir vekilde (Tailscale Serve) giriş akışı ölü adrese düşüyor.
+// Listeleri boşaltmak "her kaynağa güven" demek; burada güvenli, çünkü konteyner
+// dışarıdan doğrudan erişilebilir değil — tek yol host'un 127.0.0.1'e bağlı
+// docker-proxy'si. Konteyner portu dışarıya açılırsa bu varsayım çöker.
+forwardedOptions.KnownIPNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
+
+app.UseForwardedHeaders(forwardedOptions);
 
 app.UseSerilogRequestLogging();
 
