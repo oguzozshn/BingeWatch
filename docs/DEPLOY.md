@@ -372,3 +372,155 @@ devreleri bu varsayılanı devralıyor.
 ⚠️ Alpine tabanlı bir runtime imajına geçilirse ICU gelmez ve
 `new CultureInfo("tr-TR")` patlar; o durumda imaja `icu-libs` eklenmeli.
 Şu anki taban (`mcr.microsoft.com/dotnet/aspnet:10.0`) ICU içeriyor.
+
+---
+
+## 10. Hetzner VPS (x86-64) + Tailscale
+
+Gerçek bir Hetzner bulut sunucusunda baştan sona çalıştırıldı (05.08.2026):
+Ubuntu 26.04 LTS, 2 vCPU, 3.7GB RAM, 38GB disk.
+
+Mimari x86-64 olduğu için **ana compose dosyası olduğu gibi yetiyor** — §7'deki
+Pi override'ına, SQL Edge'e ve çekirdek sayfa boyutu ayarına gerek yok. SQL
+Server 2022 imajı doğrudan çalışıyor.
+
+Bu bölümdeki kurulumun farkı erişim modelinde: uygulama **internete hiç
+açılmıyor**, yalnızca Tailscale ağı üzerinden erişiliyor. Domain gerekmeden
+geçerli sertifikalı HTTPS veriyor ve dinamik IP sorunu ortadan kalkıyor.
+
+### Kurulum
+
+```bash
+# Docker — resmi depo Ubuntu 26.04'ü (resolute) tanıyor
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release; echo $VERSION_CODENAME) stable" \
+  > /etc/apt/sources.list.d/docker.list
+apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin
+
+git clone https://github.com/oguzozshn/BingeWatch.git /opt/bingewatch
+cd /opt/bingewatch && cp .env.example .env   # doldur: §2
+docker compose up -d --build
+```
+
+İlk derleme 2 vCPU'da ~10 dakika.
+
+### ⚠️ Swap şart
+
+3.7GB RAM, iki .NET SDK derlemesi ve SQL Server için yeterli değil; derleme
+ortasında OOM ile ölebiliyor. 4GB swap ekle:
+
+```bash
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
+### ⚠️ `.env`'i Windows'tan kopyalarsan CRLF
+
+`scp` ile taşınan `.env` dosyası CRLF satır sonlarını korur; Compose değişkenin
+sonundaki `\r`'yi değerin parçası sayar. Belirti sinsi: SA parolası "yanlış"
+olur, `db` konteyneri `Password validation failed` ile ölür ve `.env`'e bakınca
+her şey doğru görünür.
+
+```bash
+tr -d '\r' < .env > .env.unix && mv .env.unix .env
+```
+
+### Erişimi Tailscale'e kapatmak
+
+Web'i internete açık bırakmak yerine yalnızca `127.0.0.1`'e bağlayıp önüne
+`tailscale serve` koyuyoruz. Git'teki `docker-compose.yml`'e dokunmadan,
+sunucuda kalan bir override dosyasıyla:
+
+```yaml
+# /opt/bingewatch/docker-compose.override.yml
+services:
+  web:
+    ports: !override
+      - "127.0.0.1:8080:8080"
+```
+
+`!override` etiketi burada da şart — §7'deki Pi notunun aynısı: Compose port
+listelerini birleştirir, üzerine yazmaz. Etiket olmazsa `8080:8080` ile
+`127.0.0.1:8080:8080` yan yana durur ve konteyner kendi kendisiyle çakışır.
+
+```bash
+tailscale up --hostname=bingewatch
+tailscale serve --bg --https=443 http://127.0.0.1:8080
+```
+
+Sonuç: `https://bingewatch.<tailnet>.ts.net` — Let's Encrypt sertifikası
+Tailscale tarafından alınıp yenileniyor, domain gerekmiyor.
+
+> **Neden `127.0.0.1`, Tailscale'in sabit IP'si dururken?** İki sebep:
+> `tailscale serve` arkadaki servise loopback'ten bağlanıyor (HTTPS'i o
+> sonlandırıyor), ve reboot sonrası Docker `tailscaled` arayüze IP atamadan
+> kalkarsa Tailscale IP'sine bağlanma `cannot assign requested address` ile
+> düşer — konteyner hiç açılmaz.
+
+Başkasına erişim vermek için **node sharing**: admin panelinde
+`Machines → bingewatch → ⋯ → Share`. Karşı taraf kendi Tailscale hesabıyla
+yalnızca bu makineyi görür, tailnet'in geri kalanını değil.
+
+### ⚠️ Serve tailnet ayarından açılmalı
+
+`tailscale serve` ilk çağrıda `Serve is not enabled on your tailnet` diyip
+bekler. Verdiği bağlantıyı tarayıcıda açıp özelliği etkinleştirmek gerekiyor;
+bu bir tailnet ayarı, sunucudan yapılamıyor.
+
+### ⚠️ ufw, Docker'ın açtığı portları engelleyemez
+
+IP kısıtlaması yapacaksan bilmen gereken tuzak: Docker port yayınlarken kendi
+iptables zincirlerini yazıyor ve bunlar ufw'nin kurallarından **önce**
+çalışıyor. `ufw deny 8080` yazarsın, port açık kalır, kapattığını sanırsın.
+Çalışan tek yer `DOCKER-USER` zinciri — ya da sunucunun tamamen dışında duran
+Hetzner Cloud Firewall.
+
+Yukarıdaki Tailscale kurulumunda bu sorun hiç doğmuyor: port zaten yalnızca
+loopback'e bağlı, engellenecek bir şey yok.
+
+### SSH: parola girişini kapatırken
+
+Hetzner imajı `PasswordAuthentication yes` ile geliyor ve sunucu açıldıktan
+saatler sonra bot denemeleri başlıyor. Kapatırken **dosya adının numarası
+önemli**:
+
+```bash
+# 00-, 99- DEĞİL: cloud-init'in 50-cloud-init.conf dosyası PasswordAuthentication
+# yes yazıyor ve OpenSSH ilk okuduğu değeri kullanır, sonrakini yoksayar.
+cat > /etc/ssh/sshd_config.d/00-hardening.conf <<'CONF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin prohibit-password
+CONF
+sshd -t && systemctl reload ssh
+```
+
+`99-` ile başlayan bir dosya sessizce etkisiz kalır — `sshd -T | grep
+passwordauthentication` hâlâ `yes` der. Doğrulamadan oturumu kapatma.
+
+### Ters vekil arkasında şema
+
+`tailscale serve` yalnızca 443'ü dinlediği için, uygulamanın `http://` mutlak
+bağlantı üretmesi giriş akışını tamamen kırıyordu. Sebep `UseForwardedHeaders`
+yapılandırmasının konteynerde işlememesiydi (docker-proxy köprü geçidinden
+geliyor, varsayılan güven listesi yalnızca loopback). PR #30 ile düzeltildi.
+
+Yeni bir vekil kurduğunda kontrol et:
+
+```bash
+curl -sD - -o /dev/null -H "X-Forwarded-Proto: https" http://127.0.0.1:8080/ | grep -i location
+```
+
+`Location: https://...` dönmeli. `http://` dönüyorsa başlıklar yine yoksayılıyor
+demektir.
+
+### Doğrulama
+
+```bash
+docker compose ps                                   # uc servis de (healthy)
+curl -s http://localhost:5054/health/ready          # API veritabanina ulasiyor mu
+docker compose exec web ls wwwroot/_framework       # §8 sessiz kirilma testi
+curl -so /dev/null -w '%{http_code}\n' http://<sunucu-ip>:8080/   # 000 donmeli (kapali)
+```
