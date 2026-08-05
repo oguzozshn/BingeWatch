@@ -12,9 +12,9 @@
     @* placeholder etiket yerine geçmez: yazmaya başlayınca kayboluyor ve bazı
        ekran okuyucular hiç okumuyor. Görünmez ama gerçek bir <label> var. *@
     <div class="search-box">
-        <label class="visually-hidden" for="search-query">Dizi ya da kişi adı</label>
+        <label class="visually-hidden" for="search-query">Dizi, kişi ya da kullanıcı adı</label>
         <input id="search-query" type="search" class="form-control"
-               placeholder="Dizi ya da kişi adı" value="@query"
+               placeholder="Dizi, kişi ya da kullanıcı adı" value="@query"
                @oninput="OnQueryInput" @onkeydown="OnKeyDown" />
         <button type="button" class="btn btn-primary" disabled="@(loading || string.IsNullOrWhiteSpace(query))"
                 @onclick="SearchAsync">
@@ -24,10 +24,21 @@
 
     @if (result == null)
     {
-        <p class="muted">Dizi adı yazabilir ya da bir oyuncu/yönetmen arayabilirsin.</p>
+        <p class="muted">Dizi adı yazabilir, bir oyuncu/yönetmen ya da BingeWatch kullanıcısı arayabilirsin.</p>
     }
     else
     {
+        @* Kullanıcılar en üstte: birini arayan kişi dizi listesini taramak
+           zorunda kalmasın. Sonuç yoksa bölüm hiç çizilmiyor — dizi araması
+           yapan kullanıcıya "eşleşen kullanıcı yok" demek gürültü. *@
+        @if (users.Count > 0)
+        {
+            <section>
+                <h5>Kullanıcılar</h5>
+                <UserSummaryList Users="users" />
+            </section>
+        }
+
         @if (result.People.Count > 0)
         {
             <section>
@@ -94,7 +105,11 @@
 
     private string query = string.Empty;
     private SearchResultDto? result;
+    private List<UserSummaryDto> users = new();
     private bool loading;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -122,13 +137,44 @@
         try
         {
             var client = HttpClientFactory.CreateClient("ApiClient");
-            result = await client.GetFromJsonAsync<SearchResultDto>(
-                $"api/discover/search?q={Uri.EscapeDataString(query)}&includePeople=true");
+            var escaped = Uri.EscapeDataString(query);
+
+            // Kullanıcı araması yerel veritabanından, dizi/kişi TMDb'den geliyor;
+            // birbirini beklemelerinin sebebi yok.
+            var showsTask = client.GetFromJsonAsync<SearchResultDto>(
+                $"api/discover/search?q={escaped}&includePeople=true");
+            var usersTask = SearchUsersAsync(escaped);
+
+            await Task.WhenAll(showsTask, usersTask);
+
+            result = await showsTask;
+            users = await usersTask;
         }
         finally
         {
             loading = false;
         }
+    }
+
+    /// <summary>
+    /// Takip durumunun dolu gelmesi için istek kimlikli gitmeli; anonim
+    /// kullanıcı da arayabilir, o zaman butonlar "Takip et" demez.
+    /// </summary>
+    private async Task<List<UserSummaryDto>> SearchUsersAsync(string escapedQuery)
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+
+        if (AuthStateTask != null)
+        {
+            var authState = await AuthStateTask;
+            var token = authState.User.FindFirst("api_token")?.Value;
+            if (!string.IsNullOrEmpty(token))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+
+        return await client.GetFromJsonAsync<List<UserSummaryDto>>(
+            $"api/users/search?q={escapedQuery}") ?? new();
     }
 
     private static string Initials(string name)

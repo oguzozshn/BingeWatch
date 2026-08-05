@@ -25,6 +25,12 @@ namespace BingeWatch.API.Services
         /// <summary><paramref name="username"/> kullanıcısının takip ettikleri, en yeniden eskiye.</summary>
         Task<List<UserSummaryDto>?> GetFollowingAsync(string username, string? viewerId);
 
+        /// <summary>
+        /// Kullanıcı adı ya da görünen adda geçen kullanıcıları arar. Gizli
+        /// profiller ve engelli taraflar sonuçlara girmez.
+        /// </summary>
+        Task<List<UserSummaryDto>> SearchAsync(string query, string? viewerId, int limit = 20);
+
         Task<int> GetFollowerCountAsync(string userId);
 
         Task<int> GetFollowingCountAsync(string userId);
