@@ -60,6 +60,11 @@ services:
       Admin__Usernames__0: ${ADMIN_USERNAME:-}
     ports:
       - "127.0.0.1:5054:8080"
+    volumes:
+      # Admin panelindeki log görüntüleyicinin okuduğu dosyalar. Volume olmadan
+      # her `up --build` ile geçmiş sıfırlanırdı — bir sorunu incelerken en çok
+      # ihtiyaç duyulan an, deploy'un hemen sonrası.
+      - api-logs:/app/logs
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
       interval: 15s
@@ -91,3 +96,4 @@ services:
 
 volumes:
   mssql-data:
+  api-logs:

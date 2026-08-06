@@ -33,6 +33,13 @@ RUN apt-get update \
 
 COPY --from=build /app/publish .
 
+# Log dizini henüz root'ken açılıp sahipliği veriliyor. Serilog'un dosya
+# sink'i buraya yazıyor ama konteyner "app" kullanıcısıyla çalışıyor ve /app
+# root'a ait; dizin hazır olmazsa yazamaz. Serilog sink hatalarını yuttuğu
+# için uygulama sorunsuz görünür, yalnızca paneldeki log görüntüleyici boş
+# kalır — sessiz kırılma.
+RUN mkdir -p /app/logs && chown app:app /app/logs
+
 # Root olmayan kullanıcı: aspnet imajında hazır gelen "app" kullanıcısı.
 USER app
 
