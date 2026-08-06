@@ -1,0 +1,202 @@
+.admin {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.admin-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+}
+
+.stamp {
+    font-size: 0.85rem;
+}
+
+.auto {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+    cursor: pointer;
+}
+
+.btn-refresh {
+    background: none;
+    border: 1px solid var(--bs-border-color, #3a3d45);
+    border-radius: 999px;
+    color: var(--bs-body-color, #e6e8eb);
+    padding: 0.3rem 0.9rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.btn-refresh:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.muted {
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.error {
+    background: rgba(217, 83, 79, 0.12);
+    border: 1px solid #d9534f;
+    border-radius: 0.5rem;
+    padding: 0.6rem 0.9rem;
+}
+
+h2 {
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bs-secondary-color, #9aa1ab);
+    margin: 2rem 0 0.75rem;
+}
+
+h3 {
+    font-size: 0.95rem;
+    margin: 1.5rem 0 0.5rem;
+}
+
+/* --- Sayaç kartları --- */
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 0.75rem;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    background: var(--bw-surface, #23252b);
+    border: 1px solid var(--bs-border-color, #3a3d45);
+    border-radius: 0.6rem;
+    padding: 0.9rem 1rem;
+}
+
+.card.accent {
+    border-color: var(--bs-link-color, #4da3ff);
+}
+
+.card.warn {
+    border-color: #d9534f;
+}
+
+.value {
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--bs-emphasis-color, #fff);
+}
+
+.label {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.hint {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+/* --- 14 günlük sütun grafiği ---
+   Harici bir grafik kütüphanesi eklemek yerine CSS sütunları: tek bir değer
+   dizisi için kütüphane taşımak, hem yükü hem de bakım yüzeyini büyütürdü. */
+
+.chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.4rem;
+    height: 9rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.chart li {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 1;
+    height: 100%;
+}
+
+.bar-wrap {
+    display: flex;
+    align-items: flex-end;
+    width: 100%;
+    flex: 1;
+    background: var(--bw-surface, #23252b);
+    border-radius: 0.25rem;
+}
+
+.bar {
+    width: 100%;
+    min-height: 2px;
+    background: var(--bs-link-color, #4da3ff);
+    border-radius: 0.25rem;
+}
+
+.bar-label {
+    font-size: 0.7rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.chart-note {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+/* --- Log görüntüleyici --- */
+
+.log-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.log-controls select {
+    background: var(--bw-surface-2, #2a2d35);
+    color: var(--bs-body-color, #e6e8eb);
+    border: 1px solid var(--bs-border-color, #3a3d45);
+    border-radius: 0.35rem;
+    padding: 0.2rem 0.4rem;
+}
+
+.logs {
+    background: #101216;
+    border: 1px solid var(--bs-border-color, #3a3d45);
+    border-radius: 0.5rem;
+    padding: 0.85rem;
+    max-height: 30rem;
+    overflow: auto;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    /* Log satırları uzun; sarmak yerine yatay kaydırma — zaman damgası
+       hizası bozulmasın diye. */
+    white-space: pre;
+}
+
+.logs:focus-visible {
+    outline: 2px solid var(--bs-link-color, #4da3ff);
+    outline-offset: 2px;
+}

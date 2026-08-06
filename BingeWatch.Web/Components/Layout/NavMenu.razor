@@ -55,6 +55,13 @@
             <AuthorizeView Roles="Admin">
                 <Authorized>
                     <li class="nav-item">
+                        @* Match="All": /admin/reports açıkken bu bağlantının da etkin
+                           görünmemesi için — ikisi ayrı sayfa. *@
+                        <NavLink class="nav-link" href="admin" Match="NavLinkMatch.All">
+                            <i class="bi bi-speedometer2" aria-hidden="true"></i> Panel
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
                         <NavLink class="nav-link" href="admin/reports">
                             <i class="bi bi-shield-exclamation" aria-hidden="true"></i> Moderasyon
                         </NavLink>
