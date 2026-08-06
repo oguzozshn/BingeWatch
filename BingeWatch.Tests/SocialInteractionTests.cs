@@ -239,6 +239,47 @@ namespace BingeWatch.Tests
             Assert.Empty(context.Notifications);
         }
 
+        [Fact]
+        public async Task RemoveAsync_KeepsNotificationThatWasAlreadyRead()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context, "ali", "veli");
+            var notifications = new NotificationService(context);
+            var follows = new FollowService(context, new ActivityService(context), notifications);
+
+            await follows.FollowAsync("ali", "veli");
+            await notifications.MarkAllReadAsync("veli");
+
+            await follows.UnfollowAsync("ali", "veli");
+
+            // Okunmuş bildirim, eylem geri alınsa da geçmişte kalmalı: kullanıcı
+            // onu görmüştü, listeden yok olması geçmişi değiştirmek olurdu.
+            var remaining = await notifications.GetAsync("veli", null, 20);
+            Assert.Single(remaining.Items);
+            Assert.True(remaining.Items[0].IsRead);
+            Assert.Equal(0, await notifications.GetUnreadCountAsync("veli"));
+        }
+
+        [Fact]
+        public async Task RemoveAsync_RemovesOnlyTheUnreadNotification()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context, "ali", "veli", "ayse");
+            var notifications = new NotificationService(context);
+
+            // Ali'ninki okunmuş, Ayşe'ninki okunmamış olacak.
+            await notifications.CreateAsync("veli", "ali", NotificationType.Followed);
+            await notifications.MarkAllReadAsync("veli");
+            await notifications.CreateAsync("veli", "ayse", NotificationType.Followed);
+
+            await notifications.RemoveAsync("veli", "ali", NotificationType.Followed);
+            await notifications.RemoveAsync("veli", "ayse", NotificationType.Followed);
+
+            var remaining = await notifications.GetAsync("veli", null, 20);
+            Assert.Single(remaining.Items);
+            Assert.Equal("ali", remaining.Items[0].ActorUsername);
+        }
+
         // ----- Arkadaş puanları ----------------------------------------------
 
         [Fact]

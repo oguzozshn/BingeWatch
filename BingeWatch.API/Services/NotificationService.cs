@@ -43,12 +43,29 @@ namespace BingeWatch.API.Services
             await _context.SaveChangesAsync();
         }
 
+        /// <summary>
+        /// Eylem geri alındığında (beğeni kaldırma, takibi bırakma) bildirimi siler —
+        /// ama <b>yalnızca okunmamışsa</b>.
+        /// </summary>
+        /// <remarks>
+        /// Okunmuşu da silmek, kullanıcının gördüğü bir bildirimi geçmişten çıkarıyordu:
+        /// "X incelemeni beğendi" satırı, X beğeniyi geri aldığı anda listeden yok
+        /// oluyordu. Bildirim, olmuş bir şeyin kaydı; okunduktan sonra silmek geçmişi
+        /// değiştirmek oluyor.
+        ///
+        /// Okunmamışı silmek ise doğru davranış: kullanıcı henüz görmediyse artık doğru
+        /// olmayan bir satırı göstermeye gerek yok, ayrıca beğen/geri al döngüsüyle
+        /// rozetin şişirilmesi de engellenmiş oluyor. CreateAsync'teki tekilleştirme
+        /// okunmuş kayıt dururken yeni bildirim üretmediği için aynı döngü rozeti
+        /// tekrar tekrar yakamıyor.
+        /// </remarks>
         public async Task RemoveAsync(string recipientId, string actorId, NotificationType type,
             int? reviewId = null, int? userListId = null)
         {
             var rows = await _context.Notifications
                 .Where(n => n.UserId == recipientId && n.ActorId == actorId && n.Type == type
-                            && n.ReviewId == reviewId && n.UserListId == userListId)
+                            && n.ReviewId == reviewId && n.UserListId == userListId
+                            && n.ReadAt == null)
                 .ToListAsync();
             if (rows.Count == 0)
                 return;

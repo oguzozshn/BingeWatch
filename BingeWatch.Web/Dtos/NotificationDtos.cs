@@ -28,4 +28,39 @@ namespace BingeWatch.Web.Dtos
         public int? UserListId { get; set; }
         public string? ListTitle { get; set; }
     }
+
+    /// <summary>
+    /// Bildirim metinleri. Zil paneli ve bildirimler sayfası aynı cümleleri
+    /// kurduğu için tek yerde tutuluyor; ikisi ayrı yazılırsa biri güncellenip
+    /// diğeri unutuluyor.
+    /// </summary>
+    public static class NotificationText
+    {
+        /// <summary>Aktörün adından sonra gelen cümle.</summary>
+        public static string Sentence(NotificationDto notification) => notification.Type switch
+        {
+            NotificationType.Followed => "seni takip etmeye başladı",
+            NotificationType.ReviewLiked => notification.SeasonNumber.HasValue
+                ? $"{notification.SeasonNumber}. sezon incelemeni beğendi —"
+                : "incelemeni beğendi —",
+            NotificationType.ListLiked => "listeni beğendi —",
+            _ => notification.SeasonNumber.HasValue
+                ? $"{notification.SeasonNumber}. sezon incelemene yorum yazdı —"
+                : "incelemene yorum yazdı —"
+        };
+
+        /// <summary>Bildirimin götürdüğü sayfa; hedefi yoksa aktörün profili.</summary>
+        public static string TargetUrl(NotificationDto notification)
+        {
+            if (notification.UserListId.HasValue)
+                return $"/list/{notification.UserListId}";
+
+            if (notification.TmdbShowId.HasValue)
+                return $"/show/{notification.TmdbShowId}";
+
+            return ProfileUrl(notification.ActorUsername);
+        }
+
+        public static string ProfileUrl(string username) => "/" + '@' + username;
+    }
 }

@@ -1,0 +1,331 @@
+@page "/admin"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@implements IDisposable
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageMeta Title="Admin paneli" NoIndex="true" />
+
+<div class="admin">
+    <header class="admin-head">
+        <h1>Admin paneli</h1>
+        <div class="head-actions">
+            @if (stats != null)
+            {
+                <span class="muted stamp">
+                    Son güncelleme @stats.GeneratedAt.ToLocalTime().ToString("HH:mm:ss")
+                </span>
+            }
+            <label class="auto">
+                <input type="checkbox" checked="@autoRefresh" @onchange="ToggleAutoRefreshAsync" />
+                30 sn'de bir yenile
+            </label>
+            <button type="button" class="btn-refresh" disabled="@loading" @onclick="RefreshAsync">
+                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Yenile
+            </button>
+        </div>
+    </header>
+
+    @if (error != null)
+    {
+        <p class="error" role="alert">@error</p>
+    }
+
+    @if (stats == null)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else
+    {
+        <section aria-labelledby="users-head">
+            <h2 id="users-head">Kullanıcılar</h2>
+            <div class="cards">
+                <div class="card accent">
+                    <span class="value">@stats.OnlineNow</span>
+                    <span class="label">şu an çevrimiçi</span>
+                    <span class="hint">son @stats.OnlineWindowMinutes dakika</span>
+                </div>
+                <div class="card">
+                    <span class="value">@stats.ActiveToday</span>
+                    <span class="label">bugün giren</span>
+                    <span class="hint">@Delta(stats.ActiveToday, stats.ActiveYesterday) düne göre</span>
+                </div>
+                <div class="card">
+                    <span class="value">@stats.ActiveYesterday</span>
+                    <span class="label">dün giren</span>
+                </div>
+                <div class="card">
+                    <span class="value">@stats.ActiveThisMonth</span>
+                    <span class="label">bu ay giren</span>
+                    <span class="hint">tekil kullanıcı</span>
+                </div>
+                <div class="card">
+                    <span class="value">@stats.TotalUsers</span>
+                    <span class="label">kayıtlı kullanıcı</span>
+                    <span class="hint">bugün +@stats.NewUsersToday</span>
+                </div>
+            </div>
+        </section>
+
+        <section aria-labelledby="traffic-head">
+            <h2 id="traffic-head">Trafik</h2>
+            <div class="cards">
+                <div class="card">
+                    <span class="value">@Num(stats.RequestsToday)</span>
+                    <span class="label">bugünkü istek</span>
+                </div>
+                <div class="card">
+                    <span class="value">@Num(stats.RequestsThisMonth)</span>
+                    <span class="label">bu ayki istek</span>
+                </div>
+                <div class="card">
+                    <span class="value">@Bytes(stats.BytesToday)</span>
+                    <span class="label">bugün gönderilen</span>
+                </div>
+                <div class="card">
+                    <span class="value">@Bytes(stats.BytesThisMonth)</span>
+                    <span class="label">bu ay gönderilen</span>
+                </div>
+                <div class="card">
+                    <span class="value">@Num(stats.RequestsTotal)</span>
+                    <span class="label">toplam istek</span>
+                    <span class="hint">@Bytes(stats.BytesTotal)</span>
+                </div>
+            </div>
+
+            <h3>Son 14 gün</h3>
+            @if (stats.RecentDays.Count == 0 || MaxRequests == 0)
+            {
+                <p class="muted">Henüz ölçülmüş trafik yok.</p>
+            }
+            else
+            {
+                <ol class="chart" aria-label="Günlük istek sayısı, son 14 gün">
+                    @foreach (var point in stats.RecentDays)
+                    {
+                        <li>
+                            <span class="bar-wrap"
+                                  title="@point.Day.ToString("d MMM"): @Num(point.Requests) istek, @Bytes(point.ResponseBytes)">
+                                <span class="bar" style="height: @BarHeight(point.Requests)%"></span>
+                            </span>
+                            <span class="bar-label">@point.Day.Day</span>
+                        </li>
+                    }
+                </ol>
+                <p class="muted chart-note">
+                    En yüksek gün: @Num(MaxRequests) istek. Sütunlar istek sayısını gösterir.
+                </p>
+            }
+        </section>
+
+        <section aria-labelledby="content-head">
+            <h2 id="content-head">İçerik</h2>
+            <div class="cards">
+                <div class="card">
+                    <span class="value">@stats.TotalShows</span>
+                    <span class="label">katalogdaki dizi</span>
+                </div>
+                <div class="card">
+                    <span class="value">@stats.TotalReviews</span>
+                    <span class="label">inceleme</span>
+                </div>
+                <div class="card @(stats.OpenReports > 0 ? "warn" : "")">
+                    <span class="value">@stats.OpenReports</span>
+                    <span class="label">açık bildirim</span>
+                    @if (stats.OpenReports > 0)
+                    {
+                        <a class="hint" href="/admin/reports">moderasyon kuyruğu →</a>
+                    }
+                </div>
+            </div>
+        </section>
+    }
+
+    <section aria-labelledby="logs-head">
+        <h2 id="logs-head">Uygulama logları</h2>
+        <div class="log-controls">
+            <label>
+                Satır:
+                <select @onchange="ChangeLineCountAsync">
+                    @foreach (var option in LineOptions)
+                    {
+                        <option value="@option" selected="@(option == lineCount)">@option</option>
+                    }
+                </select>
+            </label>
+            <span class="muted">En yeni satır en altta.</span>
+        </div>
+
+        @if (logLines == null)
+        {
+            <p class="muted">Yükleniyor...</p>
+        }
+        else if (logLines.Count == 0)
+        {
+            <p class="muted">Log dosyası boş ya da okunamadı.</p>
+        }
+        else
+        {
+            <pre class="logs" tabindex="0">@string.Join('\n', logLines)</pre>
+        }
+    </section>
+</div>
+
+@code {
+    private static readonly int[] LineOptions = { 100, 200, 500, 1000 };
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private AdminStatsDto? stats;
+    private List<string>? logLines;
+    private int lineCount = 200;
+    private bool loading;
+    private bool autoRefresh = true;
+    private string? error;
+
+    // Otomatik yenileme döngüsü. Devre koptuğunda (kullanıcı sekmeyi kapattı)
+    // Dispose iptal ediyor; aksi halde her açılan sayfa arkada bir döngü bırakırdı.
+    private CancellationTokenSource? refreshCts;
+
+    private long MaxRequests => stats?.RecentDays.Count > 0
+        ? stats.RecentDays.Max(d => d.Requests)
+        : 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        StartAutoRefresh();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (loading)
+            return;
+
+        loading = true;
+        error = null;
+
+        try
+        {
+            var api = await GetApiAsync();
+
+            stats = await api.GetFromJsonAsync<AdminStatsDto>("api/admin/stats");
+
+            var logs = await api.GetFromJsonAsync<AdminLogsDto>($"api/admin/logs?lines={lineCount}");
+            logLines = logs?.Lines ?? new();
+        }
+        catch (Exception ex)
+        {
+            // Panel bir teşhis aracı; hatayı yutup boş kart göstermek en kötüsü olurdu.
+            error = $"Veriler alınamadı: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void StartAutoRefresh()
+    {
+        refreshCts?.Cancel();
+        refreshCts?.Dispose();
+
+        if (!autoRefresh)
+        {
+            refreshCts = null;
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        refreshCts = cts;
+
+        _ = RunAutoRefreshAsync(cts.Token);
+    }
+
+    private async Task RunAutoRefreshAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(RefreshInterval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshAsync();
+                // Zamanlayıcı Blazor'un render döngüsünün dışında çalışıyor;
+                // güncellemeyi devreye elle bildirmek gerekiyor.
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Sayfadan çıkıldı ya da otomatik yenileme kapatıldı.
+        }
+    }
+
+    private async Task ToggleAutoRefreshAsync(ChangeEventArgs e)
+    {
+        autoRefresh = e.Value is true;
+        StartAutoRefresh();
+        await Task.CompletedTask;
+    }
+
+    private async Task ChangeLineCountAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+            lineCount = value;
+
+        await RefreshAsync();
+    }
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    private int BarHeight(long requests) =>
+        MaxRequests == 0 ? 0 : (int)Math.Round(requests * 100.0 / MaxRequests);
+
+    private static string Delta(int today, int yesterday)
+    {
+        var difference = today - yesterday;
+        return difference switch
+        {
+            > 0 => $"+{difference}",
+            < 0 => difference.ToString(),
+            _ => "±0"
+        };
+    }
+
+    private static string Num(long value) => value.ToString("N0");
+
+    /// <summary>Baytı okunur birime çevirir; panelde ham sayı bir şey anlatmıyor.</summary>
+    private static string Bytes(long value)
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double size = value;
+        var unit = 0;
+
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+
+        return unit == 0 ? $"{value} B" : $"{size:0.#} {units[unit]}";
+    }
+
+    public void Dispose()
+    {
+        refreshCts?.Cancel();
+        refreshCts?.Dispose();
+    }
+}

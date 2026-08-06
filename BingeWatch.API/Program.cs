@@ -26,13 +26,25 @@ namespace BingeWatch.API
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Serilog — yapılandırma appsettings'ten okunur. Konteynerde loglar
-            // stdout'a yazılır (docker logs); dosya sink'i yalnızca yerelde açılıyor.
+            // Serilog — yapılandırma appsettings'ten okunur. Loglar stdout'a
+            // yazılıyor (docker logs) ve ayrıca diske: admin panelindeki log
+            // görüntüleyici stdout'u okuyamaz, diskte bir kopya gerekiyor.
+            // Dosyalar günlük dönüyor, 10MB'ta bölünüyor, 7 dosya saklanıyor —
+            // panele yetecek kadar geçmiş, diske sınırlı yük.
+            var logDirectory = LogFileReader.ResolveDirectory(builder.Configuration);
+
             builder.Host.UseSerilog((context, services, configuration) => configuration
                 .ReadFrom.Configuration(context.Configuration)
                 .ReadFrom.Services(services)
                 .Enrich.FromLogContext()
-                .WriteTo.Console());
+                .WriteTo.Console()
+                .WriteTo.File(
+                    Path.Combine(logDirectory, "api-.log"),
+                    rollingInterval: RollingInterval.Day,
+                    fileSizeLimitBytes: 10 * 1024 * 1024,
+                    rollOnFileSizeLimit: true,
+                    retainedFileCountLimit: 7,
+                    shared: true));
 
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException(
@@ -88,6 +100,13 @@ namespace BingeWatch.API
                 builder.Services.AddScoped<IPasswordResetNotifier, DisabledPasswordResetNotifier>();
 
             builder.Services.AddHostedService<TmdbSyncService>();
+
+            // İşletim metrikleri — admin panelindeki sayaçlar. Toplayıcı singleton
+            // (istekler arasında birikiyor), yazıcı onu periyodik boşaltıyor.
+            builder.Services.AddSingleton<RequestMetricsCollector>();
+            builder.Services.AddHostedService<MetricsFlushService>();
+            builder.Services.AddSingleton<ILogFileReader, LogFileReader>();
+            builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 
             // ASP.NET Core Identity
             builder.Services.AddIdentityCore<AppUser>(options =>
@@ -177,6 +196,13 @@ namespace BingeWatch.API
             // app.UseHttpsRedirection(); // İsteğe bağlı
 
             app.UseAuthentication();
+
+            // Metrik sayacı kimlikten sonra: "bugün kaç kişi girdi" ancak istekteki
+            // kullanıcı çözüldükten sonra sayılabilir. Kotadan önce, çünkü 429 ile
+            // geri çevrilen istek de sunucuya gelmiş bir istektir; panelde görünmesi
+            // gereken şey tam olarak budur.
+            app.UseMiddleware<RequestMetricsMiddleware>();
+
             app.UseAuthorization();
 
             // Kota, kimlikten sonra: politikalar kullanıcı başına bölümleniyor.

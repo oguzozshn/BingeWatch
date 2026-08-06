@@ -16,8 +16,10 @@ namespace BingeWatch.API.Models
     }
 
     /// <summary>
-    /// Kullanıcıya gösterilen bildirim. Kendi eylemin sana bildirim üretmez;
-    /// olayı geri alınca (takibi bırakma, beğeniyi kaldırma) bildirim de silinir.
+    /// Kullanıcıya gösterilen bildirim. Kendi eylemin sana bildirim üretmez.
+    /// Olay geri alınırsa (takibi bırakma, beğeniyi kaldırma) bildirim yalnızca
+    /// <b>henüz okunmamışsa</b> silinir; okunmuş bildirim geçmişte kalır —
+    /// gerekçe <c>NotificationService.RemoveAsync</c> üzerinde.
     /// </summary>
     public class Notification
     {
