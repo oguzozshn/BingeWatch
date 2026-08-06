@@ -5,15 +5,18 @@
     yüklenmeden buton anında tepki verir. Sayacı olan sayfa OnChanged ile haberdar olur.
 *@
 
+@inherits BingeWatch.Web.InteractiveComponentBase
 @inject IHttpClientFactory HttpClientFactory
 
 <AuthorizeView>
     <Authorized>
         @if (!IsViewer)
         {
+            @* Devre kurulana kadar devre dışı: prerender edilmiş butona
+               yapılan tıklama sessizce kaybolurdu. *@
             <button type="button"
                     class="@(isFollowing ? "btn btn-sm btn-outline-secondary" : "btn btn-sm btn-primary")"
-                    disabled="@busy" @onclick="ToggleAsync">
+                    disabled="@(busy || !Interactive)" @onclick="ToggleAsync">
                 @(busy ? "..." : isFollowing ? "Takibi bırak" : "Takip et")
             </button>
         }
