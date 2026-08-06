@@ -8,8 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace BingeWatch.API.Controllers
 {
     /// <summary>
-    /// Moderasyon paneli. Rol JWT'nin içinde taşınır (bkz. TokenService); rolü
-    /// olmayan bir token bu uçlara hiç giremez.
+    /// Moderasyon ve işletim paneli. Rol JWT'nin içinde taşınır (bkz. TokenService);
+    /// rolü olmayan bir token bu uçlara hiç giremez.
     /// </summary>
     [ApiController]
     [Route("api/admin")]
@@ -17,10 +17,17 @@ namespace BingeWatch.API.Controllers
     public class AdminController : ControllerBase
     {
         private readonly IReportService _reportService;
+        private readonly IAdminStatsService _statsService;
+        private readonly ILogFileReader _logReader;
 
-        public AdminController(IReportService reportService)
+        public AdminController(
+            IReportService reportService,
+            IAdminStatsService statsService,
+            ILogFileReader logReader)
         {
             _reportService = reportService;
+            _statsService = statsService;
+            _logReader = logReader;
         }
 
         private string CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -41,5 +48,22 @@ namespace BingeWatch.API.Controllers
             var resolved = await _reportService.ResolveAsync(CurrentUserId, reportId, request);
             return resolved ? NoContent() : NotFound();
         }
+
+        /// <summary>Panelin üst kısmındaki sayaçlar: kullanıcı, trafik, içerik.</summary>
+        [HttpGet("stats")]
+        public async Task<IActionResult> GetStats(CancellationToken cancellationToken) =>
+            Ok(await _statsService.GetAsync(cancellationToken));
+
+        /// <summary>
+        /// Uygulama logunun son satırları, eskiden yeniye.
+        /// </summary>
+        /// <remarks>
+        /// Log satırları ham metin olarak dönüyor; panel bunları biçimlendirmeden
+        /// basıyor. Loga kullanıcı verisi düşebildiği için uç yalnızca Admin
+        /// rolüne açık — sınıf üzerindeki <c>[Authorize]</c> bunu zaten sağlıyor.
+        /// </remarks>
+        [HttpGet("logs")]
+        public IActionResult GetLogs([FromQuery] int lines = 200) =>
+            Ok(new { lines = _logReader.ReadTail(lines) });
     }
 }

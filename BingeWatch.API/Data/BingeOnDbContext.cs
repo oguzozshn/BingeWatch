@@ -41,6 +41,10 @@ namespace BingeWatch.API.Data
         public DbSet<UserBlock> UserBlocks { get; set; }
         public DbSet<Report> Reports { get; set; }
 
+        // İşletim metrikleri — admin panelindeki sayaçlar
+        public DbSet<DailyTrafficStat> DailyTrafficStats { get; set; }
+        public DbSet<DailyActiveUser> DailyActiveUsers { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -466,6 +470,28 @@ namespace BingeWatch.API.Data
 
                 // TargetId polimorfik olduğu için FK yok; içerik silinince bildirim
                 // kayıtta kalır — moderasyon geçmişi içerikle birlikte silinmemeli.
+            });
+
+            modelBuilder.Entity<DailyTrafficStat>(entity =>
+            {
+                // Gün başına tek satır; yazıcı önce bu indeksten satırı bulup
+                // üzerine ekliyor (bkz. MetricsFlushService).
+                entity.HasIndex(e => e.Day).IsUnique();
+            });
+
+            modelBuilder.Entity<DailyActiveUser>(entity =>
+            {
+                // Gün + kullanıcı tekil: aynı kişi gün içinde kaç istek atarsa
+                // atsın tek satır. Panel "bugün kaç kişi" sorusunu bu tabloyu
+                // sayarak cevaplıyor, DISTINCT taramasına gerek kalmıyor.
+                entity.HasIndex(e => new { e.Day, e.UserId }).IsUnique();
+
+                entity.Property(e => e.UserId).IsRequired().HasMaxLength(450);
+
+                entity.HasOne(e => e.User)
+                      .WithMany()
+                      .HasForeignKey(e => e.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }
