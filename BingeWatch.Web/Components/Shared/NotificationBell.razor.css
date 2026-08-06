@@ -1,5 +1,12 @@
+.bell-wrap {
+    position: relative;
+}
+
 .bell {
     position: relative;
+    background: none;
+    border: 0;
+    cursor: pointer;
 }
 
 .badge {
@@ -14,4 +21,112 @@
     font-size: 0.65rem;
     line-height: 16px;
     text-align: center;
+}
+
+/* Panel açıkken dışarı tıklamayı yakalayan katman. Panelin kendisi daha yüksek
+   z-index'te durduğu için içeri yapılan tıklamalar buraya düşmüyor. */
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+}
+
+.panel {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    z-index: 1050;
+    width: min(22rem, calc(100vw - 2rem));
+    background: var(--bw-surface, #23252b);
+    border: 1px solid var(--bs-border-color, #3a3d45);
+    border-radius: 0.6rem;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+
+.panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--bs-border-color, #3a3d45);
+}
+
+.link-btn {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--bs-link-color, #4da3ff);
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+
+.link-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.panel-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 22rem;
+    overflow-y: auto;
+}
+
+.item + .item {
+    border-top: 1px solid var(--bs-border-color, #3a3d45);
+}
+
+.item a {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.6rem 0.85rem;
+    color: inherit;
+    text-decoration: none;
+    font-size: 0.85rem;
+}
+
+.item a:hover,
+.item a:focus-visible {
+    background: var(--bw-surface-2, #2a2d35);
+}
+
+/* Okunmamışı solda ince bir şeritle ayır — renk tek başına ayırt edici
+   olmamalı, şerit konumu da bilgi taşıyor. */
+.item.unread a {
+    border-left: 3px solid var(--bs-link-color, #4da3ff);
+    padding-left: calc(0.85rem - 3px);
+}
+
+.line {
+    flex: 1;
+}
+
+.target {
+    color: var(--bs-link-color, #4da3ff);
+}
+
+.item time {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.empty {
+    margin: 0;
+    padding: 1.1rem 0.85rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color, #9aa1ab);
+}
+
+.panel-foot {
+    border-top: 1px solid var(--bs-border-color, #3a3d45);
+    padding: 0.55rem 0.85rem;
+    text-align: center;
+    font-size: 0.82rem;
 }

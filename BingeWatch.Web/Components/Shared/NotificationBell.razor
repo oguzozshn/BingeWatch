@@ -1,25 +1,115 @@
 @*
-    Navbar'daki zil. Okunmamış sayısını sayfa yüklenirken bir kez çeker;
-    canlı sayaç (SignalR push) Faz 6'ya bırakıldı.
+    Navbar'daki zil. Tıklayınca son bildirimleri yerinde açar; sayfaya gitmeye
+    gerek kalmıyor. Rozet açılış anında bir kez ve sonra periyodik tazeleniyor.
+
+    Bileşen statik bir düzenin (MainLayout → NavMenu) içinde etkileşimli bir ada:
+    navbar'ın tamamını devreye almadan yalnızca zil interaktif çalışıyor.
 *@
+
+@rendermode InteractiveServer
+@implements IDisposable
 
 @inject IHttpClientFactory HttpClientFactory
 
-@* Bağlantının tek içeriği bir ikon fontuydu; erişilebilir adı yoktu ve rozetteki
-   sayı bağlamsız "3" olarak okunuyordu. Ad artık sayıyı da içeriyor. *@
-<NavLink class="nav-link bell" href="notifications" aria-label="@Label">
-    <i class="bi bi-bell-fill" aria-hidden="true"></i>
-    @if (unreadCount > 0)
+<div class="bell-wrap">
+    @* Panel açıkken tıklamayı yakalayan şeffaf katman. JS'siz "dışarı tıkla,
+       kapansın" davranışının en basit yolu; ayrıca odak tuzağı kurmuyor. *@
+    @if (open)
     {
-        <span class="badge" aria-hidden="true">@(unreadCount > 99 ? "99+" : unreadCount.ToString())</span>
+        <div class="backdrop" @onclick="Close" aria-hidden="true"></div>
     }
-</NavLink>
+
+    <button type="button"
+            class="nav-link bell"
+            aria-label="@Label"
+            aria-haspopup="true"
+            aria-expanded="@(open ? "true" : "false")"
+            @onclick="ToggleAsync"
+            @onkeydown="OnKeyDown">
+        <i class="bi bi-bell-fill" aria-hidden="true"></i>
+        @if (unreadCount > 0)
+        {
+            <span class="badge" aria-hidden="true">@(unreadCount > 99 ? "99+" : unreadCount.ToString())</span>
+        }
+    </button>
+
+    @if (open)
+    {
+        <div class="panel" role="dialog" aria-label="Bildirimler" @onkeydown="OnKeyDown">
+            <header class="panel-head">
+                <strong>Bildirimler</strong>
+                @if (unreadCount > 0)
+                {
+                    <button type="button" class="link-btn" disabled="@marking" @onclick="MarkAllReadAsync">
+                        Tümünü okundu işaretle
+                    </button>
+                }
+            </header>
+
+            @if (loading)
+            {
+                <p class="empty">Yükleniyor...</p>
+            }
+            else if (items == null)
+            {
+                <p class="empty">Bildirimler alınamadı.</p>
+            }
+            else if (items.Count == 0)
+            {
+                <p class="empty">Henüz bildirimin yok.</p>
+            }
+            else
+            {
+                <ul class="panel-list">
+                    @foreach (var notification in items)
+                    {
+                        <li class="@(notification.IsRead ? "item" : "item unread")">
+                            <a href="@NotificationText.TargetUrl(notification)">
+                                <span class="line">
+                                    <strong>@notification.ActorDisplayName</strong>
+                                    @NotificationText.Sentence(notification)
+                                    @if (notification.ShowName != null)
+                                    {
+                                        <span class="target">@notification.ShowName</span>
+                                    }
+                                    else if (notification.ListTitle != null)
+                                    {
+                                        <span class="target">@notification.ListTitle</span>
+                                    }
+                                </span>
+                                <time datetime="@notification.CreatedAt.ToString("o")">
+                                    @Ago(notification.CreatedAt)
+                                </time>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <footer class="panel-foot">
+                <a href="notifications">Tümünü gör</a>
+            </footer>
+        </div>
+    }
+</div>
 
 @code {
+    /// <summary>Panelde gösterilecek en fazla bildirim; gerisi için "Tümünü gör".</summary>
+    private const int PanelSize = 8;
+
+    /// <summary>Rozet tazeleme aralığı.</summary>
+    private static readonly TimeSpan BadgeRefreshInterval = TimeSpan.FromSeconds(60);
+
     [CascadingParameter]
     private Task<AuthenticationState>? AuthStateTask { get; set; }
 
+    private List<NotificationDto>? items;
     private int unreadCount;
+    private bool open;
+    private bool loading;
+    private bool marking;
+
+    private CancellationTokenSource? refreshCts;
 
     private string Label => unreadCount switch
     {
@@ -30,23 +120,154 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateTask!;
-        var token = authState.User.FindFirst("api_token")?.Value;
-        if (string.IsNullOrEmpty(token))
+        await LoadUnreadCountAsync();
+        StartBadgeRefresh();
+    }
+
+    private async Task ToggleAsync()
+    {
+        open = !open;
+
+        if (!open)
             return;
 
-        var client = HttpClientFactory.CreateClient("ApiClient");
-        client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        // Her açılışta yeniden çekiliyor: panel açıkken gelen bildirimleri
+        // kaçırmamak için önbelleğe güvenmiyoruz.
+        await LoadItemsAsync();
+    }
+
+    private void Close() => open = false;
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            open = false;
+    }
+
+    private async Task LoadItemsAsync()
+    {
+        loading = true;
 
         try
         {
-            unreadCount = await client.GetFromJsonAsync<int>("api/notifications/unread-count");
+            var api = await GetApiAsync();
+            if (api == null)
+                return;
+
+            var page = await api.GetFromJsonAsync<PagedResult<NotificationDto>>(
+                $"api/notifications?take={PanelSize}");
+            items = page?.Items ?? new();
+        }
+        catch
+        {
+            // Panel açılamazsa zil kullanılabilir kalsın; kullanıcı "Tümünü gör"
+            // ile sayfaya gidebiliyor.
+            items = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task LoadUnreadCountAsync()
+    {
+        try
+        {
+            var api = await GetApiAsync();
+            if (api == null)
+                return;
+
+            unreadCount = await api.GetFromJsonAsync<int>("api/notifications/unread-count");
         }
         catch
         {
             // Sayaç okunamazsa zil rozetsiz gösterilir; navbar'ı düşürmeye değmez.
             unreadCount = 0;
         }
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        marking = true;
+
+        try
+        {
+            var api = await GetApiAsync();
+            if (api == null)
+                return;
+
+            var response = await api.PostAsync("api/notifications/read", null);
+            if (!response.IsSuccessStatusCode)
+                return;
+
+            unreadCount = 0;
+            if (items != null)
+                foreach (var notification in items)
+                    notification.IsRead = true;
+        }
+        finally
+        {
+            marking = false;
+        }
+    }
+
+    private void StartBadgeRefresh()
+    {
+        var cts = new CancellationTokenSource();
+        refreshCts = cts;
+
+        _ = RunBadgeRefreshAsync(cts.Token);
+    }
+
+    private async Task RunBadgeRefreshAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(BadgeRefreshInterval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await LoadUnreadCountAsync();
+                // Zamanlayıcı render döngüsünün dışında; değişikliği elle bildir.
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Devre kapandı.
+        }
+    }
+
+    private async Task<HttpClient?> GetApiAsync()
+    {
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (string.IsNullOrEmpty(token))
+            return null;
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    /// <summary>Kaba göreli zaman; panelde tam tarih yerine "3 sa" yeterli.</summary>
+    private static string Ago(DateTime utc)
+    {
+        var span = DateTime.UtcNow - utc;
+
+        if (span.TotalMinutes < 1) return "az önce";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes} dk";
+        if (span.TotalDays < 1) return $"{(int)span.TotalHours} sa";
+        if (span.TotalDays < 7) return $"{(int)span.TotalDays} gün";
+
+        return utc.ToLocalTime().ToString("d MMM");
+    }
+
+    public void Dispose()
+    {
+        refreshCts?.Cancel();
+        refreshCts?.Dispose();
     }
 }

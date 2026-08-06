@@ -32,8 +32,8 @@
             @foreach (var notification in notifications)
             {
                 <li class="@(notification.IsRead ? "row-item" : "row-item unread")">
-                    <a class="actor" href="@ProfileUrl(notification.ActorUsername)">@notification.ActorDisplayName</a>
-                    <span class="text">@Sentence(notification)</span>
+                    <a class="actor" href="@NotificationText.ProfileUrl(notification.ActorUsername)">@notification.ActorDisplayName</a>
+                    <span class="text">@NotificationText.Sentence(notification)</span>
                     @if (notification.TmdbShowId.HasValue)
                     {
                         <a class="show" href="/show/@notification.TmdbShowId">@notification.ShowName</a>
@@ -96,17 +96,6 @@
         }
     }
 
-    private static string Sentence(NotificationDto notification) => notification.Type switch
-    {
-        NotificationType.Followed => "seni takip etmeye başladı",
-        NotificationType.ReviewLiked => notification.SeasonNumber.HasValue
-            ? $"{notification.SeasonNumber}. sezon incelemeni beğendi —"
-            : "incelemeni beğendi —",
-        NotificationType.ListLiked => "listeni beğendi —",
-        _ => notification.SeasonNumber.HasValue
-            ? $"{notification.SeasonNumber}. sezon incelemene yorum yazdı —"
-            : "incelemene yorum yazdı —"
-    };
-
-    private static string ProfileUrl(string username) => "/" + '@' + username;
+    // Cümleler ve bağlantılar NotificationText'te: zil paneli de aynılarını
+    // kuruyor, iki kopya olsa biri güncellenip diğeri unutulurdu.
 }
