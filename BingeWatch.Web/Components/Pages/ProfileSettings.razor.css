@@ -1,0 +1,66 @@
+.profile-settings {
+    max-width: 34rem;
+}
+
+.field {
+    margin-bottom: 18px;
+}
+
+.field label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.9rem;
+}
+
+.field small {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.78rem;
+}
+
+/* Onay kutusu satır içi; açıklaması altında tam genişlikte kalıyor. */
+.field.checkbox {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 8px;
+    align-items: center;
+}
+
+.field.checkbox input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+}
+
+.field.checkbox label {
+    margin: 0;
+}
+
+.field.checkbox small {
+    grid-column: 1 / -1;
+    margin-top: 2px;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.error {
+    margin-top: 12px;
+    color: var(--bs-danger-text-emphasis, #ea868f);
+}
+
+.saved {
+    margin-top: 12px;
+    color: var(--bs-success-text-emphasis, #75b798);
+}
+
+@media (pointer: coarse) {
+    .field.checkbox input {
+        width: 24px;
+        height: 24px;
+    }
+}

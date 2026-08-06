@@ -60,5 +60,24 @@ namespace BingeWatch.API.Dtos
 
         /// <summary>Profil isteği yapanın kendisine mi ait? Takip butonu gizlenir.</summary>
         public bool IsViewer { get; set; }
+
+        /// <summary>
+        /// Yalnızca sahibi kendi profilini okurken dolu; başkasının gizlilik
+        /// tercihi kimseyi ilgilendirmiyor ve gizli profil zaten hiç dönmüyor.
+        /// </summary>
+        public bool? IsPrivate { get; set; }
+    }
+
+    /// <summary>
+    /// Profil düzenleme. Kullanıcı adı ve e-posta bilerek dışarıda: ikisi de
+    /// kimlik alanı, değiştirilmeleri ayrı akışlar (adres doğrulama, eski
+    /// bağlantıların kırılması) gerektirir.
+    /// </summary>
+    public class UpdateProfileRequest
+    {
+        public string? DisplayName { get; set; }
+        public string? Bio { get; set; }
+        public string? AvatarUrl { get; set; }
+        public bool IsPrivate { get; set; }
     }
 }
