@@ -9,9 +9,10 @@ Bu doküman mevcut kod tabanının analizini, hedef özellik setini ve faz faz u
 
 ## 1. Mevcut Durum
 
-*Son güncelleme: 30 Temmuz 2026. Faz 0–7 tamamlandı; şifre sıfırlama SMTP
-yapılandırması ve rewatch bitti. Kalan açık maddeler §7.1'de, hedef özellik
-setinden geriye yalnızca etiketleme kaldı (§7.6).*
+*Son güncelleme: 7 Ağustos 2026. Faz 0–8 tamamlandı. Docker x86-64'te
+doğrulandı, profil düzenleme ve gizlilik anahtarı eklendi, Web katmanı test
+altına alındı; oyun ve trivia sayfaları açıldı. Kalan açık maddeler §7.1'de,
+hedef özellik setinden geriye yalnızca etiketleme kaldı (§7.6).*
 
 İki ASP.NET Core projesi (.NET 10), tek solution:
 
@@ -39,6 +40,9 @@ setinden geriye yalnızca etiketleme kaldı (§7.6).*
   iplik yalnızca o bölümü izlemiş olana açık ve hiçbir akışa düşmez (Faz 7)
 - **Yeniden izleme (rewatch)** ve **"nerede kaldım" işareti** — ikisi de
   ilerleme modeline dokunmadan eklendi; yarıda kalan bölüm panelde öne geçer (Faz 7)
+- **Profil düzenleme + gizlilik anahtarı** — `IsPrivate` artık kullanılabiliyor (Faz 8)
+- **Kullanıcı arama** (`/search`) ve **oyunlar**: `/game` (hangisinin puanı
+  yüksek) ve `/trivia` (üretilmiş sorular) — Faz 8
 - Listeler, filtreli keşif, gelişmiş arama, istatistik sayfası (Faz 5)
 - **Moderasyon**: rate limiting, kullanıcı engelleme, içerik bildirimi ve
   `/admin/reports` paneli (Faz 6.1)
@@ -726,6 +730,59 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
       dedi → bölüm işaretlenince işaret silindi ve panel sıradaki bölüme
       geçti → 49 dakikalık bölüme 999 girilince "Dakika 0 ile 49 arasında
       olmalı" hatası döndü. Konsol ve API logunda hata yok
+
+### Faz 8 — Eksik yüzey ve oyunlaştırma (07.08.2026)
+
+> Bir değerlendirmeden çıktı: **arka uç olgun, ön yüz kanıtlanmamıştı.** Aynı
+> gün bulunan üç hatanın (ikon fontu, kültür, kullanıcı aramanın hiç olmaması)
+> üçü de Web katmanındaydı ve hiçbiri teste takılmamıştı.
+
+- [x] **Profil düzenleme + gizlilik anahtarı** — `/settings/profile`
+  - **`IsPrivate` buraya kadar ölü koddu.** Gizlilik kuralı takip, istatistik,
+      liste ve arama servislerinin hepsinde özenle uygulanıyordu ama
+      kullanıcının bayrağı açacak bir yeri yoktu: özenle korunan bir kapı,
+      ama kolu yok. Kullanıcı görünen adını, bio'sunu ve avatarını da kayıt
+      olduktan sonra hiç değiştiremiyordu
+  - Doğrulama controller'ın içinde test edilemez halde duracaktı; saf bir
+      `ProfileValidator`'a alındı
+  - **Avatar adresinde şema beyaz listesi** — `javascript:` ve `data:`
+      adresleri `<img src>` üzerinden saldırı yüzeyi açardı
+  - Kullanıcı adı ve e-posta bilerek düzenlenemiyor: ikisi de kimlik alanı,
+      değiştirilmeleri ayrı akışlar (adres doğrulama, eski bağlantıların
+      kırılması) gerektirir
+- [x] **Devre yarışı kapatıldı** — prerender edilmiş HTML, SignalR devresi
+      bağlanana kadar ölü; o aralıktaki tıklamalar sessizce kayboluyordu.
+      E2E süiti bunu `WaitForInteractiveTabsAsync` ile elle bekliyordu ama
+      **gerçek kullanıcıya aynı koruma verilmemişti** (§7.2'de "test tuzağı"
+      diye kayıtlıydı, aslında ürün hatasıydı). `InteractiveComponentBase`
+      ilk gerçek render'ı yakalıyor, kontroller o ana kadar devre dışı
+- [x] **Web katmanına test** (`RenderingRegressionTests`) — öğenin varlığını
+      değil kullanıcının gördüğü sonucu ölçüyor: kritik varlıklar sunuluyor
+      mu, ikon fontu yüklü ve ikonlar yer kaplıyor mu, tarih/sayı Türkçe mi,
+      prerender'da butonlar devre dışı mı. **Bekçilik ettiği doğrulandı:**
+      ikon CSS bağlantısı kaldırılınca test "ikonlar çizilmiyor" diyerek düştü
+- [x] **Mini oyun** (`/game`) — iki dizi, hangisinin TMDb puanı yüksek;
+      doğru bildikçe uzayan seri
+  - Havuz **yerel katalogdan değil TMDb popüler listesinden**: katalog
+      yalnızca dokunulmuş dizileri içeriyor, yeni bir kurulumda (Docker, Pi
+      demosu) oyun hiç açılmazdı
+  - Az oylu diziler eleniyor — tek 10'luk oy almış bir dizi "10.0" görünüyor
+      ve böyle bir çift tahmin değil kura olurdu (keşifteki `vote_count.gte`
+      eşiğiyle aynı gerekçe)
+  - Puanlar cevaptan önce gösterilmiyor; Blazor Server'da bileşen durumu
+      sunucuda yaşadığı için cevap DOM'a da düşmüyor
+- [x] **Dizi trivia** (`/trivia`) — poster tahmini, yayın yılı, "hangisi en eski"
+  - **Sorular hiçbir yerde saklanmıyor**, katalog verisinden anlık üretiliyor.
+      Yeni tablo yok, her dizi için içerik yazmak gerekmiyor, havuz katalog
+      büyüdükçe kendiliğinden büyüyor
+  - *"Veritabanı şişer mi?" sorusunun cevabı:* konu dışı kaldı. 16 dizilik
+      katalog zaten **29.068 bölüm satırı** taşıyor; dizi başına beş soru
+      saklansa 80 satır ederdi. Asıl kısıt içerik üretimiydi, disk değil
+  - **Çeldiriciler rastgele değil:** yıl sorusunda doğru yılın etrafından
+      seçiliyor, aksi halde soru tahmin değil eleme oyunu olurdu
+  - Aynı yılda başlayan diziler "hangisi en eski" sorusunu cevapsız
+      bırakacağı için o durumda soru yeniden üretiliyor
+  - Poster sorusunda `alt` bilerek boş: açıklama yazmak cevabı ele verirdi
 
 ---
 
