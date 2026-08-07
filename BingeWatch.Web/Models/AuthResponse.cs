@@ -24,5 +24,16 @@ namespace BingeWatch.Web.Models
 
         public bool IsFollowedByViewer { get; set; }
         public bool IsViewer { get; set; }
+
+        /// <summary>Yalnızca sahibi kendi profilini okurken dolu.</summary>
+        public bool? IsPrivate { get; set; }
+    }
+
+    public class UpdateProfileRequest
+    {
+        public string? DisplayName { get; set; }
+        public string? Bio { get; set; }
+        public string? AvatarUrl { get; set; }
+        public bool IsPrivate { get; set; }
     }
 }

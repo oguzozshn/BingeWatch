@@ -71,8 +71,38 @@ namespace BingeWatch.API.Controllers
                 FollowerCount = await _followService.GetFollowerCountAsync(user.Id),
                 FollowingCount = await _followService.GetFollowingCountAsync(user.Id),
                 IsFollowedByViewer = ViewerId != null && await _followService.IsFollowingAsync(ViewerId, user.Id),
-                IsViewer = user.Id == ViewerId
+                IsViewer = user.Id == ViewerId,
+                IsPrivate = user.Id == ViewerId ? user.IsPrivate : null
             });
+        }
+
+        /// <summary>
+        /// Kendi profilini düzenleme. <c>IsPrivate</c> buraya kadar ölü koddu:
+        /// gizlilik kuralı takip, istatistik, liste ve arama servislerinin
+        /// hepsinde uygulanıyordu ama kullanıcının bayrağı açacak bir yeri yoktu.
+        /// </summary>
+        [HttpPut("me")]
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicies.Write)]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+        {
+            var user = await _userManager.FindByIdAsync(ViewerId!);
+            if (user == null)
+                return NotFound();
+
+            if (!ProfileValidator.TryNormalize(request, out var clean, out var error))
+                return BadRequest(new { message = error });
+
+            user.DisplayName = clean.DisplayName!;
+            user.Bio = clean.Bio;
+            user.AvatarUrl = clean.AvatarUrl;
+            user.IsPrivate = clean.IsPrivate;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return BadRequest(new { message = string.Join(" ", result.Errors.Select(e => e.Description)) });
+
+            return NoContent();
         }
 
         /// <summary>Profil sayfasının istatistik bloğu: kartlar, favori diziler, yıllık özet.</summary>

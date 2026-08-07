@@ -16,5 +16,11 @@ namespace BingeWatch.API.Dtos
         /// external_ids isteği atmasını (N+1) gereksiz kılar.
         /// </summary>
         public string? ImdbId { get; set; }
+
+        /// <summary>TMDb kullanıcı puanı (0–10).</summary>
+        public double VoteAverage { get; set; }
+
+        /// <summary>Kaç oydan geldiği — tek oylu diziler puanı anlamsız kılıyor.</summary>
+        public int VoteCount { get; set; }
     }
 }

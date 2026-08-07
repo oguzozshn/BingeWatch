@@ -1,5 +1,6 @@
 @page "/show/{TmdbId:int}/season/{SeasonNumber:int}/episode/{EpisodeNumber:int}"
 @rendermode InteractiveServer
+@inherits BingeWatch.Web.InteractiveComponentBase
 
 @inject IHttpClientFactory HttpClientFactory
 
@@ -70,7 +71,10 @@ else
                         @if (!Unaired)
                         {
                             <div class="personal">
+                                @* Devre kurulana kadar devre dışı; prerender
+                                   edilmiş butona yapılan tıklama yutuluyordu. *@
                                 <button type="button" class="watch-btn @(ep.Watched ? "on" : "")"
+                                        disabled="@(!Interactive)"
                                         @onclick="ToggleWatchedAsync">
                                     @(ep.Watched ? "✓ İzledim" : "İzledim olarak işaretle")
                                 </button>
@@ -85,7 +89,8 @@ else
                             @if (ep.Watched)
                             {
                                 <div class="rewatch">
-                                    <button type="button" class="rewatch-btn" @onclick="AddRewatchAsync">
+                                    <button type="button" class="rewatch-btn"
+                                            disabled="@(!Interactive)" @onclick="AddRewatchAsync">
                                         ↻ Yeniden izledim
                                     </button>
 
@@ -123,7 +128,8 @@ else
                                         <input id="bookmark-minutes" type="number" min="0"
                                                max="@(ep.Runtime ?? 600)" class="bookmark-input"
                                                @bind="bookmarkInput" />
-                                        <button type="button" class="link-btn" @onclick="SaveBookmarkAsync">
+                                        <button type="button" class="link-btn"
+                                                disabled="@(!Interactive)" @onclick="SaveBookmarkAsync">
                                             Kaydet
                                         </button>
                                     }

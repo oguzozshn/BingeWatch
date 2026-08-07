@@ -1,0 +1,154 @@
+@page "/settings/profile"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+@using BingeWatch.Web.Models
+
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageMeta Title="Profil ayarları" NoIndex="true" />
+
+<div class="profile-settings">
+    <h1>Profil ayarları</h1>
+
+    @if (loading)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (form == null)
+    {
+        <p class="muted">Profil okunamadı.</p>
+    }
+    else
+    {
+        <div class="field">
+            <label for="display-name">Görünen ad</label>
+            <input id="display-name" class="form-control" maxlength="50"
+                   @bind="form.DisplayName" @bind:event="oninput" />
+            <small class="muted">Kullanıcı adın (@@@username) değişmez; bu yalnızca gösterilen ad.</small>
+        </div>
+
+        <div class="field">
+            <label for="bio">Hakkında</label>
+            <textarea id="bio" class="form-control" rows="3" maxlength="300"
+                      @bind="form.Bio" @bind:event="oninput"></textarea>
+            <small class="muted">@(form.Bio?.Length ?? 0)/300</small>
+        </div>
+
+        <div class="field">
+            <label for="avatar">Avatar adresi</label>
+            <input id="avatar" class="form-control" type="url" placeholder="https://..."
+                   @bind="form.AvatarUrl" @bind:event="oninput" />
+            <small class="muted">Bir görselin http(s) adresi. Boş bırakırsan baş harflerin gösterilir.</small>
+        </div>
+
+        @* Gizlilik kuralı takip, istatistik, liste ve arama servislerinin
+           hepsinde zaten uygulanıyordu; eksik olan tek şey bu anahtardı. *@
+        <div class="field checkbox">
+            <input id="is-private" type="checkbox" @bind="form.IsPrivate" />
+            <label for="is-private">Profilim gizli olsun</label>
+            <small class="muted">
+                Gizli profil yalnızca sana görünür: kimse seni takip edemez,
+                listelerini, istatistiklerini ve incelemelerini göremez. Aramada
+                da çıkmazsın. Mevcut takipçilerin korunur ama seni göremezler.
+            </small>
+        </div>
+
+        <div class="actions">
+            <button type="button" class="btn btn-primary" disabled="@saving" @onclick="SaveAsync">
+                @(saving ? "Kaydediliyor..." : "Kaydet")
+            </button>
+            <a class="btn btn-outline-secondary" href="/@@@username">Profilime dön</a>
+        </div>
+
+        @if (error != null)
+        {
+            <p class="error" role="alert">@error</p>
+        }
+        else if (saved)
+        {
+            <p class="saved" role="status">Kaydedildi.</p>
+        }
+    }
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private UpdateProfileRequest? form;
+    private string username = string.Empty;
+    private bool loading = true;
+    private bool saving;
+    private bool saved;
+    private string? error;
+
+    private async Task<HttpClient> GetApiAsync()
+    {
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        var authState = await AuthStateTask!;
+        var token = authState.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask!;
+        username = authState.User.Identity?.Name ?? string.Empty;
+
+        var api = await GetApiAsync();
+        var profile = await api.GetFromJsonAsync<UserProfileDto>($"api/users/{username}");
+
+        if (profile != null)
+        {
+            form = new UpdateProfileRequest
+            {
+                DisplayName = profile.DisplayName,
+                Bio = profile.Bio,
+                AvatarUrl = profile.AvatarUrl,
+                // Kendi profilini okurken dolu geliyor; null gelirse gizli değil sayılır.
+                IsPrivate = profile.IsPrivate ?? false
+            };
+        }
+
+        loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        error = null;
+        saved = false;
+
+        try
+        {
+            var api = await GetApiAsync();
+            var response = await api.PutAsJsonAsync("api/users/me", form!);
+
+            if (response.IsSuccessStatusCode)
+            {
+                saved = true;
+            }
+            else
+            {
+                var problem = await response.Content.ReadFromJsonAsync<ApiMessage>();
+                error = string.IsNullOrWhiteSpace(problem?.Message)
+                    ? "Kaydedilemedi."
+                    : problem.Message;
+            }
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private sealed class ApiMessage
+    {
+        public string? Message { get; set; }
+    }
+}
