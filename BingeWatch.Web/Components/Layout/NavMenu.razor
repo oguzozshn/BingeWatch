@@ -26,13 +26,18 @@
                     <i class="bi bi-search" aria-hidden="true"></i> Ara
                 </NavLink>
             </li>
-            <li class="nav-item">
-                <NavLink class="nav-link" href="watchlist">
-                    <i class="bi bi-list-nested" aria-hidden="true"></i> Watchlist
-                </NavLink>
-            </li>
+            @* Watchlist ve Akış kişisel sayfalar ([Authorize]); anonime
+               gösterilmeleri var olmayan bir kapı göstermek olurdu — tıklayan
+               kullanıcı hiçbir açıklama görmeden giriş ekranına düşüyordu.
+               Keşif sayfaları (Diziler, Keşfet, Ara, İncelemeler, Listeler,
+               oyunlar) bilerek açık: Faz 6.4'te SEO için alınan karar. *@
             <AuthorizeView>
                 <Authorized>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="watchlist">
+                            <i class="bi bi-list-nested" aria-hidden="true"></i> Watchlist
+                        </NavLink>
+                    </li>
                     <li class="nav-item">
                         <NavLink class="nav-link" href="feed">
                             <i class="bi bi-activity" aria-hidden="true"></i> Akış

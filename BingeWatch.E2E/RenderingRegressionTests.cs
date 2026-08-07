@@ -101,6 +101,47 @@ namespace BingeWatch.E2E
         }
 
         /// <summary>
+        /// Anonim ziyaretçiye kişisel sayfaların linki gösterilmemeli. Erişim
+        /// zaten <c>[Authorize]</c> ile kapalı — ama linki göstermek var
+        /// olmayan bir kapı göstermek: tıklayan kullanıcı hiçbir açıklama
+        /// görmeden giriş ekranına düşüyordu.
+        /// </summary>
+        [Theory]
+        [InlineData("/watchlist")]
+        [InlineData("/feed")]
+        [InlineData("/notifications")]
+        [InlineData("/settings/profile")]
+        public async Task Navbar_HidesPersonalLinksFromAnonymousVisitor(string path)
+        {
+            var page = await _app.NewPageAsync();
+            await page.GotoAsync($"{AppFixture.WebUrl}/login");
+
+            var linkCount = await page.Locator($"nav a[href='{path.TrimStart('/')}']").CountAsync();
+
+            Assert.Equal(0, linkCount);
+        }
+
+        /// <summary>
+        /// Linkin gizlenmesi yetmez: adres elle yazıldığında da erişim
+        /// kapalı olmalı.
+        /// </summary>
+        [Theory]
+        [InlineData("/watchlist")]
+        [InlineData("/feed")]
+        [InlineData("/notifications")]
+        [InlineData("/settings/profile")]
+        [InlineData("/settings/blocks")]
+        public async Task PersonalPages_RedirectAnonymousToLogin(string path)
+        {
+            var page = await _app.NewPageAsync();
+
+            var response = await page.GotoAsync($"{AppFixture.WebUrl}{path}");
+
+            Assert.NotNull(response);
+            Assert.Contains("/login", page.Url);
+        }
+
+        /// <summary>
         /// Prerender edilmiş HTML, devre bağlanana kadar ölü. Buton o aralıkta
         /// tıklanabilir görünürse kullanıcı basar, hiçbir şey olmaz ve nedenini
         /// anlamaz. Sunucudan gelen ham HTML'e bakıyoruz: tarayıcı devreyi

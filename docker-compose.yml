@@ -32,6 +32,11 @@ services:
     restart: unless-stopped
 
   api:
+    # Sabit etiket, sunucuda yeniden derlemeden çalıştırabilmek için:
+    # imaj güçlü bir makinede build edilip `docker save | ssh docker load`
+    # ile taşınıyor, sonra `docker compose up --no-build`. Hetzner'de 3.7 GB
+    # RAM var ve .NET SDK derlemesi orada OOM riski taşıyor.
+    image: bingewatch-api:latest
     build:
       context: .
       dockerfile: BingeWatch.API/Dockerfile
@@ -74,6 +79,7 @@ services:
     restart: unless-stopped
 
   web:
+    image: bingewatch-web:latest
     build:
       context: .
       dockerfile: BingeWatch.Web/Dockerfile
