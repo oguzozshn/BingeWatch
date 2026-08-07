@@ -26,5 +26,21 @@ namespace BingeWatch.API.Controllers
 
             return Ok(round);
         }
+
+        /// <summary>
+        /// Üretilmiş trivia sorusu. Soru tipine göre bazen havuz yetmiyor
+        /// (ör. aynı yılda başlayan diziler); o durumda 503 yerine yeniden
+        /// denemek istemcinin işi — uç boş soru uydurmuyor.
+        /// </summary>
+        [HttpGet("trivia")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetTrivia()
+        {
+            var question = await _gameService.GetTriviaAsync();
+            if (question == null)
+                return StatusCode(503, new { message = "Soru üretilemedi." });
+
+            return Ok(question);
+        }
     }
 }

@@ -1,0 +1,158 @@
+@page "/trivia"
+@rendermode InteractiveServer
+@inherits BingeWatch.Web.InteractiveComponentBase
+
+@inject IHttpClientFactory HttpClientFactory
+
+@*
+    Dizi trivia'sı. Sorular hiçbir yerde saklanmıyor; katalog verisinden
+    üretiliyor (poster, yıl, sıralama). Yeni tablo yok, her dizide çalışıyor.
+*@
+
+<PageMeta Title="Dizi trivia"
+          Description="Poster, yıl ve sıralama soruları — dizi bilgini sına." />
+
+<div class="trivia">
+    <header class="trivia-head">
+        <h1>Dizi trivia</h1>
+        <p class="muted">Doğru bildikçe seri uzar; ilk yanlışta başa döner.</p>
+    </header>
+
+    <div class="scoreboard" role="status">
+        <span>Seri: <strong>@score</strong></span>
+        @if (bestScore > 0)
+        {
+            <span class="best">En iyi: <strong>@bestScore</strong></span>
+        }
+    </div>
+
+    @if (loading && question == null)
+    {
+        <p class="muted">Soru hazırlanıyor...</p>
+    }
+    else if (question == null)
+    {
+        <p class="error" role="alert">Soru üretilemedi — birazdan tekrar dene.</p>
+        <button type="button" class="btn btn-primary" disabled="@(!Interactive)" @onclick="LoadAsync">
+            Tekrar dene
+        </button>
+    }
+    else
+    {
+        <h2 class="question">@question.Question</h2>
+
+        @if (!string.IsNullOrEmpty(question.PosterPath))
+        {
+            @* alt boş: cevabın kendisi görselde, açıklama yazmak soruyu ele verir. *@
+            <img class="poster" src="@PosterUrl(question.PosterPath)" alt="" />
+        }
+
+        <ul class="options">
+            @for (var i = 0; i < question.Options.Count; i++)
+            {
+                var index = i;
+                <li>
+                    <button type="button"
+                            class="option @OptionClass(index)"
+                            disabled="@(answered != null || loading || !Interactive)"
+                            @onclick="() => AnswerAsync(index)">
+                        @question.Options[index]
+                    </button>
+                </li>
+            }
+        </ul>
+
+        @if (answered != null)
+        {
+            <div class="result @(IsCorrect ? "ok" : "bad")" role="status">
+                <p class="verdict">
+                    @(IsCorrect ? "Doğru!" : $"Yanlış — seri {score} puanda bitti.")
+                </p>
+                @if (!string.IsNullOrWhiteSpace(question.Explanation))
+                {
+                    <p class="explanation">@question.Explanation</p>
+                }
+                <button type="button" class="btn btn-primary"
+                        disabled="@(loading || !Interactive)" @onclick="NextAsync">
+                    @(IsCorrect ? "Devam" : "Yeniden başla")
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private TriviaQuestionDto? question;
+    private int? answered;
+    private int score;
+    private int bestScore;
+    private bool loading;
+
+    private bool IsCorrect => answered == question?.CorrectIndex;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private string OptionClass(int index)
+    {
+        if (answered == null)
+            return string.Empty;
+
+        // Cevaptan sonra doğru şık her hâlükârda işaretleniyor: kullanıcı
+        // yanlış bildiğinde doğrusunu görmeden geçmesin.
+        if (index == question!.CorrectIndex)
+            return "correct";
+
+        return index == answered ? "wrong" : "faded";
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        answered = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync("api/game/trivia");
+
+            question = response.IsSuccessStatusCode
+                ? await response.Content.ReadFromJsonAsync<TriviaQuestionDto>()
+                : null;
+        }
+        catch (HttpRequestException)
+        {
+            question = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private Task AnswerAsync(int index)
+    {
+        if (question == null || answered != null)
+            return Task.CompletedTask;
+
+        answered = index;
+
+        if (IsCorrect)
+        {
+            score++;
+            if (score > bestScore)
+                bestScore = score;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task NextAsync()
+    {
+        if (!IsCorrect)
+            score = 0;
+
+        await LoadAsync();
+    }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w342{path}";
+}

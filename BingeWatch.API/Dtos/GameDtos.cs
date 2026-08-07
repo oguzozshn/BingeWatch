@@ -27,4 +27,25 @@ namespace BingeWatch.API.Dtos
         public int? FirstAirYear { get; set; }
         public double VoteAverage { get; set; }
     }
+
+    /// <summary>
+    /// Tek bir trivia sorusu. Sorular saklanmıyor, katalog verisinden anlık
+    /// üretiliyor: yeni tablo yok, katalog büyüdükçe havuz kendiliğinden
+    /// büyüyor ve hiçbir dizi için içerik yazmak gerekmiyor.
+    /// </summary>
+    public class TriviaQuestionDto
+    {
+        public string Question { get; set; } = string.Empty;
+
+        /// <summary>Poster tahmini sorularında dolu; diğerlerinde <c>null</c>.</summary>
+        public string? PosterPath { get; set; }
+
+        public List<string> Options { get; set; } = new();
+
+        /// <summary><see cref="Options"/> içindeki doğru şıkkın sırası.</summary>
+        public int CorrectIndex { get; set; }
+
+        /// <summary>Cevaptan sonra gösterilen kısa açıklama.</summary>
+        public string? Explanation { get; set; }
+    }
 }
