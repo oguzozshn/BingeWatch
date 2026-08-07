@@ -1,0 +1,178 @@
+@page "/game"
+@rendermode InteractiveServer
+@inherits BingeWatch.Web.InteractiveComponentBase
+
+@inject IHttpClientFactory HttpClientFactory
+
+@*
+    "Hangisinin puanı yüksek?" — iki dizi, tek soru, seri devam ettikçe skor.
+
+    Puanlar sunucudaki bileşen durumunda duruyor (Blazor Server); tarayıcıya
+    yalnızca çizilen HTML gidiyor, yani cevap DOM'da görünmüyor.
+*@
+
+<PageMeta Title="Hangisi daha yüksek?"
+          Description="İki diziden hangisinin TMDb puanı yüksek? Seriyi ne kadar uzatabilirsin?" />
+
+<div class="game">
+    <header class="game-head">
+        <h1>Hangisinin puanı yüksek?</h1>
+        <p class="muted">İki diziden TMDb puanı yüksek olanı seç. Yanlış cevapta seri biter.</p>
+    </header>
+
+    <div class="scoreboard" role="status">
+        <span class="score">Seri: <strong>@score</strong></span>
+        @if (bestScore > 0)
+        {
+            <span class="best">En iyi: <strong>@bestScore</strong></span>
+        }
+    </div>
+
+    @if (loading && round == null)
+    {
+        <p class="muted">Diziler getiriliyor...</p>
+    }
+    else if (round == null)
+    {
+        <p class="error" role="alert">
+            Oyun şu an açılamıyor — dizi listesi alınamadı. Birazdan tekrar dene.
+        </p>
+        <button type="button" class="btn btn-primary" disabled="@(!Interactive)" @onclick="StartAsync">
+            Tekrar dene
+        </button>
+    }
+    else
+    {
+        <div class="arena">
+            @RenderContender(round.Left)
+            <div class="versus" aria-hidden="true">vs</div>
+            @RenderContender(round.Right)
+        </div>
+
+        @if (result != null)
+        {
+            <div class="result @(result.Correct ? "ok" : "bad")" role="status">
+                <p class="verdict">
+                    @if (result.Correct)
+                    {
+                        <span>Doğru!</span>
+                    }
+                    else
+                    {
+                        <span>Yanlış — seri @score puanda bitti.</span>
+                    }
+                </p>
+                <p class="reveal">
+                    @round.Left.Name: <strong>@round.Left.VoteAverage.ToString("0.0")</strong>
+                    &nbsp;·&nbsp;
+                    @round.Right.Name: <strong>@round.Right.VoteAverage.ToString("0.0")</strong>
+                </p>
+
+                <button type="button" class="btn btn-primary" disabled="@(loading || !Interactive)"
+                        @onclick="NextAsync">
+                    @(result.Correct ? "Devam" : "Yeniden başla")
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private GameRoundDto? round;
+    private GuessResult? result;
+    private int score;
+    private int bestScore;
+    private bool loading;
+
+    private sealed record GuessResult(bool Correct);
+
+    protected override async Task OnInitializedAsync() => await StartAsync();
+
+    private RenderFragment RenderContender(GameContenderDto c) => @<button
+        type="button"
+        class="contender"
+        disabled="@(result != null || loading || !Interactive)"
+        @onclick="() => GuessAsync(c.TmdbId)">
+        @if (string.IsNullOrEmpty(c.PosterPath))
+        {
+            <span class="no-poster">@c.Name</span>
+        }
+        else
+        {
+            <img src="@PosterUrl(c.PosterPath)" alt="" loading="lazy" />
+        }
+        <span class="info">
+            <span class="name">@c.Name</span>
+            @if (c.FirstAirYear.HasValue)
+            {
+                <span class="year">@c.FirstAirYear</span>
+            }
+            @* Puan yalnızca cevaptan sonra açılıyor; oyun bundan ibaret. *@
+            @if (result != null)
+            {
+                <span class="rating">@c.VoteAverage.ToString("0.0")</span>
+            }
+        </span>
+    </button>;
+
+    private async Task StartAsync()
+    {
+        score = 0;
+        result = null;
+        await LoadRoundAsync();
+    }
+
+    private async Task LoadRoundAsync()
+    {
+        loading = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            var response = await client.GetAsync("api/game/round");
+
+            round = response.IsSuccessStatusCode
+                ? await response.Content.ReadFromJsonAsync<GameRoundDto>()
+                : null;
+        }
+        catch (HttpRequestException)
+        {
+            // API'ye ulaşılamıyor; kullanıcıya boş ekran yerine mesaj gösteriyoruz.
+            round = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task GuessAsync(int tmdbId)
+    {
+        if (round == null || result != null)
+            return;
+
+        // Eşitlikte iki cevap da doğru: kullanıcıyı kurayla cezalandırmıyoruz.
+        var correct = round.IsTie || tmdbId == round.WinnerTmdbId;
+
+        if (correct)
+        {
+            score++;
+            if (score > bestScore)
+                bestScore = score;
+        }
+
+        result = new GuessResult(correct);
+        await Task.CompletedTask;
+    }
+
+    private async Task NextAsync()
+    {
+        if (result is { Correct: false })
+            score = 0;
+
+        result = null;
+        await LoadRoundAsync();
+    }
+
+    private static string PosterUrl(string? path) =>
+        string.IsNullOrEmpty(path) ? "" : $"https://image.tmdb.org/t/p/w342{path}";
+}

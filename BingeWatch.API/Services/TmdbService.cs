@@ -69,7 +69,9 @@ namespace BingeWatch.API.Services
             Name = s.Name,
             Overview = s.Overview,
             PosterPath = s.PosterPath,
-            FirstAirDate = s.FirstAirDate
+            FirstAirDate = s.FirstAirDate,
+            VoteAverage = s.VoteAverage,
+            VoteCount = s.VoteCount
         };
     }
 }
