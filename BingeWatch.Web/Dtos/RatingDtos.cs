@@ -24,6 +24,9 @@ namespace BingeWatch.Web.Dtos
         public int? EpisodeId { get; set; }
         public decimal Value { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        /// <summary>Puan bölümü aynı istekte "izledim" olarak işaretlediyse <c>true</c>.</summary>
+        public bool MarkedWatched { get; set; }
     }
 
     public class ShowRatingsDto

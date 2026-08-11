@@ -334,8 +334,18 @@ else
                 Content = JsonContent.Create(request)
             });
 
-        if (response.IsSuccessStatusCode)
-            ep.MyRating = value;
+        if (!response.IsSuccessStatusCode)
+            return;
+
+        ep.MyRating = value;
+
+        // Puan verilen bölümü sunucu izlendi olarak da işaretliyor; kutu ile
+        // "nerede kaldım" satırı aynı tıkta güncellensin.
+        if (value.HasValue && await response.Content.ReadFromJsonAsync<RatingDto>() is { MarkedWatched: true })
+        {
+            ep.Watched = true;
+            ep.ResumeAtMinutes = null;
+        }
     }
 
     private string Url(EpisodeRefDto r) =>

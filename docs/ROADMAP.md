@@ -131,7 +131,7 @@ Puanlama üç seviyede olabilir (dizi / sezon / bölüm).
 
 | Özellik | Not |
 |---|---|
-| 5 yıldız (yarım yıldız) puan | Dizi, sezon ve bölüm seviyesinde |
+| 5 yıldız (yarım yıldız) puan | Dizi, sezon ve bölüm seviyesinde; bölüm puanı bölümü izlendi olarak da işaretler |
 | Yazılı inceleme | Dizi + sezon; spoiler bayrağı zorunlu |
 | Kişisel bölüm ısı haritası | Mevcut TMDb haritasının yanına *kendi* puanların — imza özellik adayı |
 | Beğeni (like) | İnceleme ve listelerde |
