@@ -28,6 +28,12 @@ namespace BingeWatch.API.Dtos
         public int? EpisodeId { get; set; }
         public decimal Value { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        /// <summary>
+        /// Bu puan bölümü aynı istekte "izledim" olarak işaretlediyse <c>true</c>.
+        /// İstemci izleme kutusunu ve ilerlemeyi tazelemek için buna bakar.
+        /// </summary>
+        public bool MarkedWatched { get; set; }
     }
 
     /// <summary>Bir dizinin kullanıcıya ait tüm puanları — dizi sayfası tek istekte alır.</summary>

@@ -113,7 +113,9 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var ratingService = new RatingService(context, new ActivityService(context));
+            var ratingActivity = new ActivityService(context);
+            var ratingService = new RatingService(context, ratingActivity,
+                new EpisodeProgressService(context, ratingActivity));
             await ratingService.SetRatingAsync("user1", 1, new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 4.5m });
             var service = CreateService(context);
 
@@ -185,7 +187,9 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var ratingService = new RatingService(context, new ActivityService(context));
+            var ratingActivity = new ActivityService(context);
+            var ratingService = new RatingService(context, ratingActivity,
+                new EpisodeProgressService(context, ratingActivity));
             var service = CreateService(context);
             // Dizi geneli inceleme puansız, sezon incelemesi 5 yıldız.
             await service.UpsertAsync("user1", 1, new UpsertReviewRequest { Body = "puansız" });
@@ -208,7 +212,9 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var ratingService = new RatingService(context, new ActivityService(context));
+            var ratingActivity = new ActivityService(context);
+            var ratingService = new RatingService(context, ratingActivity,
+                new EpisodeProgressService(context, ratingActivity));
             var service = CreateService(context);
 
             // Puansız inceleme en yeni; sayfa içinde sıralasaydık ilk sayfada o çıkardı.

@@ -171,7 +171,7 @@ namespace BingeWatch.Tests
             using var context = CreateContext();
             var show = await SeedAsync(context, "ali");
             var activity = new ActivityService(context);
-            var ratings = new RatingService(context, activity);
+            var ratings = new RatingService(context, activity, new EpisodeProgressService(context, activity));
 
             var request = new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 4.5m };
             await ratings.SetRatingAsync("ali", show.TmdbId, request);
