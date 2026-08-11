@@ -142,7 +142,7 @@ namespace BingeWatch.E2E
         /// Identity varsayılanları büyük/küçük harf, rakam ve sembol istiyor;
         /// yalnızca uzunluk (6) gevşetilmiş.
         /// </summary>
-        private const string Password = "Test!1234";
+        public const string Password = "Test!1234";
 
         /// <summary>
         /// Kayıt formunu gerçekten doldurarak hesap açar — API'ye doğrudan POST
