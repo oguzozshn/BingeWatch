@@ -22,7 +22,12 @@ namespace BingeWatch.API.Services
                 new(ClaimTypes.NameIdentifier, user.Id),
                 new(ClaimTypes.Name, user.UserName ?? string.Empty),
                 new(ClaimTypes.Email, user.Email ?? string.Empty),
-                new("display_name", user.DisplayName)
+                new("display_name", user.DisplayName),
+
+                // Token'ın tek iptal kolu. Şifre değişince Identity bu damgayı
+                // yeniliyor ve eski damgayı taşıyan token'lar reddediliyor —
+                // aksi halde token süresi (7 gün) dolana kadar geçerli kalırdı.
+                new(TokenStampValidator.ClaimType, user.SecurityStamp ?? string.Empty)
             };
 
             // [Authorize(Roles = ...)] varsayılan olarak ClaimTypes.Role'e bakar.

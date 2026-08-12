@@ -33,6 +33,17 @@ namespace BingeWatch.API.Dtos
         public string NewPassword { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// Giriş yapmış kullanıcının kendi şifresini değiştirmesi. Mevcut şifre
+    /// bilerek isteniyor: oturumu ele geçiren birinin şifreyi değiştirip
+    /// sahibini dışarıda bırakması ancak böyle pahalılaşır.
+    /// </summary>
+    public class ChangePasswordRequest
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+    }
+
     public class AuthResponse
     {
         public string Token { get; set; } = string.Empty;
