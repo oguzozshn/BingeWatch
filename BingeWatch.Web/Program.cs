@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
@@ -195,6 +196,48 @@ app.MapPost("/account/reset-password", async (HttpContext http, IHttpClientFacto
         $"/reset-password?email={Uri.EscapeDataString(email)}" +
         $"&token={Uri.EscapeDataString(token)}" +
         $"&error={Uri.EscapeDataString(message)}");
+});
+
+// Şifre değiştirme. Blazor bileşeninden değil buradan gidiyor: API taze bir
+// token döndürüyor ve onu cookie'ye yazmak HttpContext gerektiriyor —
+// etkileşimli bileşenin elinde yanıt gönderilmiş bir HttpContext yok.
+app.MapPost("/account/change-password", async (HttpContext http, IHttpClientFactory factory) =>
+{
+    var form = await http.Request.ReadFormAsync();
+    var currentPassword = form["currentPassword"].ToString();
+    var newPassword = form["newPassword"].ToString();
+    var confirmPassword = form["confirmPassword"].ToString();
+
+    if (newPassword != confirmPassword)
+        return Results.Redirect("/settings/password?error=" + Uri.EscapeDataString("Yeni şifreler birbirini tutmuyor."));
+
+    var token = http.User.FindFirst("api_token")?.Value;
+    if (string.IsNullOrEmpty(token))
+        return Results.Redirect("/login");
+
+    var client = factory.CreateClient("ApiClient");
+    var message = new HttpRequestMessage(HttpMethod.Post, "api/auth/change-password")
+    {
+        Content = JsonContent.Create(new { currentPassword, newPassword })
+    };
+    message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+    var response = await client.SendAsync(message);
+    if (!response.IsSuccessStatusCode)
+    {
+        var problem = await response.Content.ReadFromJsonAsync<ApiMessage>();
+        var error = string.IsNullOrWhiteSpace(problem?.Message) ? "Şifre değiştirilemedi." : problem.Message;
+        return Results.Redirect("/settings/password?error=" + Uri.EscapeDataString(error));
+    }
+
+    // Damga yenilendiği için cookie'deki eski token artık 401 alır; kendi
+    // oturumunu düşürmemek için cookie taze token'la yeniden yazılıyor.
+    var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
+    if (auth is null)
+        return Results.Redirect("/settings/password?error=" + Uri.EscapeDataString("Şifre değiştirilemedi."));
+
+    await SignInAsync(http, auth);
+    return Results.Redirect("/settings/password?changed=1");
 });
 
 app.MapPost("/account/logout", async (HttpContext http) =>

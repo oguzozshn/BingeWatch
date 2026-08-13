@@ -62,6 +62,12 @@
             <a class="btn btn-outline-secondary" href="/@@@username">Profilime dön</a>
         </div>
 
+        @* Şifre ayrı sayfada: kimlik alanı, düz form gönderimiyle değişiyor
+           (cookie'nin yenilenmesi gerekiyor) ve bu sayfa etkileşimli. *@
+        <p class="password-link">
+            <a href="/settings/password">Şifreni mi değiştirmek istiyorsun?</a>
+        </p>
+
         @if (error != null)
         {
             <p class="error" role="alert">@error</p>

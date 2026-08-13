@@ -9,11 +9,14 @@ namespace BingeWatch.API.Services
     {
         private readonly BingeOnDbContext _context;
         private readonly IActivityService _activityService;
+        private readonly IEpisodeProgressService _progressService;
 
-        public RatingService(BingeOnDbContext context, IActivityService activityService)
+        public RatingService(BingeOnDbContext context, IActivityService activityService,
+            IEpisodeProgressService progressService)
         {
             _context = context;
             _activityService = activityService;
+            _progressService = progressService;
         }
 
         public async Task<RatingDto?> SetRatingAsync(string userId, int showTmdbId, SetRatingRequest request)
@@ -49,6 +52,11 @@ namespace BingeWatch.API.Services
 
             await _context.SaveChangesAsync();
 
+            // İzleme kaydı puandan önce yazılıyor ki akışta "izledi" satırı
+            // "puanladı" satırının altında, yani öncesinde görünsün.
+            var markedWatched = request.TargetType == RatingTargetType.Episode
+                                && await MarkWatchedIfNeededAsync(userId, target);
+
             await _activityService.RecordRatedAsync(userId, showId, request.TargetType,
                 request.SeasonNumber, request.EpisodeId, request.Value);
 
@@ -59,7 +67,8 @@ namespace BingeWatch.API.Services
                 SeasonNumber = request.SeasonNumber,
                 EpisodeId = request.EpisodeId,
                 Value = existing.Value,
-                UpdatedAt = existing.UpdatedAt
+                UpdatedAt = existing.UpdatedAt,
+                MarkedWatched = markedWatched
             };
         }
 
@@ -192,6 +201,22 @@ namespace BingeWatch.API.Services
                     })
                     .ToList()
             };
+        }
+
+        /// <summary>
+        /// Bölüme puan vermek onu izlemiş olmayı ima eder; kullanıcı işareti ayrıca
+        /// koymak zorunda kalmasın. Zaten izlenmiş bölüme dokunulmuyor: puanı
+        /// değiştirmek izleme tarihini bugüne çekmemeli, yeniden izleme de eklememeli.
+        /// Puan silinirken işaret kaldırılmıyor — izlemek puanı geri almakla bitmez.
+        /// </summary>
+        private async Task<bool> MarkWatchedIfNeededAsync(string userId, int episodeId)
+        {
+            var alreadyWatched = await _context.WatchedEpisodes
+                .AnyAsync(w => w.UserId == userId && w.EpisodeId == episodeId && w.RewatchNo == 0);
+            if (alreadyWatched)
+                return false;
+
+            return await _progressService.SetEpisodeWatchedAsync(userId, episodeId, watched: true);
         }
 
         /// <summary>

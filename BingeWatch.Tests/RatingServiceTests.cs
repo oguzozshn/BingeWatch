@@ -18,6 +18,12 @@ namespace BingeWatch.Tests
             return new BingeOnDbContext(options);
         }
 
+        private static RatingService CreateService(BingeOnDbContext context)
+        {
+            var activity = new ActivityService(context);
+            return new RatingService(context, activity, new EpisodeProgressService(context, activity));
+        }
+
         /// <summary>TmdbId 1: tek sezon, iki bölüm. TmdbId 2: ilgisiz ikinci dizi.</summary>
         private static async Task<(Show show, Season season, Episode[] episodes, Episode foreignEpisode)>
             SeedAsync(BingeOnDbContext context)
@@ -50,7 +56,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
 
             var result = await service.SetRatingAsync("user1", 1, new SetRatingRequest
             {
@@ -67,7 +73,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
             var request = new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 3.5m };
 
             await service.SetRatingAsync("user1", 1, request);
@@ -83,7 +89,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, _, _, foreign) = await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
 
             var result = await service.SetRatingAsync("user1", 1, new SetRatingRequest
             {
@@ -101,7 +107,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
 
             var result = await service.SetRatingAsync("user1", 1, new SetRatingRequest
             {
@@ -118,7 +124,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var (_, _, episodes, _) = await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
             await service.SetRatingAsync("user1", 1, new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 4m });
             await service.SetRatingAsync("user1", 1, new SetRatingRequest { TargetType = RatingTargetType.Season, SeasonNumber = 1, Value = 3.5m });
             await service.SetRatingAsync("user1", 1, new SetRatingRequest { TargetType = RatingTargetType.Episode, EpisodeId = episodes[0].Id, Value = 5m });
@@ -136,7 +142,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
             await service.SetRatingAsync("user2", 1, new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 1m });
 
             var ratings = await service.GetUserRatingsForShowAsync("user1", 1);
@@ -149,7 +155,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
             var request = new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 4m };
             await service.SetRatingAsync("user1", 1, request);
 
@@ -159,11 +165,97 @@ namespace BingeWatch.Tests
         }
 
         [Fact]
+        public async Task SetRatingAsync_EpisodeRatingMarksEpisodeWatched()
+        {
+            using var context = CreateContext();
+            var (_, _, episodes, _) = await SeedAsync(context);
+            var service = CreateService(context);
+
+            var result = await service.SetRatingAsync("user1", 1, new SetRatingRequest
+            {
+                TargetType = RatingTargetType.Episode,
+                EpisodeId = episodes[0].Id,
+                Value = 4m
+            });
+
+            Assert.True(result!.MarkedWatched);
+            var watched = await context.WatchedEpisodes.SingleAsync();
+            Assert.Equal(episodes[0].Id, watched.EpisodeId);
+            Assert.Equal(0, watched.RewatchNo);
+        }
+
+        [Fact]
+        public async Task SetRatingAsync_LeavesAlreadyWatchedEpisodeUntouched()
+        {
+            using var context = CreateContext();
+            var (_, _, episodes, _) = await SeedAsync(context);
+            var watchedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+            context.WatchedEpisodes.Add(new WatchedEpisode
+            {
+                UserId = "user1",
+                EpisodeId = episodes[0].Id,
+                WatchedAt = watchedAt,
+                RewatchNo = 0
+            });
+            await context.SaveChangesAsync();
+            var service = CreateService(context);
+
+            var result = await service.SetRatingAsync("user1", 1, new SetRatingRequest
+            {
+                TargetType = RatingTargetType.Episode,
+                EpisodeId = episodes[0].Id,
+                Value = 4m
+            });
+
+            // Puan vermek ikinci bir izleme kaydı doğurmamalı, tarihi de kaydırmamalı.
+            Assert.False(result!.MarkedWatched);
+            var watched = await context.WatchedEpisodes.SingleAsync();
+            Assert.Equal(watchedAt, watched.WatchedAt);
+        }
+
+        [Fact]
+        public async Task SetRatingAsync_ShowAndSeasonRatingsDoNotMarkAnythingWatched()
+        {
+            using var context = CreateContext();
+            await SeedAsync(context);
+            var service = CreateService(context);
+
+            var show = await service.SetRatingAsync("user1", 1,
+                new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 4m });
+            var season = await service.SetRatingAsync("user1", 1,
+                new SetRatingRequest { TargetType = RatingTargetType.Season, SeasonNumber = 1, Value = 4m });
+
+            Assert.False(show!.MarkedWatched);
+            Assert.False(season!.MarkedWatched);
+            Assert.Empty(context.WatchedEpisodes);
+        }
+
+        [Fact]
+        public async Task RemoveRatingAsync_KeepsTheWatchedMark()
+        {
+            using var context = CreateContext();
+            var (_, _, episodes, _) = await SeedAsync(context);
+            var service = CreateService(context);
+            var request = new SetRatingRequest
+            {
+                TargetType = RatingTargetType.Episode,
+                EpisodeId = episodes[0].Id,
+                Value = 4m
+            };
+            await service.SetRatingAsync("user1", 1, request);
+
+            Assert.True(await service.RemoveRatingAsync("user1", 1, request));
+
+            // Puanı geri almak "bu bölümü izlemedim" demek değil.
+            Assert.Single(context.WatchedEpisodes);
+        }
+
+        [Fact]
         public async Task GetShowSummaryAsync_AveragesShowLevelRatingsOnly()
         {
             using var context = CreateContext();
             var (_, _, episodes, _) = await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
             await service.SetRatingAsync("user1", 1, new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 4m });
             await service.SetRatingAsync("user2", 1, new SetRatingRequest { TargetType = RatingTargetType.Show, Value = 3m });
             // Bölüm puanı diziye ait ortalamayı kaydırmamalı.
@@ -183,7 +275,7 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             await SeedAsync(context);
-            var service = new RatingService(context, new ActivityService(context));
+            var service = CreateService(context);
 
             var summary = await service.GetShowSummaryAsync(1);
 

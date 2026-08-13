@@ -288,7 +288,7 @@ namespace BingeWatch.Tests
             using var context = CreateContext();
             var show = await SeedAsync(context, "ali", "veli", "yabanci");
             var activity = new ActivityService(context);
-            var ratings = new RatingService(context, activity);
+            var ratings = new RatingService(context, activity, new EpisodeProgressService(context, activity));
 
             context.Follows.Add(new Follow { FollowerId = "ali", FolloweeId = "veli" });
             await context.SaveChangesAsync();
@@ -313,7 +313,8 @@ namespace BingeWatch.Tests
         {
             using var context = CreateContext();
             var show = await SeedAsync(context, "ali");
-            var ratings = new RatingService(context, new ActivityService(context));
+            var activity = new ActivityService(context);
+            var ratings = new RatingService(context, activity, new EpisodeProgressService(context, activity));
 
             var friends = await ratings.GetFriendRatingsAsync("ali", show.TmdbId);
 

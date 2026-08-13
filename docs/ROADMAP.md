@@ -131,7 +131,7 @@ Puanlama üç seviyede olabilir (dizi / sezon / bölüm).
 
 | Özellik | Not |
 |---|---|
-| 5 yıldız (yarım yıldız) puan | Dizi, sezon ve bölüm seviyesinde |
+| 5 yıldız (yarım yıldız) puan | Dizi, sezon ve bölüm seviyesinde; bölüm puanı bölümü izlendi olarak da işaretler |
 | Yazılı inceleme | Dizi + sezon; spoiler bayrağı zorunlu |
 | Kişisel bölüm ısı haritası | Mevcut TMDb haritasının yanına *kendi* puanların — imza özellik adayı |
 | Beğeni (like) | İnceleme ve listelerde |
@@ -783,6 +783,85 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
   - Aynı yılda başlayan diziler "hangisi en eski" sorusunu cevapsız
       bırakacağı için o durumda soru yeniden üretiliyor
   - Poster sorusunda `alt` bilerek boş: açıklama yazmak cevabı ele verirdi
+
+### Faz 9 — Hesap hijyeni, canlı bildirim, etiketleme, paylaşım (11.08.2026, **plan**)
+
+> Bir gözden geçirmeden çıktı: fazların hepsi kapalı ama **hesap yüzeyi kayıt /
+> giriş / şifre sıfırlamadan ibaret**, Faz 4'ün "canlı push Faz 6'da" sözü
+> tutulmadı ve §3'ün özellik setindeki etiketleme satırı hâlâ hiçbir faza
+> girmedi. Sıra riskten değere: **9.1 → 9.2 → 9.3 → 9.4.** 9.1 dışındakiler
+> birbirinden bağımsız, paralel gidilebilir.
+>
+> Aşağıdaki maddeler **yapılmadı**; bu bölüm diğer fazların aksine kararların
+> kaydı değil, karar gerektiren yerlerin listesi. ⭑ ile işaretli sorular
+> koda başlamadan cevaplanmalı.
+
+#### 9.1 Hesap hijyeni (önce bu)
+
+- [ ] **Şifre değiştirme** — `/settings/password` + `POST /api/auth/change-password`
+  - **Mevcut şifre sorulacak.** Oturumu ele geçiren birinin şifreyi değiştirip
+    sahibini dışarıda bırakması, ancak bu adımla pahalılaşır
+  - ⭑ **JWT stateless.** `SecurityStamp` yenilemek Identity tarafında oturumu
+    düşürür ama dağıtılmış JWT süresi dolana kadar geçerli kalır. Ya token ömrü
+    kısaltılıp yenileme akışı eklenecek ya da "şifre değişince diğer cihazlar
+    hemen düşmez" bilinçli olarak kabul edilecek. Ortası yok
+- [ ] **E-posta doğrulama** — kayıt sonrası bağlantı, `ConfirmEmail` ucu
+  - **Neden gerçek bir açık:** adres bugün hiç doğrulanmıyor ama şifre sıfırlama
+    akışı çalışıyor. Yanlış ya da başkasının adresiyle açılan bir hesabın
+    sıfırlama bağlantısı o adrese gider
+  - ⭑ **Doğrulanmamış hesap ne yapabilir?** Öneri: girebilsin ama **yazma uçları
+    kapalı** olsun (30/dk kotasının olduğu uçlar). Girişi tamamen kapatmak kayıt
+    akışını kırar, tamamen açmak spam'i davet eder
+  - **Hesap sayımına kapalı kalmalı** — Faz 1'in kuralı burada da geçerli:
+    "bu adres zaten kayıtlı" diyen bir ekran üyeleri tek tek saydırır
+  - SMTP göndericisi (§7.1) olduğu gibi devralınır; yeni bağımlılık yok
+- [ ] **Hesap silme + veri dışa aktarma** — `/settings/account`
+  - ⭑ **Sert silme mi, anonimleştirme mi?** Öneri: kullanıcı satırı ve kişisel
+    alanlar silinsin, **inceleme ve yorumlar "silinmiş kullanıcı"ya bağlansın**.
+    Cascade silme başkalarının ipliklerini ortasından koparır — bölüm
+    tartışmaları ve inceleme yorumları tam olarak bunun üstünde duruyor
+  - **FK zinciri tek tek denetlenmeli:** `Follow`, `ActivityEvent`,
+    `Notification` (hem sahibi hem `ActorId`), `UserBlock`, `UserList`,
+    `Report` — `Report.ResolvedById` bir moderatörü işaret ediyor, moderatör
+    hesabı silinince kuyruğun geçmişi de gitmemeli
+  - **Dışa aktarma** tek JSON: izlemeler, puanlar, incelemeler, listeler,
+    yorumlar. Silmeden önce indirmeyi teklif eden bir akış
+  - Geri dönüşü yok; onay için kullanıcı adını yazdırmak yeterli sürtünme
+
+#### 9.2 Canlı bildirim
+
+- [ ] **Zil sayacı anlık güncellensin** — bugün yalnızca sayfa yüklenirken okunuyor
+  - ⭑ **Önce ölçülecek: ayrı hub gerekli mi?** Blazor Server'ın devresi zaten
+    açık. Sunucu tarafında kullanıcı başına bir olay yayını + `InvokeAsync(
+    StateHasChanged)` yetiyorsa ikinci bir SignalR bağlantısı kurmanın anlamı
+    yok. Ayrı `NotificationHub` ancak bu yetmezse
+  - Engelleme kuralı bildirim üretiminde zaten uygulanıyor olmalı
+    (`NotificationService`); canlı yol onu **tekrar etmemeli**, aynı kapıdan
+    geçmeli — yoksa iki ayrı doğruluk kaynağı olur
+  - Tek kopya çalışıyoruz; çok kopyaya çıkılırsa backplane gerekir. Kararı
+    yazıp geçmek şimdilik yeterli
+
+#### 9.3 Etiketleme (§3.B — hedef özellik setinin son açık satırı)
+
+- [ ] **`Tag` + `UserShowTag`**, kütüphaneye etiket filtresi
+  - **Karar: gizli başlıyor.** §7.6'nın gerekçesi geçerli — gizliyi açmak kolay,
+    açığı geri kapatmak kullanıcının verisini görünürlükten geri çekmek demek.
+    Açık etiket serbest metin olduğu için moderasyon kuyruğuna da girerdi
+  - Gizli başladığı için etiketler **kullanıcıya özel**; paylaşılan sözlük
+    kurulmuyor. Ad normalize edilir (kırpma + küçük harf) ki `Comfort` ile
+    `comfort` iki ayrı etiket olmasın
+  - `/discover` **"Kütüphanem"** moduna filtre — tür filtresi "ve" ile
+    çalışıyor, etiket de "ve" olmalı: `comfort-show` + `bitmedi` kesişim demek
+  - Ekleme/silme arayüzü dizi sayfasında, `<AddToListButton>` kalıbının yanında
+
+#### 9.4 Paylaşım kartları (§3.C)
+
+- [ ] **Üretilen OG görseli** — bugün `og:image` ham TMDb backdrop'u
+  - Sunucuda çizim (SkiaSharp / ImageSharp): poster + dizi adı + puan
+  - **Cache şart** — crawler her istekte görüntü çizdiremez; `ETag` + süreli
+    cache, kart içeriği değişince anahtar değişir
+  - Uç **anonime açık olmalı** (crawler giriş yapmaz). Bu yüzden kişisel kartta
+    gizli profil kuralı ayrıca uygulanacak: gizli profilin kartı üretilmez
 
 ---
 

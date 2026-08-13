@@ -6,7 +6,8 @@ namespace BingeWatch.API.Services
     {
         /// <summary>
         /// Puanı yazar ya da günceller. Hedef katalogda yoksa (veya değer geçersizse)
-        /// <c>null</c> döner.
+        /// <c>null</c> döner. Bölüm puanı, bölüm daha önce izlenmemişse onu "izledim"
+        /// olarak da işaretler; bu durumda dönen DTO'da <c>MarkedWatched</c> doludur.
         /// </summary>
         Task<RatingDto?> SetRatingAsync(string userId, int showTmdbId, SetRatingRequest request);
 

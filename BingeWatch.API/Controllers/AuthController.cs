@@ -22,15 +22,18 @@ namespace BingeWatch.API.Controllers
         private readonly SignInManager<AppUser> _signInManager;
         private readonly ITokenService _tokenService;
         private readonly IPasswordResetNotifier _notifier;
+        private readonly ITokenStampValidator _stampValidator;
         private readonly ILogger<AuthController> _logger;
 
         public AuthController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager,
-            ITokenService tokenService, IPasswordResetNotifier notifier, ILogger<AuthController> logger)
+            ITokenService tokenService, IPasswordResetNotifier notifier,
+            ITokenStampValidator stampValidator, ILogger<AuthController> logger)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _tokenService = tokenService;
             _notifier = notifier;
+            _stampValidator = stampValidator;
             _logger = logger;
         }
 
@@ -176,7 +179,57 @@ namespace BingeWatch.API.Controllers
             // giremiyor ve neden olduğunu anlamıyor.
             await _userManager.ResetAccessFailedCountAsync(user);
 
+            // Sıfırlama da damgayı yeniliyor: "şifremi unuttum" akışının ardından
+            // eski oturumların ayakta kalması, akışın amacına ters.
+            _stampValidator.Invalidate(user.Id);
+
             return Ok(new { message = "Parolan güncellendi." });
+        }
+
+        /// <summary>
+        /// Giriş yapmış kullanıcının şifresini değiştirir ve <b>diğer oturumları
+        /// düşürür.</b>
+        /// </summary>
+        /// <remarks>
+        /// Identity şifre değişince <c>SecurityStamp</c>'i yeniliyor; damga
+        /// token'da claim olarak durduğu için eski damgalı token'lar bir sonraki
+        /// istekte 401 alıyor. Kullanıcının kendi oturumu düşmesin diye yanıt
+        /// taze bir token taşıyor — Web bunu cookie'ye yazıp devam ediyor.
+        ///
+        /// Sınıf seviyesindeki dar kota (IP başına 10/5dk) burada da geçerli:
+        /// mevcut şifre soruluyor, yani bu uç da bir parola deneme yüzeyi.
+        /// </remarks>
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword)
+                || string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                return BadRequest(new { message = "Mevcut ve yeni şifre gerekli." });
+            }
+
+            var user = await _userManager.FindByIdAsync(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (user == null)
+                return Unauthorized();
+
+            var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+            if (!result.Succeeded)
+            {
+                // "Mevcut şifre yanlış" ile "yeni şifre kurala uymuyor" ayrı
+                // sorunlar; ikisini tek mesaja katlamak kullanıcıyı hangisini
+                // düzelteceğini bilmeden bırakırdı.
+                if (result.Errors.Any(e => e.Code == nameof(IdentityErrorDescriber.PasswordMismatch)))
+                    return BadRequest(new { message = "Mevcut şifren doğru değil." });
+
+                return BadRequest(new { message = string.Join("; ", result.Errors.Select(e => e.Description)) });
+            }
+
+            // Damga veritabanında değişti; önbellekteki eski değer düşürülmezse
+            // iptal bu süreçte önbellek ömrü kadar gecikirdi.
+            _stampValidator.Invalidate(user.Id);
+
+            return Ok(await BuildAuthResponseAsync(user));
         }
 
         /// <summary>

@@ -228,7 +228,7 @@ else
                                                             {
                                                                 <StarRating Value="@EpisodeRating(ep.Id)" Size="sm"
                                                                             AriaLabel="@($"{ep.EpisodeNumber}. bölüme puan ver")"
-                                                                            ValueChanged="v => RateEpisodeAsync(ep.Id, v)" />
+                                                                            ValueChanged="v => RateEpisodeAsync(ep, v)" />
                                                             }
                                                             @if (!ep.Watched && !unaired)
                                                             {
@@ -585,7 +585,7 @@ else
     private async Task RateShowAsync(decimal? value)
     {
         var request = new SetRatingRequest { TargetType = RatingTargetType.Show, Value = value ?? 0 };
-        if (!await SendRatingAsync(request, value))
+        if (!(await SendRatingAsync(request, value)).IsSuccessStatusCode)
             return;
 
         myRatings.ShowRating = value;
@@ -602,7 +602,7 @@ else
             SeasonNumber = seasonNumber,
             Value = value ?? 0
         };
-        if (!await SendRatingAsync(request, value))
+        if (!(await SendRatingAsync(request, value)).IsSuccessStatusCode)
             return;
 
         if (value.HasValue)
@@ -611,36 +611,49 @@ else
             myRatings.SeasonRatings.Remove(seasonNumber);
     }
 
-    private async Task RateEpisodeAsync(int episodeId, decimal? value)
+    private async Task RateEpisodeAsync(EpisodeDetailDto episode, decimal? value)
     {
         var request = new SetRatingRequest
         {
             TargetType = RatingTargetType.Episode,
-            EpisodeId = episodeId,
+            EpisodeId = episode.Id,
             Value = value ?? 0
         };
-        if (!await SendRatingAsync(request, value))
+        var response = await SendRatingAsync(request, value);
+        if (!response.IsSuccessStatusCode)
             return;
 
-        if (value.HasValue)
-            myRatings.EpisodeRatings[episodeId] = value.Value;
-        else
-            myRatings.EpisodeRatings.Remove(episodeId);
+        if (!value.HasValue)
+        {
+            myRatings.EpisodeRatings.Remove(episode.Id);
+            return;
+        }
+
+        myRatings.EpisodeRatings[episode.Id] = value.Value;
+
+        // Sunucu puan verilen bölümü izlendi olarak da işaretliyor. Sezon sayacı
+        // ve ilerleme çubuğu bunu yansıtmalı; ilerleme sunucudan tazeleniyor
+        // çünkü dizi durumu da (İzliyorum / Bitirdim) değişmiş olabilir.
+        var result = await response.Content.ReadFromJsonAsync<RatingDto>();
+        if (result is { MarkedWatched: true })
+        {
+            episode.Watched = true;
+            var api = await GetApiAsync();
+            progress = await api.GetFromJsonAsync<ShowProgressDto>($"api/shows/{TmdbId}/progress");
+        }
     }
 
     /// <summary><paramref name="value"/> null ise puan silinir, doluysa yazılır.</summary>
-    private async Task<bool> SendRatingAsync(SetRatingRequest request, decimal? value)
+    private async Task<HttpResponseMessage> SendRatingAsync(SetRatingRequest request, decimal? value)
     {
         var api = await GetApiAsync();
 
-        var response = value.HasValue
+        return value.HasValue
             ? await api.PutAsJsonAsync($"api/shows/{TmdbId}/ratings", request)
             : await api.SendAsync(new HttpRequestMessage(HttpMethod.Delete, $"api/shows/{TmdbId}/ratings")
             {
                 Content = JsonContent.Create(request)
             });
-
-        return response.IsSuccessStatusCode;
     }
 
     // ----- İnceleme -------------------------------------------------------

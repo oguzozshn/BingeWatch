@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -109,6 +110,7 @@ namespace BingeWatch.API
             builder.Services.AddHostedService<MetricsFlushService>();
             builder.Services.AddSingleton<ILogFileReader, LogFileReader>();
             builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
+            builder.Services.AddScoped<ITokenStampValidator, TokenStampValidator>();
 
             // ASP.NET Core Identity
             builder.Services.AddIdentityCore<AppUser>(options =>
@@ -137,6 +139,24 @@ namespace BingeWatch.API
                         ValidIssuer = builder.Configuration["Jwt:Issuer"],
                         ValidAudience = builder.Configuration["Jwt:Audience"],
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+                    };
+
+                    // İmza ve süre doğru olsa bile token iptal edilmiş olabilir:
+                    // şifre değişince Identity damgayı yeniliyor. Kontrol imzadan
+                    // sonra, yetkilendirmeden önce burada yapılıyor.
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnTokenValidated = async context =>
+                        {
+                            var validator = context.HttpContext.RequestServices
+                                .GetRequiredService<ITokenStampValidator>();
+
+                            var userId = context.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                            var stamp = context.Principal?.FindFirst(TokenStampValidator.ClaimType)?.Value;
+
+                            if (userId == null || !await validator.IsCurrentAsync(userId, stamp))
+                                context.Fail("Oturum damgası geçersiz.");
+                        }
                     };
                 });
 
