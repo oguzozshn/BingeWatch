@@ -793,19 +793,43 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 > dışındakiler birbirinden bağımsız, paralel gidilebilir. (Numaralar kimlik,
 > sıra değil: 9.5 sonradan eklendi ama sosyal değeri 9.4'ün önünde.)
 >
-> Aşağıdaki maddeler **yapılmadı**; bu bölüm diğer fazların aksine kararların
-> kaydı değil, karar gerektiren yerlerin listesi. ⭑ ile işaretli sorular
-> koda başlamadan cevaplanmalı.
+> Aşağıdaki maddelerin **işaretsiz olanları yapılmadı**; bu bölüm diğer
+> fazların aksine kararların kaydı değil, karar gerektiren yerlerin listesi.
+> ⭑ ile işaretli sorular koda başlamadan cevaplanmalı — bir madde bitince o
+> soru cevabıyla birlikte kayda geçiyor (bkz. 9.1'in ilk maddesi).
+>
+> **Durum (13.08.2026):** şifre değiştirme (9.1) ve profildeki kütüphane
+> (9.5) bitti; e-posta doğrulama, hesap silme, canlı bildirim, etiketleme ve
+> paylaşım kartları açık.
 
 #### 9.1 Hesap hijyeni (önce bu)
 
-- [ ] **Şifre değiştirme** — `/settings/password` + `POST /api/auth/change-password`
-  - **Mevcut şifre sorulacak.** Oturumu ele geçiren birinin şifreyi değiştirip
-    sahibini dışarıda bırakması, ancak bu adımla pahalılaşır
-  - ⭑ **JWT stateless.** `SecurityStamp` yenilemek Identity tarafında oturumu
-    düşürür ama dağıtılmış JWT süresi dolana kadar geçerli kalır. Ya token ömrü
-    kısaltılıp yenileme akışı eklenecek ya da "şifre değişince diğer cihazlar
-    hemen düşmez" bilinçli olarak kabul edilecek. Ortası yok
+- [x] **Şifre değiştirme** — `/settings/password` + `POST /api/auth/change-password`
+      (13.08.2026, PR [#38](https://github.com/oguzozshn/BingeWatch/pull/38))
+  - **Mevcut şifre soruluyor.** Oturumu ele geçiren birinin şifreyi değiştirip
+    sahibini dışarıda bırakması, ancak bu adımla pahalılaşır. "Mevcut şifre
+    yanlış" ile "yeni şifre kurala uymuyor" ayrı mesajlar: ikisini tek mesaja
+    katlamak kullanıcıyı hangisini düzelteceğini bilmeden bırakırdı
+  - **⭑ Karar: damga doğrulaması.** Token'a `security_stamp` claim'i giriyor,
+    API her kimlikli istekte damgayı kullanıcının güncel `SecurityStamp`'iyle
+    karşılaştırıyor (`ITokenStampValidator`, `OnTokenValidated` olayında).
+    Şifre değişince Identity damgayı yeniliyor, eski damgalı token'lar 401
+    alıyor. Token ömrü (7 gün) ve yenileme akışı olduğu gibi kaldı
+  - **Damga sorgusu her istek yolunda**, bu yüzden kullanıcı başına 60 sn'lik
+    önbellekle okunuyor. Şifreyi değiştiren uç önbelleği kendi düşürüyor: tek
+    kopyada iptal **anında**. 60 sn yalnızca çok kopyalı çalıştırmada anlamlı
+  - **Damgasız token reddediliyor** — bu özellikten önce üretilenler damga
+    taşımıyor ve iptal edilemez; kabul etmek mekanizmayı anlamsız kılardı.
+    ⚠️ Bedeli: sürüm geçince herkes bir kez yeniden giriş yapar
+  - **Sıfırlama akışı da damgayı düşürüyor** — "şifremi unuttum"dan sonra eski
+    oturumların ayakta kalması akışın amacına ters
+  - ⚠️ **"Oturum kapandı" değil, "token geçersizleşti".** Web bir BFF: JWT
+    tarayıcıya hiç gitmiyor, cookie'nin claim'inde duruyor. Damga düşünce o
+    cihazdaki **cookie hâlâ geçerli**, yalnızca API istekleri 401 alıyor —
+    sayfa girişli görünüp veri çekemiyor. Arayüz metni bu yüzden "oturumların
+    kapatıldı" değil "oturumlar geçersizleşti" diyor. Web'in 401'i görünce
+    oturumu kapatması ayrı bir iş; aynı boşluk token süresi dolduğunda da var
+    (JWT 7 gün sabit, cookie 7 gün **kayan** — cookie token'dan uzun yaşıyor)
 - [ ] **E-posta doğrulama** — kayıt sonrası bağlantı, `ConfirmEmail` ucu
   - **Neden gerçek bir açık:** adres bugün hiç doğrulanmıyor ama şifre sıfırlama
     akışı çalışıyor. Yanlış ya da başkasının adresiyle açılan bir hesabın
@@ -869,8 +893,18 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 > 13.08.2026'da eklendi. Soru şuydu: kullanıcılar birbirlerinin izlediği
 > dizileri ve izleme listelerini görebilmeli mi? **Cevap: evet.**
 
-- [ ] **Profilde `Kütüphane` ve `İzleyecekleri` sekmeleri** — `UserShow`
-      üzerinden, dizi seviyesinde
+- [x] **Profilde `Kütüphane` ve `İzleyecekleri` sekmeleri** — `UserShow`
+      üzerinden, dizi seviyesinde (13.08.2026, PR
+      [#39](https://github.com/oguzozshn/BingeWatch/pull/39))
+  - `GET /api/users/{username}/library` tek yanıt veriyor; sekme değiştirmek
+    yeni istek gerektirmiyor. Sıralama listeye eklenme tarihine göre — "son
+    izlenen" sırası, bakmamaya karar verilen bölüm verisini okumak olurdu
+  - ⚠️ **Yol üstünde bulunan hata:** sayfanın sekmeleri prerender yarışına
+    karşı korumasızdı; devre bağlanmadan yapılan tıklama sessizce
+    kayboluyordu. E2E ilk koşuda yakaladı, sayfa `InteractiveComponentBase`'e
+    bağlandı. Faz 8'de ürün genelinde kapatılan boşluk **yeni sayfada
+    tekrarlanmıştı** — kalıp hatırlanmadıkça her yeni etkileşimli sayfada
+    geri gelecek
   - **Karar aslında yarı yarıya verilmişti.** Başkasının profili bugün zaten
     favori 4 diziyi, izlenen bölüm / bitirilen dizi sayısını, toplam süreyi ve
     `/@kullanici/stats` sayfasında **"en çok izlenenler"** listesini (dizi adı,
