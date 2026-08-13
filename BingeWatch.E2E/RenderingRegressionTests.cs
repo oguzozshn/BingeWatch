@@ -74,17 +74,29 @@ namespace BingeWatch.E2E
         /// kültürüne bırakılamaz. Windows'ta gizli kalan, Linux'ta ortaya
         /// çıkan bir hataydı — CI Linux'ta koştuğu için buradan yakalanır.
         /// </summary>
+        /// <remarks>
+        /// ⚠️ Bu test ve kardeşi (<see cref="Numbers_UseTurkishDecimalSeparator"/>)
+        /// bir süre CI'da dönüşümlü olarak düştü: <c>GotoAsync</c>'ten hemen sonra
+        /// <c>InnerTextAsync</c> ile <b>anlık görüntü</b> alıyorlardı. Prerender
+        /// edilmiş sayfa devre devralırken bileşen yeniden kuruluyor ve o kısa
+        /// aralıkta "Yükleniyor..." gösteriyor; anlık görüntü oraya denk gelince
+        /// test kültür hatası varmış gibi rapor veriyordu. Yerelde hiç
+        /// görünmüyordu, Linux koşucuda aralık yetecek kadar genişti.
+        /// <para>
+        /// Çözüm beklemeyi Playwright'a bırakmak: <c>ToContainTextAsync</c>
+        /// içerik gelene kadar yeniden deniyor. Aynı hata kalıbı innerText
+        /// anlık görüntüsü alan her testte var.
+        /// </para>
+        /// </remarks>
         [Fact]
         public async Task Dates_AreFormattedInTurkish()
         {
             var page = await _app.NewPageAsync();
             await page.GotoAsync($"{AppFixture.WebUrl}/show/{SeedShowId}/season/1/episode/1");
 
-            var body = await page.Locator("body").InnerTextAsync();
-
             // Tohumlanan yayın tarihi: 20 Ocak 2008.
-            Assert.Contains("Ocak", body);
-            Assert.DoesNotContain("January", body);
+            await Assertions.Expect(page.Locator("body")).ToContainTextAsync("Ocak");
+            Assert.DoesNotContain("January", await page.Locator("body").InnerTextAsync());
         }
 
         /// <summary>Ondalık ayırıcı da kültüre bağlı: 7,8 — 7.8 değil.</summary>
@@ -94,10 +106,8 @@ namespace BingeWatch.E2E
             var page = await _app.NewPageAsync();
             await page.GotoAsync($"{AppFixture.WebUrl}/show/{SeedShowId}/season/1/episode/1");
 
-            var body = await page.Locator("body").InnerTextAsync();
-
             // Tohumlanan bölüm puanı 7,8 (7.5 + 1 * 0.3).
-            Assert.Contains("7,8", body);
+            await Assertions.Expect(page.Locator("body")).ToContainTextAsync("7,8");
         }
 
         /// <summary>
