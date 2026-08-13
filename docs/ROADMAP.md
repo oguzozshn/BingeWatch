@@ -789,8 +789,9 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
 > Bir gözden geçirmeden çıktı: fazların hepsi kapalı ama **hesap yüzeyi kayıt /
 > giriş / şifre sıfırlamadan ibaret**, Faz 4'ün "canlı push Faz 6'da" sözü
 > tutulmadı ve §3'ün özellik setindeki etiketleme satırı hâlâ hiçbir faza
-> girmedi. Sıra riskten değere: **9.1 → 9.2 → 9.3 → 9.4.** 9.1 dışındakiler
-> birbirinden bağımsız, paralel gidilebilir.
+> girmedi. Sıra riskten değere: **9.1 → 9.2 → 9.3 → 9.5 → 9.4.** 9.1
+> dışındakiler birbirinden bağımsız, paralel gidilebilir. (Numaralar kimlik,
+> sıra değil: 9.5 sonradan eklendi ama sosyal değeri 9.4'ün önünde.)
 >
 > Aşağıdaki maddeler **yapılmadı**; bu bölüm diğer fazların aksine kararların
 > kaydı değil, karar gerektiren yerlerin listesi. ⭑ ile işaretli sorular
@@ -862,6 +863,37 @@ sonuçlanır. Faz 3 ve 5 birbirinden bağımsız, paralel gidilebilir.
     cache, kart içeriği değişince anahtar değişir
   - Uç **anonime açık olmalı** (crawler giriş yapmaz). Bu yüzden kişisel kartta
     gizli profil kuralı ayrıca uygulanacak: gizli profilin kartı üretilmez
+
+#### 9.5 Profilde kütüphane — başkasının izledikleri ve izleyecekleri
+
+> 13.08.2026'da eklendi. Soru şuydu: kullanıcılar birbirlerinin izlediği
+> dizileri ve izleme listelerini görebilmeli mi? **Cevap: evet.**
+
+- [ ] **Profilde `Kütüphane` ve `İzleyecekleri` sekmeleri** — `UserShow`
+      üzerinden, dizi seviyesinde
+  - **Karar aslında yarı yarıya verilmişti.** Başkasının profili bugün zaten
+    favori 4 diziyi, izlenen bölüm / bitirilen dizi sayısını, toplam süreyi ve
+    `/@kullanici/stats` sayfasında **"en çok izlenenler"** listesini (dizi adı,
+    poster, bölüm sayısı, dakika) gösteriyor. Akış da takip edilenlerin bölüm
+    bölüm "izledi" olaylarını taşıyor. Yani "ne izliyor" zaten dışarıda;
+    saklanan tek şey kütüphanenin **liste hâli**. Toplamı gösterip kalemleri
+    gizlemek kimseyi korumuyor, yalnızca veriyi işe yaramaz kılıyor
+  - **İki ayrı sekme, tek liste değil.** "İzledim" geçmiş beyanı, "izleyeceğim"
+    niyet beyanı; sosyal değerleri de mahremiyet hisleri de farklı. Asıl fayda
+    ikincisinde: birinin listesine bakıp "bunu ben de izleyecektim" demek,
+    takip etmenin en somut sebeplerinden biri
+  - **Yeni gizlilik kolu yok.** Mevcut `IsPrivate` devralınıyor. Üçüncü bir
+    "kütüphanem gizli olsun" anahtarı kullanıcıya aynı soruyu üçüncü kez sormak
+    olur ve listelerdeki iki katmanlı kuralla (kapalı liste + gizli profil)
+    çelişen bir üçüncü kural doğurur
+  - ⚠️ **Bölüm bazlı ilerleme dışarı açılmıyor.** "Breaking Bad izliyor" açık
+    olabilir ama "S3B4'te" olması kalmalı: kimseye faydası yok ve Faz 7'deki
+    bölüm tartışmalarının kapısı tam olarak bu veriye dayanıyor — dışarıdan
+    okunabilir olması, kimin hangi ipliği açabildiğini de okunabilir kılar.
+    Dizi seviyesinde durum yeter
+  - **Engelleme ve gizlilik süzgeçleri bu uçta da eksiksiz uygulanmalı** —
+    Faz 6.1'de listelerde tek tek kurulan kalıbın aynısı. Yeni bir kural değil
+    ama unutulursa sessiz bir sızıntı olur
 
 ---
 
