@@ -75,6 +75,7 @@ namespace BingeWatch.API
             builder.Services.AddScoped<IReviewInteractionService, ReviewInteractionService>();
             builder.Services.AddScoped<IEpisodeCommentService, EpisodeCommentService>();
             builder.Services.AddScoped<IUserStatsService, UserStatsService>();
+            builder.Services.AddScoped<IUserLibraryService, UserLibraryService>();
             builder.Services.AddScoped<IUserListService, UserListService>();
             builder.Services.AddScoped<IDiscoverService, DiscoverService>();
             builder.Services.AddScoped<IBlockService, BlockService>();

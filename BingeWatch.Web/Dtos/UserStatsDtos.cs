@@ -8,6 +8,10 @@ namespace BingeWatch.Web.Dtos
         public int RewatchCount { get; set; }
         public int ShowsWatchingCount { get; set; }
         public int ShowsCompletedCount { get; set; }
+
+        /// <summary>Kütüphanedeki toplam dizi; profildeki kütüphane bağlantısı bunu gösteriyor.</summary>
+        public int ShowCount { get; set; }
+
         public int ReviewCount { get; set; }
         public int RatingCount { get; set; }
         public double? AverageRating { get; set; }

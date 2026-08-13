@@ -50,6 +50,11 @@ else
             <a href="/@@@profile.Username/lists">
                 <strong>@listCount</strong> liste
             </a>
+            @* Sayı istatistik yanıtından geliyor; yalnızca sayı için
+               kütüphanenin tamamını çekmek gereksiz bir istek olurdu. *@
+            <a href="/@@@profile.Username/library">
+                <strong>@(stats?.ShowCount ?? 0)</strong> dizi
+            </a>
         </nav>
 
         <p class="muted">Katılım: @profile.CreatedAt.ToString("d MMMM yyyy")</p>
