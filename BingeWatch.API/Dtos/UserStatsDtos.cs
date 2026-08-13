@@ -12,6 +12,14 @@ namespace BingeWatch.API.Dtos
 
         public int ShowsWatchingCount { get; set; }
         public int ShowsCompletedCount { get; set; }
+
+        /// <summary>
+        /// Kütüphanedeki toplam dizi (her durum dahil). Profil, kütüphane
+        /// sayfasına verdiği bağlantıda bunu gösteriyor; sayı için ayrıca
+        /// kütüphaneyi çekmek gereksiz bir istek olurdu.
+        /// </summary>
+        public int ShowCount { get; set; }
+
         public int ReviewCount { get; set; }
         public int RatingCount { get; set; }
 

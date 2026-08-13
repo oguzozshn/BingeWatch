@@ -55,6 +55,7 @@ namespace BingeWatch.API.Services
                 RewatchCount = watched.Count(w => w.RewatchNo > 0),
                 ShowsWatchingCount = statuses.Count(s => s == WatchStatus.Watching),
                 ShowsCompletedCount = statuses.Count(s => s == WatchStatus.Completed),
+                ShowCount = statuses.Count,
                 ReviewCount = await _context.Reviews.CountAsync(r => r.UserId == user.Id),
                 RatingCount = await _context.Ratings.CountAsync(r => r.UserId == user.Id),
                 AverageRating = showRatings.Count == 0 ? null : (double)showRatings.Average(),

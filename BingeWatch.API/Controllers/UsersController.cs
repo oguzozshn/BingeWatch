@@ -18,15 +18,18 @@ namespace BingeWatch.API.Controllers
         private readonly IFollowService _followService;
         private readonly IUserStatsService _statsService;
         private readonly IUserListService _listService;
+        private readonly IUserLibraryService _libraryService;
         private readonly IBlockService _blockService;
 
         public UsersController(UserManager<AppUser> userManager, IFollowService followService,
-            IUserStatsService statsService, IUserListService listService, IBlockService blockService)
+            IUserStatsService statsService, IUserListService listService,
+            IUserLibraryService libraryService, IBlockService blockService)
         {
             _userManager = userManager;
             _followService = followService;
             _statsService = statsService;
             _listService = listService;
+            _libraryService = libraryService;
             _blockService = blockService;
         }
 
@@ -133,6 +136,18 @@ namespace BingeWatch.API.Controllers
         {
             var following = await _followService.GetFollowingAsync(username, ViewerId);
             return following == null ? NotFound() : Ok(following);
+        }
+
+        /// <summary>
+        /// Kullanıcının kütüphanesi — listesindeki diziler, durumlarıyla. Arayüz
+        /// bunu "izledikleri" ve "izleyecekleri" diye ikiye bölüyor; sekme
+        /// değiştirmek yeni istek gerektirmesin diye uç tek yanıt veriyor.
+        /// </summary>
+        [HttpGet("{username}/library")]
+        public async Task<IActionResult> GetLibrary(string username)
+        {
+            var library = await _libraryService.GetLibraryAsync(username, ViewerId);
+            return library == null ? NotFound() : Ok(library);
         }
 
         /// <summary>Kullanıcının listeleri; kapalı olanlar yalnızca sahibine döner.</summary>

@@ -1,0 +1,203 @@
+@page "/@{Username}/library"
+@rendermode InteractiveServer
+@inherits BingeWatch.Web.InteractiveComponentBase
+
+@using BingeWatch.Web.Dtos
+
+@inject IHttpClientFactory HttpClientFactory
+@inject IJSRuntime JS
+
+@*
+    Faz 9.5 — başkasının kütüphanesi. İki sekme: izledikleri (İzliyorum /
+    Bitirdim / Bıraktım / Ertelendi) ve izleyecekleri. "İzledim" geçmiş beyanı,
+    "izleyeceğim" niyet beyanı; aynı listede birleştirilmiyorlar.
+
+    Gizlilik ve engelleme kuralı sunucuda: gizli profil ve engelli taraf 404
+    alıyor, sayfa "bulunamadı" diyor. Buradaki tek iş çizmek.
+*@
+
+<PageTitle>@Username — kütüphane</PageTitle>
+<PageMeta Title="@($"{Username} — kütüphane")" NoIndex="true" />
+
+<div class="library-page">
+    @if (loading)
+    {
+        <p class="muted">Yükleniyor...</p>
+    }
+    else if (library == null)
+    {
+        <p class="muted">Kullanıcı bulunamadı.</p>
+    }
+    else
+    {
+        <header class="page-head">
+            <h1><a href="/@@@library.Username">@library.DisplayName</a> kütüphanesi</h1>
+        </header>
+
+        @* Dizi sayfasındaki sekme deseninin aynısı: şeritte tek odak durağı,
+           geçiş ok tuşlarıyla. İki sayfanın sekmeleri klavyede farklı
+           davranırsa kullanıcı hangisinin nasıl çalıştığını bilemez. *@
+        <div class="tabs" role="tablist" aria-label="Kütüphane bölümleri"
+             @onkeydown="OnTabKeyDown">
+            @foreach (var t in AllTabs)
+            {
+                var tab = t;
+                @* Devre kurulana kadar devre dışı: prerender edilmiş HTML'e
+                   yapılan tıklama sessizce kayboluyordu. *@
+                <button type="button" role="tab" class="tab @(activeTab == tab ? "active" : "")"
+                        id="@TabId(tab)"
+                        aria-selected="@Aria(activeTab == tab)"
+                        aria-controls="library-tabpanel"
+                        tabindex="@(activeTab == tab ? 0 : -1)"
+                        disabled="@(!Interactive)"
+                        @onclick="() => activeTab = tab">
+                    @TabLabel(tab) <span class="count">@Shows(tab).Count</span>
+                </button>
+            }
+        </div>
+
+        <section class="tab-panel" id="library-tabpanel" role="tabpanel"
+                 aria-labelledby="@TabId(activeTab)" tabindex="0">
+            @{
+                var shows = Shows(activeTab);
+            }
+            @if (shows.Count == 0)
+            {
+                <p class="muted">@EmptyLabel(activeTab)</p>
+            }
+            else
+            {
+                <div class="show-grid">
+                    @foreach (var show in shows)
+                    {
+                        <a class="show-card" href="/show/@show.TmdbId">
+                            @if (string.IsNullOrEmpty(show.PosterPath))
+                            {
+                                <div class="poster placeholder" aria-hidden="true"></div>
+                            }
+                            else
+                            {
+                                <img class="poster" src="@PosterUrl(show.PosterPath)" alt="" loading="lazy" />
+                            }
+                            <span class="name">
+                                @if (show.IsFavorite)
+                                {
+                                    <span class="favorite" title="Favori">★</span>
+                                }
+                                @show.Name
+                            </span>
+                            @if (activeTab == Tab.Watched)
+                            {
+                                <span class="status">@StatusLabel(show.Status)</span>
+                            }
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Username { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private enum Tab { Watched, Planned }
+
+    private static readonly Tab[] AllTabs = { Tab.Watched, Tab.Planned };
+
+    private UserLibraryDto? library;
+    private Tab activeTab = Tab.Watched;
+    private bool loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        activeTab = Tab.Watched;
+
+        var client = HttpClientFactory.CreateClient("ApiClient");
+
+        // Kişisel katman yok ama token yine de gerekiyor: gizli profilini
+        // sahibi görebilmeli ve engel kuralı isteği yapanı bilmeden işlemez.
+        var authState = AuthStateTask is null ? null : await AuthStateTask;
+        var token = authState?.User.FindFirst("api_token")?.Value;
+        if (!string.IsNullOrEmpty(token))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"api/users/{Username}/library");
+        library = response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<UserLibraryDto>()
+            : null;
+
+        loading = false;
+    }
+
+    /// <summary>
+    /// "İzleyeceğim" kendi sekmesinde; kalan her durum (izliyor, bitirdi,
+    /// bıraktı, erteledi) izledikleri sekmesinde toplanıyor.
+    /// </summary>
+    private List<LibraryShowDto> Shows(Tab tab) =>
+        library == null
+            ? new List<LibraryShowDto>()
+            : tab == Tab.Planned
+                ? library.Shows.Where(s => s.Status == "PlanToWatch").ToList()
+                : library.Shows.Where(s => s.Status != "PlanToWatch").ToList();
+
+    private async Task OnTabKeyDown(KeyboardEventArgs e)
+    {
+        var current = Array.IndexOf(AllTabs, activeTab);
+
+        var next = e.Key switch
+        {
+            "ArrowRight" => (current + 1) % AllTabs.Length,
+            "ArrowLeft" => (current - 1 + AllTabs.Length) % AllTabs.Length,
+            "Home" => 0,
+            "End" => AllTabs.Length - 1,
+            _ => -1
+        };
+
+        if (next < 0 || next == current)
+            return;
+
+        activeTab = AllTabs[next];
+
+        // Seçim değişip odak eski sekmede kalırsa ekran okuyucu yeni sekmeyi
+        // duyurmaz ve odak tabindex="-1"e düşen düğmede mahsur kalır.
+        await JS.InvokeVoidAsync("bingeWatchFocusElement", TabId(activeTab));
+    }
+
+    private static string TabId(Tab tab) => $"library-tab-{tab}";
+
+    private static string TabLabel(Tab tab) => tab switch
+    {
+        Tab.Watched => "İzledikleri",
+        _ => "İzleyecekleri"
+    };
+
+    private string EmptyLabel(Tab tab) => tab switch
+    {
+        Tab.Watched => "Henüz izlemeye başladığı bir dizi yok.",
+        _ => "İzleme listesinde dizi yok."
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Watching" => "İzliyor",
+        "Completed" => "Bitirdi",
+        "Dropped" => "Bıraktı",
+        "OnHold" => "Ertelendi",
+        _ => ""
+    };
+
+    private static string PosterUrl(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return "";
+
+        return path.StartsWith("http") ? path : $"https://image.tmdb.org/t/p/w342{path}";
+    }
+}
